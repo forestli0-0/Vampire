@@ -46,6 +46,8 @@ end
 
 function enemies.damageEnemy(state, e, dmg, knock, kForce)
     e.hp = e.hp - dmg
+    e.flashTimer = 0.1
+    if state.playSfx then state.playSfx('hit') end
     table.insert(state.texts, {x=e.x, y=e.y-20, text=dmg, color={1,1,1}, life=0.5})
     if knock then
         local a = math.atan2(e.y - state.player.y, e.x - state.player.x)
@@ -58,6 +60,11 @@ function enemies.update(state, dt)
     local p = state.player
     for i = #state.enemies, 1, -1 do
         local e = state.enemies[i]
+
+        if e.flashTimer and e.flashTimer > 0 then
+            e.flashTimer = e.flashTimer - dt
+            if e.flashTimer < 0 then e.flashTimer = 0 end
+        end
 
         local pushX, pushY = 0, 0
         if #state.enemies > 1 then

@@ -43,10 +43,12 @@ function weapons.update(state, dt)
             if key == 'wand' then
                 local t = enemies.findNearestEnemy(state, 600)
                 if t then
+                    if state.playSfx then state.playSfx('shoot') end
                     weapons.spawnProjectile(state, 'wand', state.player.x, state.player.y, t)
                     w.timer = actualCD
                 end
             elseif key == 'axe' then
+                if state.playSfx then state.playSfx('shoot') end
                 weapons.spawnProjectile(state, 'axe', state.player.x, state.player.y, nil)
                 w.timer = actualCD
             elseif key == 'garlic' then

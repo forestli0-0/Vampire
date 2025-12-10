@@ -35,6 +35,7 @@ function pickups.updateGems(state, dt)
         if distSq < pickupRadius * pickupRadius then
             addXp(state, g.value)
             table.remove(state.gems, i)
+            if state.playSfx then state.playSfx('gem') end
         end
     end
 end
@@ -68,10 +69,13 @@ function pickups.updateFloorPickups(state, dt)
                 table.insert(state.texts, {x=p.x, y=p.y-30, text="+30 HP", color={1,0.7,0}, life=1})
             elseif item.kind == 'magnet' then
                 -- 吸取全地图宝石
+                local collected = false
                 for gi = #state.gems, 1, -1 do
                     addXp(state, state.gems[gi].value)
                     table.remove(state.gems, gi)
+                    collected = true
                 end
+                if collected and state.playSfx then state.playSfx('gem') end
                 table.insert(state.texts, {x=p.x, y=p.y-30, text="MAGNET!", color={0,0.8,1}, life=1})
             elseif item.kind == 'bomb' then
                 -- 只杀屏幕内的敌人
@@ -83,6 +87,8 @@ function pickups.updateFloorPickups(state, dt)
                         e.hp = 0
                     end
                 end
+                state.shakeAmount = 5
+                if state.playSfx then state.playSfx('hit') end
                 table.insert(state.texts, {x=p.x, y=p.y-30, text="BOMB!", color={1,0,0}, life=1})
             end
             table.remove(state.floorPickups, i)

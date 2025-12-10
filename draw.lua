@@ -3,6 +3,9 @@ local draw = {}
 function draw.render(state)
     love.graphics.setFont(state.font)
     love.graphics.push()
+    if state.shakeAmount and state.shakeAmount > 0 then
+        love.graphics.translate(love.math.random() * state.shakeAmount, love.math.random() * state.shakeAmount)
+    end
     love.graphics.translate(-state.camera.x, -state.camera.y)
 
     -- 背景平铺
@@ -60,7 +63,11 @@ function draw.render(state)
     end
 
     for _, e in ipairs(state.enemies) do
-        love.graphics.setColor(e.color)
+        if e.flashTimer and e.flashTimer > 0 then
+            love.graphics.setColor(1,1,1)
+        else
+            love.graphics.setColor(e.color)
+        end
         love.graphics.rectangle('fill', e.x - e.size/2, e.y - e.size/2, e.size, e.size)
     end
 

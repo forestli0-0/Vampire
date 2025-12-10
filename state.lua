@@ -98,6 +98,34 @@ function state.init()
     state.spawnTimer = 0
     state.camera = { x = 0, y = 0 }
     state.directorState = { event60 = false, event120 = false }
+    state.shakeAmount = 0
+
+    -- 简单音效加载（若文件不存在则生成占位音）
+    local function genBeep(freq, duration)
+        duration = duration or 0.1
+        local sampleRate = 44100
+        local data = love.sound.newSoundData(math.floor(sampleRate * duration), sampleRate, 16, 1)
+        for i = 0, data:getSampleCount() - 1 do
+            local t = i / sampleRate
+            local sample = math.sin(2 * math.pi * freq * t) * 0.2
+            data:setSample(i, sample)
+        end
+        return love.audio.newSource(data, 'static')
+    end
+    local function loadSfx(name, fallbackFreq)
+        local ok, src = pcall(love.audio.newSource, name, 'static')
+        if ok and src then return src end
+        return genBeep(fallbackFreq)
+    end
+    state.sfx = {
+        shoot = loadSfx('shoot.wav', 600),
+        hit   = loadSfx('hit.wav', 200),
+        gem   = loadSfx('gem.wav', 1200)
+    }
+    function state.playSfx(key)
+        local s = state.sfx[key]
+        if s then s:clone():play() end
+    end
 
     -- 背景平铺纹理（简单生成一张无缝草地占位图）
     local tileW, tileH = 64, 64

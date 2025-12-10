@@ -20,6 +20,10 @@ function love.update(dt)
         return
     end
 
+    if state.shakeAmount > 0 then
+        state.shakeAmount = math.max(0, state.shakeAmount - dt * 10)
+    end
+
     state.gameTimer = state.gameTimer + dt
 
     player.updateMovement(state, dt)

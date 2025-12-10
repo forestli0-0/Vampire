@@ -22,6 +22,8 @@ function player.hurt(state, dmg)
     if p.invincibleTimer > 0 then return end
     p.hp = math.max(0, p.hp - dmg)
     p.invincibleTimer = 0.5
+    state.shakeAmount = 5
+    if state.playSfx then state.playSfx('hit') end
     table.insert(state.texts, {x=p.x, y=p.y-30, text="-"..dmg, color={1,0,0}, life=1})
     if p.hp <= 0 then state.gameState = 'GAME_OVER' end
 end
