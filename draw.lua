@@ -33,6 +33,26 @@ function draw.render(state)
         love.graphics.rectangle('fill', c.x - c.w/2, c.y - c.h/2, c.w, c.h)
     end
 
+    -- 地面道具
+    for _, item in ipairs(state.floorPickups) do
+        if item.kind == 'chicken' then
+            love.graphics.setColor(1, 0.7, 0)
+            love.graphics.rectangle('fill', item.x - 7, item.y - 7, 14, 14)
+            love.graphics.setColor(1,1,1)
+            love.graphics.print("H", item.x - 4, item.y - 6)
+        elseif item.kind == 'magnet' then
+            love.graphics.setColor(0, 0.8, 1)
+            love.graphics.rectangle('fill', item.x - 7, item.y - 7, 14, 14)
+            love.graphics.setColor(1,1,1)
+            love.graphics.print("M", item.x - 4, item.y - 6)
+        elseif item.kind == 'bomb' then
+            love.graphics.setColor(1, 0, 0)
+            love.graphics.rectangle('fill', item.x - 7, item.y - 7, 14, 14)
+            love.graphics.setColor(1,1,1)
+            love.graphics.print("B", item.x - 4, item.y - 6)
+        end
+    end
+
     love.graphics.setColor(0,0.5,1)
     for _, g in ipairs(state.gems) do
         love.graphics.rectangle('fill', g.x-3, g.y-3, 6, 6)

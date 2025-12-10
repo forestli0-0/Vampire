@@ -31,6 +31,7 @@ function love.update(dt)
     player.tickInvincibility(state, dt)
     pickups.updateGems(state, dt)
     pickups.updateChests(state, dt)
+    pickups.updateFloorPickups(state, dt)
     player.tickTexts(state, dt)
 end
 

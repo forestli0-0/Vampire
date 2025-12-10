@@ -88,6 +88,7 @@ function state.init()
     state.bullets = {}
     state.enemyBullets = {}
     state.gems = {}
+    state.floorPickups = {}
     state.texts = {}
     state.chests = {}
     state.upgradeOptions = {}

@@ -107,7 +107,13 @@ function enemies.update(state, dt)
             if e.isElite then
                 table.insert(state.chests, {x=e.x, y=e.y, w=20, h=20})
             else
-                table.insert(state.gems, {x=e.x, y=e.y, value=1})
+                if math.random() < 0.01 then
+                    local kinds = {'chicken','magnet','bomb'}
+                    local kind = kinds[math.random(#kinds)]
+                    table.insert(state.floorPickups, {x=e.x, y=e.y, size=14, kind=kind})
+                else
+                    table.insert(state.gems, {x=e.x, y=e.y, value=1})
+                end
             end
             table.remove(state.enemies, i)
         end
