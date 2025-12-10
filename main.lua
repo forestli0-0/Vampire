@@ -241,9 +241,34 @@ function love.update(dt)
     
     for i = #enemies, 1, -1 do
         local e = enemies[i]
+
+        -- 简易分离：随机抽取少量其他敌人进行软碰撞推开
+        local pushX, pushY = 0, 0
+        if #enemies > 1 then
+            local checks = math.min(8, #enemies - 1)
+            for n = 1, checks do
+                local idx
+                repeat idx = math.random(#enemies) until idx ~= i
+                local o = enemies[idx]
+                local dx = e.x - o.x
+                local dy = e.y - o.y
+                local distSq = dx*dx + dy*dy
+                local minDist = ((e.size or 16) + (o.size or 16)) * 0.5
+                local minDistSq = minDist * minDist
+                if distSq > 0 and distSq < minDistSq then
+                    local dist = math.sqrt(distSq)
+                    local overlap = minDist - dist
+                    local nx, ny = dx / dist, dy / dist
+                    local strength = 5 -- 推力系数，可调
+                    pushX = pushX + nx * overlap * strength
+                    pushY = pushY + ny * overlap * strength
+                end
+            end
+        end
+
         local angle = math.atan2(player.y - e.y, player.x - e.x)
-        e.x = e.x + math.cos(angle) * e.speed * dt
-        e.y = e.y + math.sin(angle) * e.speed * dt
+        e.x = e.x + (math.cos(angle) * e.speed + pushX) * dt
+        e.y = e.y + (math.sin(angle) * e.speed + pushY) * dt
         
         -- 玩家受伤检测
         local pDist = math.sqrt((player.x-e.x)^2+(player.y-e.y)^2)
