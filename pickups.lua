@@ -91,5 +91,3 @@ function pickups.updateFloorPickups(state, dt)
 end
 
 return pickups
-
-return pickups

@@ -28,6 +28,7 @@ function love.update(dt)
     projectiles.updateEnemyBullets(state, dt)
     director.update(state, dt)
     enemies.update(state, dt)
+    if state.playerAnim then state.playerAnim:update(dt) end
     player.tickInvincibility(state, dt)
     pickups.updateGems(state, dt)
     pickups.updateChests(state, dt)
