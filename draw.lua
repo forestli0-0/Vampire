@@ -5,19 +5,20 @@ function draw.render(state)
     love.graphics.push()
     love.graphics.translate(-state.camera.x, -state.camera.y)
 
-    -- 背景网格
-    love.graphics.setColor(0.1, 0.1, 0.1)
-    love.graphics.rectangle('fill', state.camera.x, state.camera.y, love.graphics.getWidth(), love.graphics.getHeight())
-    love.graphics.setColor(0.2, 0.2, 0.2)
-    local gridSize = 100
-    local startX = math.floor(state.camera.x / gridSize) * gridSize
-    local startY = math.floor(state.camera.y / gridSize) * gridSize
-    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
-    for x = startX, state.camera.x + w, gridSize do
-        love.graphics.line(x, state.camera.y, x, state.camera.y + h)
-    end
-    for y = startY, state.camera.y + h, gridSize do
-        love.graphics.line(state.camera.x, y, state.camera.x + w, y)
+    -- 背景平铺
+    local bg = state.bgTile
+    if bg then
+        local tileW, tileH = bg.w, bg.h
+        local offsetX = state.camera.x % tileW
+        local offsetY = state.camera.y % tileH
+        local startX = state.camera.x - offsetX - tileW
+        local startY = state.camera.y - offsetY - tileH
+        local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+        for x = startX, state.camera.x + w + tileW, tileW do
+            for y = startY, state.camera.y + h + tileH, tileH do
+                love.graphics.draw(bg.image, x, y)
+            end
+        end
     end
 
     -- 大蒜圈
