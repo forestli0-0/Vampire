@@ -76,12 +76,13 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
     if type == 'wand' or type == 'holy_wand' or type == 'fire_wand' or type == 'oil_bottle' or type == 'heavy_hammer' or type == 'dagger' then
         local angle = math.atan2(target.y - y, target.x - x)
         local spd = (wStats.speed or 0) * (state.player.stats.speed or 1)
-        table.insert(state.bullets, {type=type, x=x, y=y, vx=math.cos(angle)*spd, vy=math.sin(angle)*spd, life=2, size=6 * area, damage=finalDmg, effectType=effectType, weaponTags=weaponTags, pierce=wStats.pierce or 1})
+        table.insert(state.bullets, {type=type, x=x, y=y, vx=math.cos(angle)*spd, vy=math.sin(angle)*spd, life=2, size=6 * area, damage=finalDmg, effectType=effectType, weaponTags=weaponTags, pierce=wStats.pierce or 1, rotation=angle})
     elseif type == 'axe' then
         local spd = (wStats.speed or 0) * (state.player.stats.speed or 1)
         local vx = (math.random() - 0.5) * 200
         local vy = -spd
-        table.insert(state.bullets, {type='axe', x=x, y=y, vx=vx, vy=vy, life=3, size=12 * area, damage=finalDmg, rotation=0, hitTargets={}, effectType=effectType, weaponTags=weaponTags})
+        local angle = math.atan2(vy, vx)
+        table.insert(state.bullets, {type='axe', x=x, y=y, vx=vx, vy=vy, life=3, size=12 * area, damage=finalDmg, rotation=angle, hitTargets={}, effectType=effectType, weaponTags=weaponTags})
     elseif type == 'death_spiral' then
         local count = 8
         local spd = (wStats.speed or 300) * (state.player.stats.speed or 1)
@@ -91,7 +92,7 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
                 type='death_spiral', x=x, y=y,
                 vx=math.cos(angle)*spd, vy=math.sin(angle)*spd,
                 life=3, size=14 * area, damage=finalDmg,
-                rotation=0, angularVel=1.5, hitTargets={}, effectType=effectType, weaponTags=weaponTags
+                rotation=angle, angularVel=1.5, hitTargets={}, effectType=effectType, weaponTags=weaponTags
             })
         end
     end

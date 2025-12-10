@@ -14,6 +14,7 @@ function state.init()
     state.player = {
         x = 400, y = 300,
         size = 20,
+        facing = 1,
         hp = 100, maxHp = 100,
         level = 1, xp = 0, xpToNextLevel = 10,
         invincibleTimer = 0,
@@ -152,7 +153,7 @@ function state.init()
     state.directorState = { event60 = false, event120 = false }
     state.shakeAmount = 0
 
-    -- 简单音效加载（若文件不存在则生成占位音）
+    -- 资源加载：先尝试真实素材，缺失时生成占位
     local function genBeep(freq, duration)
         duration = duration or 0.1
         local sampleRate = 44100
@@ -164,16 +165,57 @@ function state.init()
         end
         return love.audio.newSource(data, 'static')
     end
-    local function loadSfx(name, fallbackFreq)
-        local ok, src = pcall(love.audio.newSource, name, 'static')
+    local function loadSfx(path, fallbackFreq)
+        local ok, src = pcall(love.audio.newSource, path, 'static')
         if ok and src then return src end
         return genBeep(fallbackFreq)
     end
+    local function loadImage(path)
+        local ok, img = pcall(love.graphics.newImage, path)
+        if ok and img then return img end
+        return nil
+    end
+
+    -- Build a sheet from individual frame files: move_1.png ... move_N.png
+    local function buildSheetFromFrames(paths)
+        local frames = {}
+        for _, p in ipairs(paths) do
+            local ok, data = pcall(love.image.newImageData, p)
+            if ok and data then table.insert(frames, data) end
+        end
+        if #frames == 0 then return nil end
+        local fw, fh = frames[1]:getWidth(), frames[1]:getHeight()
+        local sheetData = love.image.newImageData(fw * #frames, fh)
+        for i, data in ipairs(frames) do
+            sheetData:paste(data, (i - 1) * fw, 0, 0, 0, fw, fh)
+        end
+        local sheet = love.graphics.newImage(sheetData)
+        sheet:setFilter('nearest', 'nearest')
+        return sheet, fw, fh
+    end
+
+    local function loadMoveAnimationFromFolder(name, frameCount, fps)
+        frameCount = frameCount or 4
+        local paths = {}
+        for i = 1, frameCount do
+            paths[i] = string.format('assets/characters/%s/move_%d.png', name, i)
+        end
+        local sheet, fw, fh = buildSheetFromFrames(paths)
+        if not sheet then return nil end
+        local frames = animation.newFramesFromGrid(sheet, fw, fh)
+        return animation.newAnimation(sheet, frames, {fps = fps or 8, loop = true})
+    end
+    state.loadMoveAnimationFromFolder = loadMoveAnimationFromFolder
     state.sfx = {
-        shoot = loadSfx('shoot.wav', 600),
-        hit   = loadSfx('hit.wav', 200),
-        gem   = loadSfx('gem.wav', 1200),
-        glass = loadSfx('glass.wav', 1000)
+        shoot     = loadSfx('assets/sfx/shoot.wav', 600),
+        hit       = loadSfx('assets/sfx/hit.wav', 200),
+        gem       = loadSfx('assets/sfx/gem.wav', 1200),
+        glass     = loadSfx('assets/sfx/glass.wav', 1000),
+        freeze    = loadSfx('assets/sfx/freeze.wav', 500),
+        ignite    = loadSfx('assets/sfx/ignite.wav', 900),
+        static    = loadSfx('assets/sfx/static.wav', 700),
+        bleed     = loadSfx('assets/sfx/bleed.wav', 400),
+        explosion = loadSfx('assets/sfx/explosion.wav', 300)
     }
     function state.playSfx(key)
         local s = state.sfx[key]
@@ -191,47 +233,99 @@ function state.init()
         print("Play Sound: " .. tostring(key))
     end
 
-    -- 背景平铺纹理（简单生成一张无缝草地占位图）
-    local tileW, tileH = 64, 64
-    local bgData = love.image.newImageData(tileW, tileH)
-    for x = 0, tileW - 1 do
-        for y = 0, tileH - 1 do
-            local noise = (math.sin(x * 0.2) + math.cos(y * 0.2)) * 0.02
-            local g = 0.65 + noise
-            bgData:setPixel(x, y, 0.2, g, 0.2, 1)
+    -- 背景平铺纹理：优先加载素材，缺失时用占位生成
+    local bgTexture = loadImage('assets/tiles/grass.png')
+    if bgTexture then
+        bgTexture:setFilter('nearest', 'nearest')
+        state.bgTile = { image = bgTexture, w = bgTexture:getWidth(), h = bgTexture:getHeight() }
+    else
+        local tileW, tileH = 64, 64
+        local bgData = love.image.newImageData(tileW, tileH)
+        for x = 0, tileW - 1 do
+            for y = 0, tileH - 1 do
+                local n1 = (math.sin(x * 0.18) + math.cos(y * 0.21)) * 0.02
+                local n2 = (math.sin((x + y) * 0.08)) * 0.015
+                local g = 0.58 + n1 + n2
+                local r = 0.18 + n1 * 0.5
+                bgData:setPixel(x, y, r, g, 0.2, 1)
+            end
         end
-    end
-    for i = 0, tileW - 1, 8 do
-        for j = 0, tileH - 1, 8 do
-            bgData:setPixel(i, j, 0.25, 0.8, 0.25, 1)
+        for i = 0, tileW - 1, 8 do
+            for j = 0, tileH - 1, 8 do
+                bgData:setPixel(i, j, 0.22, 0.82, 0.24, 1)
+            end
         end
+        for i = 0, tileW - 1, 16 do
+            for j = 0, tileH - 1, 2 do
+                local y = (j + math.floor(i * 0.5)) % tileH
+                bgData:setPixel(i, y, 0.16, 0.46, 0.16, 1)
+            end
+        end
+        bgTexture = love.graphics.newImage(bgData)
+        bgTexture:setFilter('nearest', 'nearest')
+        state.bgTile = { image = bgTexture, w = tileW, h = tileH }
     end
-    local bgTexture = love.graphics.newImage(bgData)
-    bgTexture:setFilter('nearest', 'nearest')
-    state.bgTile = { image = bgTexture, w = tileW, h = tileH }
 
-    -- 简单生成一张4帧占位跑动图集
-    local frameW, frameH, frames = 32, 32, 4
-    local sheetData = love.image.newImageData(frameW * frames, frameH)
-    for f = 0, frames - 1 do
-        local r = 0.5 + 0.1 * f
-        local g = 0.8 - 0.1 * f
-        local b = 0.6
-        for x = f * frameW, (f + 1) * frameW - 1 do
-            for y = 0, frameH - 1 do
-                sheetData:setPixel(x, y, r, g, b, 1)
+    -- 玩家动画：优先从角色文件夹加载 move_1.png..move_4.png，缺失时用占位图集
+    local playerAnim = loadMoveAnimationFromFolder('player', 4, 8)
+    if playerAnim then
+        state.playerAnim = playerAnim
+    else
+        local frameW, frameH = 32, 32
+        local animDuration = 0.8
+        local cols, rows = 6, 2
+        local sheetData = love.image.newImageData(frameW * cols, frameH * rows)
+        for row = 0, rows - 1 do
+            for col = 0, cols - 1 do
+                local baseR = 0.45 + 0.05 * row
+                local baseG = 0.75 - 0.04 * col
+                local baseB = 0.55
+                for x = col * frameW, (col + 1) * frameW - 1 do
+                    for y = row * frameH, (row + 1) * frameH - 1 do
+                        local xf = (x - col * frameW) / frameW
+                        local yf = (y - row * frameH) / frameH
+                        local shade = (math.sin((col + 1) * 0.6) * 0.05) + (yf * 0.08)
+                        local r = baseR + shade
+                        local g = baseG - shade * 0.5
+                        local b = baseB + shade * 0.4
+                        if yf < 0.35 and xf > 0.3 and xf < 0.7 then
+                            r = r + 0.1; g = g + 0.1; b = b + 0.1
+                        end
+                        if yf > 0.75 then
+                            r = r - 0.05 * math.sin(col + row)
+                            g = g - 0.05 * math.cos(col + row)
+                        end
+                        sheetData:setPixel(x, y, r, g, b, 1)
+                    end
+                end
+                for x = col * frameW, (col + 1) * frameW - 1 do
+                    sheetData:setPixel(x, row * frameH, 0, 0, 0, 1)
+                    sheetData:setPixel(x, (row + 1) * frameH - 1, 0, 0, 0, 1)
+                end
+                for y = row * frameH, (row + 1) * frameH - 1 do
+                    sheetData:setPixel(col * frameW, y, 0, 0, 0, 1)
+                    sheetData:setPixel((col + 1) * frameW - 1, y, 0, 0, 0, 1)
+                end
             end
         end
-        -- 加一点竖条纹当作动作区别
-        for x = f * frameW + 10, f * frameW + 12 do
-            for y = 4, frameH - 5 do
-                sheetData:setPixel(x, y, 1, 1, 1, 1)
-            end
+        local sheet = love.graphics.newImage(sheetData)
+        sheet:setFilter('nearest', 'nearest')
+        state.playerAnim = animation.newAnimation(sheet, frameW, frameH, animDuration)
+    end
+
+    -- Weapon sprites (optional). Missing files are simply skipped.
+    local weaponKeys = {'wand','holy_wand','axe','death_spiral','fire_wand','oil_bottle','heavy_hammer','dagger'}
+    state.weaponSprites = {}
+    state.weaponSpriteScale = {}
+    for _, key in ipairs(weaponKeys) do
+        local img = loadImage(string.format('assets/weapons/%s.png', key))
+        if img then
+            img:setFilter('nearest', 'nearest')
+            state.weaponSprites[key] = img
+            state.weaponSpriteScale[key] = 2
         end
     end
-    local sheet = love.graphics.newImage(sheetData)
-    sheet:setFilter('nearest', 'nearest')
-    state.playerAnim = animation.newAnimation(sheet, frameW, frameH, 0.6)
+    state.weaponSpriteScale['wand'] = 5
 end
 
 return state

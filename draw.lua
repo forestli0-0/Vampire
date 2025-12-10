@@ -82,11 +82,20 @@ function draw.render(state)
             end
             love.graphics.setColor(col)
         end
-        love.graphics.rectangle('fill', e.x - e.size/2, e.y - e.size/2, e.size, e.size)
+        if e.anim then
+            local sx = e.facing or 1
+            e.anim:draw(e.x, e.y, 0, sx, 1)
+        else
+            love.graphics.rectangle('fill', e.x - e.size/2, e.y - e.size/2, e.size, e.size)
+        end
         if e.status and e.status.static then
             love.graphics.setColor(1,1,0)
             love.graphics.setLineWidth(2)
-            love.graphics.rectangle('line', e.x - e.size/2 - 2, e.y - e.size/2 - 2, e.size + 4, e.size + 4)
+            if e.anim then
+                love.graphics.rectangle('line', e.x - e.size/2 - 2, e.y - e.size/2 - 2, e.size + 4, e.size + 4)
+            else
+                love.graphics.rectangle('line', e.x - e.size/2 - 2, e.y - e.size/2 - 2, e.size + 4, e.size + 4)
+            end
             love.graphics.setLineWidth(1)
         end
     end
@@ -104,7 +113,7 @@ function draw.render(state)
     local blink = inv and love.timer.getTime() % 0.2 < 0.1
     if state.playerAnim then
         if blink then love.graphics.setColor(1,1,1,0.35) else love.graphics.setColor(1,1,1) end
-        state.playerAnim:draw(state.player.x, state.player.y)
+        state.playerAnim:draw(state.player.x, state.player.y, 0, state.player.facing, 1)
     else
         if blink then love.graphics.setColor(1,1,1) else love.graphics.setColor(0,1,0) end
         love.graphics.rectangle('fill', state.player.x - (state.player.size/2), state.player.y - (state.player.size/2), state.player.size, state.player.size)
@@ -113,12 +122,24 @@ function draw.render(state)
 
     -- 玩家投射物
     for _, b in ipairs(state.bullets) do
-        if b.type == 'axe' then love.graphics.setColor(0,1,1) else love.graphics.setColor(1,1,0) end
-        love.graphics.push()
-        love.graphics.translate(b.x, b.y)
-        if b.rotation then love.graphics.rotate(b.rotation) end
-        love.graphics.rectangle('fill', -b.size/2, -b.size/2, b.size, b.size)
-        love.graphics.pop()
+        local sprite = state.weaponSprites and state.weaponSprites[b.type]
+        if sprite then
+            love.graphics.setColor(1,1,1)
+            local sw, sh = sprite:getWidth(), sprite:getHeight()
+            local scale = ((b.size or sw) / sw) * ((state.weaponSpriteScale and state.weaponSpriteScale[b.type]) or 1)
+            love.graphics.push()
+            love.graphics.translate(b.x, b.y)
+            if b.rotation then love.graphics.rotate(b.rotation) end
+            love.graphics.draw(sprite, 0, 0, 0, scale, scale, sw/2, sh/2)
+            love.graphics.pop()
+        else
+            if b.type == 'axe' then love.graphics.setColor(0,1,1) else love.graphics.setColor(1,1,0) end
+            love.graphics.push()
+            love.graphics.translate(b.x, b.y)
+            if b.rotation then love.graphics.rotate(b.rotation) end
+            love.graphics.rectangle('fill', -b.size/2, -b.size/2, b.size, b.size)
+            love.graphics.pop()
+        end
     end
 
     -- 敌方子弹

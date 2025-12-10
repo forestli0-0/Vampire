@@ -84,8 +84,13 @@ function enemies.spawnEnemy(state, type, isElite)
         bulletSpeed = def.bulletSpeed,
         bulletDamage = def.bulletDamage,
         bulletLife = def.bulletLife,
-        bulletSize = def.bulletSize
+        bulletSize = def.bulletSize,
+        facing = 1
     })
+    if state.loadMoveAnimationFromFolder then
+        local anim = state.loadMoveAnimationFromFolder(type, 4, 8)
+        if anim then state.enemies[#state.enemies].anim = anim end
+    end
     ensureStatus(state.enemies[#state.enemies])
 end
 
@@ -121,6 +126,8 @@ function enemies.update(state, dt)
             e.flashTimer = e.flashTimer - dt
             if e.flashTimer < 0 then e.flashTimer = 0 end
         end
+
+        if e.anim then e.anim:update(dt) end
 
         if e.status.burnTimer and e.status.burnTimer > 0 then
             e.status.burnTimer = e.status.burnTimer - dt
@@ -199,6 +206,10 @@ function enemies.update(state, dt)
         end
 
         local angle = math.atan2(p.y - e.y, p.x - e.x)
+        local dxToPlayer = p.x - e.x
+        if math.abs(dxToPlayer) > 1 then
+            e.facing = dxToPlayer >= 0 and 1 or -1
+        end
         e.x = e.x + (math.cos(angle) * e.speed + pushX) * dt
         e.y = e.y + (math.sin(angle) * e.speed + pushY) * dt
 

@@ -13,6 +13,9 @@ function player.updateMovement(state, dt)
         p.y = p.y + (dy / len) * p.stats.moveSpeed * dt
     end
 
+    if dx > 0 then p.facing = 1
+    elseif dx < 0 then p.facing = -1 end
+
     state.camera.x = p.x - love.graphics.getWidth() / 2
     state.camera.y = p.y - love.graphics.getHeight() / 2
 end
