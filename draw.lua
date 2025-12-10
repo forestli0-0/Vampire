@@ -69,9 +69,35 @@ function draw.render(state)
         if e.flashTimer and e.flashTimer > 0 then
             love.graphics.setColor(1,1,1)
         else
-            love.graphics.setColor(e.color)
+            local col = e.color
+            if e.status then
+                if e.status.frozen then
+                    col = {0.6, 0.8, 1}
+                elseif e.status.burnTimer and e.status.burnTimer > 0 then
+                    local pulse = love.timer.getTime() % 0.2 < 0.1
+                    if pulse then col = {1, 0.2, 0.2} else col = {1, 0.4, 0.4} end
+                elseif e.status.oiled then
+                    col = {0.3, 0.2, 0.1}
+                end
+            end
+            love.graphics.setColor(col)
         end
         love.graphics.rectangle('fill', e.x - e.size/2, e.y - e.size/2, e.size, e.size)
+        if e.status and e.status.static then
+            love.graphics.setColor(1,1,0)
+            love.graphics.setLineWidth(2)
+            love.graphics.rectangle('line', e.x - e.size/2 - 2, e.y - e.size/2 - 2, e.size + 4, e.size + 4)
+            love.graphics.setLineWidth(1)
+        end
+    end
+
+    if state.chainLinks then
+        love.graphics.setColor(0.4, 0.7, 1)
+        love.graphics.setLineWidth(2)
+        for _, link in ipairs(state.chainLinks) do
+            love.graphics.line(link.x1, link.y1, link.x2, link.y2)
+        end
+        love.graphics.setLineWidth(1)
     end
 
     local inv = state.player.invincibleTimer > 0

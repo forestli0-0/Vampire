@@ -3,6 +3,57 @@ local enemyDefs = require('enemy_defs')
 
 local enemies = {}
 
+local function ensureStatus(e)
+    if not e.status then
+        e.status = {
+            frozen = false,
+            oiled = false,
+            static = false,
+            bleedStacks = 0,
+            burnTimer = 0
+        }
+    end
+    e.baseSpeed = e.baseSpeed or e.speed
+    e.maxHp = e.maxHp or e.hp
+end
+
+function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags)
+    if not effectType or not e then return end
+    if type(effectType) ~= 'string' then return end
+    ensureStatus(e)
+
+    local effect = string.upper(effectType)
+    if effect == 'FREEZE' then
+        e.status.frozen = true
+        e.speed = 0
+    elseif effect == 'OIL' then
+        e.status.oiled = true
+    elseif effect == 'BLEED' then
+        e.status.bleedStacks = (e.status.bleedStacks or 0) + 1
+        if e.status.bleedStacks >= 10 then
+            local boom = math.floor((e.maxHp or e.hp or 0) * 0.2)
+            if boom > 0 then enemies.damageEnemy(state, e, boom, false, 0) end
+            e.status.bleedStacks = 0
+        end
+    elseif effect == 'FIRE' then
+        if e.status.oiled then
+            e.status.burnTimer = 5
+            e.status.oiled = false
+            e.status.burnDps = math.max(1, (e.maxHp or e.hp or 0) * 0.05)
+        end
+    elseif effect == 'HEAVY' then
+        if e.status.frozen then
+            local extra = math.floor((baseDamage or 0) * 2)
+            if extra > 0 then enemies.damageEnemy(state, e, extra, false, 0) end
+            e.status.frozen = false
+            e.speed = e.baseSpeed or e.speed
+            if state.playSfx then state.playSfx('glass') end
+        end
+    elseif effect == 'STATIC' then
+        e.status.static = true
+    end
+end
+
 function enemies.spawnEnemy(state, type, isElite)
     local def = enemyDefs[type] or enemyDefs.skeleton
     local color = def.color and {def.color[1], def.color[2], def.color[3]} or {1,1,1}
@@ -35,6 +86,7 @@ function enemies.spawnEnemy(state, type, isElite)
         bulletLife = def.bulletLife,
         bulletSize = def.bulletSize
     })
+    ensureStatus(state.enemies[#state.enemies])
 end
 
 function enemies.findNearestEnemy(state, maxDist)
@@ -60,12 +112,51 @@ end
 
 function enemies.update(state, dt)
     local p = state.player
+    state.chainLinks = {}
     for i = #state.enemies, 1, -1 do
         local e = state.enemies[i]
+        ensureStatus(e)
 
         if e.flashTimer and e.flashTimer > 0 then
             e.flashTimer = e.flashTimer - dt
             if e.flashTimer < 0 then e.flashTimer = 0 end
+        end
+
+        if e.status.burnTimer and e.status.burnTimer > 0 then
+            e.status.burnTimer = e.status.burnTimer - dt
+            local dps = math.max(1, e.status.burnDps or ((e.maxHp or e.hp or 0) * 0.05))
+            e.status._burnAcc = (e.status._burnAcc or 0) + dps * dt
+            if e.status._burnAcc >= 1 then
+                local burnDmg = math.floor(e.status._burnAcc)
+                e.status._burnAcc = e.status._burnAcc - burnDmg
+                if burnDmg > 0 then enemies.damageEnemy(state, e, burnDmg, false, 0) end
+            end
+            if e.status.burnTimer < 0 then e.status.burnTimer = 0 end
+        end
+
+        if e.status.static then
+            e.status.staticTimer = (e.status.staticTimer or 0) - dt
+            if e.status.staticTimer <= 0 then
+                local nearest, dist2 = nil, 30 * 30
+                for j, o in ipairs(state.enemies) do
+                    if i ~= j then
+                        local dx = o.x - e.x
+                        local dy = o.y - e.y
+                        local d2 = dx*dx + dy*dy
+                        if d2 < dist2 then
+                            dist2 = d2
+                            nearest = o
+                        end
+                    end
+                end
+                if nearest then
+                    local staticDmg = math.max(1, math.floor((e.maxHp or 10) * 0.05))
+                    enemies.damageEnemy(state, e, staticDmg, false, 0)
+                    enemies.damageEnemy(state, nearest, staticDmg, false, 0)
+                    table.insert(state.chainLinks, {x1=e.x, y1=e.y, x2=nearest.x, y2=nearest.y})
+                    e.status.staticTimer = 0.5
+                end
+            end
         end
 
         local pushX, pushY = 0, 0

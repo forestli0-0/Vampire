@@ -36,6 +36,7 @@ function projectiles.updatePlayerBullets(state, dt)
                 local e = state.enemies[j]
                 if util.checkCollision(b, e) then
                     if b.type == 'wand' then
+                        enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags)
                         enemies.damageEnemy(state, e, b.damage, false, 0)
                         table.remove(state.bullets, i)
                         hit = true
@@ -44,12 +45,14 @@ function projectiles.updatePlayerBullets(state, dt)
                         b.hitTargets = b.hitTargets or {}
                         if not b.hitTargets[e] then
                             b.hitTargets[e] = true
+                            enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags)
                             enemies.damageEnemy(state, e, b.damage, false, 0)
                         end
                     elseif b.type == 'death_spiral' then
                         b.hitTargets = b.hitTargets or {}
                         if not b.hitTargets[e] then
                             b.hitTargets[e] = true
+                            enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags)
                             enemies.damageEnemy(state, e, b.damage, false, 0)
                         end
                     end

@@ -10,7 +10,8 @@ local function cloneStats(base)
         speed = base.speed,
         radius = base.radius,
         knockback = base.knockback,
-        area = base.area or 1
+        area = base.area or 1,
+        effectType = base.effectType
     }
 end
 
@@ -64,18 +65,21 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
     local wStats = statsOverride or weapons.calculateStats(state, type)
     if not wStats then return end
 
+    local weaponDef = state.catalog[type] or {}
+    local weaponTags = weaponDef.tags
+    local effectType = weaponDef.effectType or wStats.effectType
     local finalDmg = math.floor((wStats.damage or 0) * (state.player.stats.might or 1))
     local area = wStats.area or 1
 
     if type == 'wand' or type == 'holy_wand' then
         local angle = math.atan2(target.y - y, target.x - x)
         local spd = (wStats.speed or 0) * (state.player.stats.speed or 1)
-        table.insert(state.bullets, {type='wand', x=x, y=y, vx=math.cos(angle)*spd, vy=math.sin(angle)*spd, life=2, size=6 * area, damage=finalDmg})
+        table.insert(state.bullets, {type='wand', x=x, y=y, vx=math.cos(angle)*spd, vy=math.sin(angle)*spd, life=2, size=6 * area, damage=finalDmg, effectType=effectType, weaponTags=weaponTags})
     elseif type == 'axe' then
         local spd = (wStats.speed or 0) * (state.player.stats.speed or 1)
         local vx = (math.random() - 0.5) * 200
         local vy = -spd
-        table.insert(state.bullets, {type='axe', x=x, y=y, vx=vx, vy=vy, life=3, size=12 * area, damage=finalDmg, rotation=0, hitTargets={}})
+        table.insert(state.bullets, {type='axe', x=x, y=y, vx=vx, vy=vy, life=3, size=12 * area, damage=finalDmg, rotation=0, hitTargets={}, effectType=effectType, weaponTags=weaponTags})
     elseif type == 'death_spiral' then
         local count = 8
         local spd = (wStats.speed or 300) * (state.player.stats.speed or 1)
@@ -85,7 +89,7 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
                 type='death_spiral', x=x, y=y,
                 vx=math.cos(angle)*spd, vy=math.sin(angle)*spd,
                 life=3, size=14 * area, damage=finalDmg,
-                rotation=0, angularVel=1.5, hitTargets={}
+                rotation=0, angularVel=1.5, hitTargets={}, effectType=effectType, weaponTags=weaponTags
             })
         end
     end
@@ -95,6 +99,7 @@ function weapons.update(state, dt)
     for key, w in pairs(state.inventory.weapons) do
         w.timer = w.timer - dt
         local computedStats = weapons.calculateStats(state, key) or w.stats
+        local weaponDef = state.catalog[key] or {}
         local actualCD = (computedStats.cd or w.stats.cd) * (state.player.stats.cooldown or 1)
 
         if w.timer <= 0 then
@@ -124,9 +129,11 @@ function weapons.update(state, dt)
                 local hit = false
                 local actualDmg = math.floor((computedStats.damage or 0) * (state.player.stats.might or 1))
                 local actualRadius = (computedStats.radius or 0) * (computedStats.area or 1) * (state.player.stats.area or 1)
+                local effectType = weaponDef.effectType or computedStats.effectType
                 for _, e in ipairs(state.enemies) do
                     local d = math.sqrt((state.player.x - e.x)^2 + (state.player.y - e.y)^2)
                     if d < actualRadius then
+                        enemies.applyStatus(state, e, effectType, actualDmg, weaponDef.tags)
                         enemies.damageEnemy(state, e, actualDmg, true, computedStats.knockback or 0)
                         hit = true
                     end

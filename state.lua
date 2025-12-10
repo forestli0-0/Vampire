@@ -105,6 +105,7 @@ function state.init()
     state.texts = {}
     state.chests = {}
     state.upgradeOptions = {}
+    state.chainLinks = {}
 
     state.spawnTimer = 0
     state.camera = { x = 0, y = 0 }
@@ -131,7 +132,8 @@ function state.init()
     state.sfx = {
         shoot = loadSfx('shoot.wav', 600),
         hit   = loadSfx('hit.wav', 200),
-        gem   = loadSfx('gem.wav', 1200)
+        gem   = loadSfx('gem.wav', 1200),
+        glass = loadSfx('glass.wav', 1000)
     }
     function state.playSfx(key)
         local s = state.sfx[key]
