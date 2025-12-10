@@ -1,20 +1,17 @@
 local player = require('player')
+local enemyDefs = require('enemy_defs')
 
 local enemies = {}
 
 function enemies.spawnEnemy(state, type, isElite)
-    local types = {
-        skeleton = {hp=10, spd=50, col={0.8,0.8,0.8}, sz=16},
-        bat = {hp=5, spd=150, col={0.6,0,1}, sz=12},
-        plant = {hp=35, spd=30, col={0,0.7,0.2}, sz=22, shoot=3}
-    }
-    local t = types[type]
-    local ang = math.random() * 6.28
-    local d = 500
+    local def = enemyDefs[type] or enemyDefs.skeleton
+    local color = def.color and {def.color[1], def.color[2], def.color[3]} or {1,1,1}
+    local hp = def.hp
+    local size = def.size
+    local speed = def.speed
 
-    local hp = t.hp
-    local size = t.sz
-    local color = t.col
+    local ang = math.random() * 6.28
+    local d = def.spawnDistance or 500
 
     if isElite then
         hp = hp * 5
@@ -26,12 +23,17 @@ function enemies.spawnEnemy(state, type, isElite)
         x = state.player.x + math.cos(ang) * d,
         y = state.player.y + math.sin(ang) * d,
         hp = hp,
-        speed = t.spd,
+        speed = speed,
         color = color,
         size = size,
         isElite = isElite,
         kind = type,
-        shootTimer = t.shoot
+        shootInterval = def.shootInterval,
+        shootTimer = def.shootInterval,
+        bulletSpeed = def.bulletSpeed,
+        bulletDamage = def.bulletDamage,
+        bulletLife = def.bulletLife,
+        bulletSize = def.bulletSize
     })
 end
 
@@ -89,13 +91,19 @@ function enemies.update(state, dt)
             end
         end
 
-        if e.kind == 'plant' then
-            e.shootTimer = (e.shootTimer or 0) - dt
+        if e.shootInterval then
+            e.shootTimer = (e.shootTimer or e.shootInterval) - dt
             if e.shootTimer <= 0 then
                 local ang = math.atan2(p.y - e.y, p.x - e.x)
-                local spd = 180
-                table.insert(state.enemyBullets, {x=e.x, y=e.y, vx=math.cos(ang)*spd, vy=math.sin(ang)*spd, size=10, life=5, damage=10})
-                e.shootTimer = 3
+                local spd = e.bulletSpeed or 180
+                table.insert(state.enemyBullets, {
+                    x = e.x, y = e.y,
+                    vx = math.cos(ang) * spd, vy = math.sin(ang) * spd,
+                    size = e.bulletSize or 10,
+                    life = e.bulletLife or 5,
+                    damage = e.bulletDamage or 10
+                })
+                e.shootTimer = e.shootInterval
             end
         end
 
