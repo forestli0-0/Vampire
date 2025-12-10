@@ -32,6 +32,7 @@ function state.init()
             type = 'weapon', name = "Magic Wand",
             desc = "Fires at nearest enemy.",
             maxLevel = 5,
+            tags = {'weapon', 'projectile', 'magic'},
             base = { damage=10, cd=0.8, speed=400 },
             onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.9 end,
             evolveInfo = { target='holy_wand', require='tome' }
@@ -40,6 +41,7 @@ function state.init()
             type = 'weapon', name = "Holy Wand",
             desc = "Evolved Magic Wand. Fires rapidly.",
             maxLevel = 1,
+            tags = {'weapon', 'projectile', 'magic'},
             base = { damage=15, cd=0.1, speed=600 },
             evolvedOnly = true,
             onUpgrade = function(w) end
@@ -48,6 +50,7 @@ function state.init()
             type = 'weapon', name = "Garlic",
             desc = "Damages enemies nearby.",
             maxLevel = 5,
+            tags = {'weapon', 'area', 'aura', 'magic'},
             base = { damage=3, cd=0.2, radius=70, knockback=30 },
             onUpgrade = function(w) w.damage = w.damage + 2; w.radius = w.radius + 10 end
         },
@@ -55,6 +58,7 @@ function state.init()
             type = 'weapon', name = "Axe",
             desc = "High damage, high arc.",
             maxLevel = 5,
+            tags = {'weapon', 'projectile', 'physical', 'arc'},
             base = { damage=30, cd=1.2, speed=450, area=1.5 },
             onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end,
             evolveInfo = { target='death_spiral', require='spinach' }
@@ -63,26 +67,31 @@ function state.init()
             type = 'weapon', name = "Death Spiral",
             desc = "Evolved Axe. Spirals out.",
             maxLevel = 1,
+            tags = {'weapon', 'projectile', 'physical', 'arc'},
             base = { damage=40, cd=1.0, speed=500, area=2.0 },
             evolvedOnly = true,
             onUpgrade = function(w) end
         },
         spinach = {
             type = 'passive', name = "Spinach",
-            desc = "Increases damage by 10%.",
+            desc = "Increases damage of tagged weapons by 10%.",
             maxLevel = 5,
-            onUpgrade = function() state.player.stats.might = state.player.stats.might + 0.1 end
+            targetTags = {'weapon'},
+            effect = { damage = 0.1 }
         },
         tome = {
             type = 'passive', name = "Empty Tome",
-            desc = "Reduces cooldowns by 8%.",
+            desc = "Reduces cooldowns of projectile and magic weapons by 8%.",
             maxLevel = 5,
-            onUpgrade = function() state.player.stats.cooldown = state.player.stats.cooldown * 0.92 end
+            targetTags = {'projectile', 'magic'},
+            effect = { cd = -0.08 }
         },
         boots = {
             type = 'passive', name = "Boots",
-            desc = "Increases movement speed.",
+            desc = "Increases movement speed and boosts projectile speed by 5%.",
             maxLevel = 5,
+            targetTags = {'projectile'},
+            effect = { speed = 0.05 },
             onUpgrade = function() state.player.stats.moveSpeed = state.player.stats.moveSpeed * 1.1 end
         }
     }

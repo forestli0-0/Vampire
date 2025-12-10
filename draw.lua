@@ -1,3 +1,5 @@
+local weapons = require('weapons')
+
 local draw = {}
 
 function draw.render(state)
@@ -26,7 +28,8 @@ function draw.render(state)
 
     -- 大蒜圈
     if state.inventory.weapons.garlic then
-        local r = state.inventory.weapons.garlic.stats.radius * state.player.stats.area
+        local gStats = weapons.calculateStats(state, 'garlic') or state.inventory.weapons.garlic.stats
+        local r = (gStats.radius or 0) * (gStats.area or 1) * (state.player.stats.area or 1)
         love.graphics.setColor(1, 0.2, 0.2, 0.2)
         love.graphics.circle('fill', state.player.x, state.player.y, r)
     end

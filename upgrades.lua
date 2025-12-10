@@ -87,12 +87,12 @@ function upgrades.applyUpgrade(state, opt)
         else
             local w = state.inventory.weapons[opt.key]
             w.level = w.level + 1
-            opt.def.onUpgrade(w.stats)
+            if opt.def.onUpgrade then opt.def.onUpgrade(w.stats) end
         end
     elseif opt.type == 'passive' then
         if not state.inventory.passives[opt.key] then state.inventory.passives[opt.key] = 0 end
         state.inventory.passives[opt.key] = state.inventory.passives[opt.key] + 1
-        opt.def.onUpgrade()
+        if opt.def.onUpgrade then opt.def.onUpgrade() end
     end
 end
 
