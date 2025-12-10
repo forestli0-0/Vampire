@@ -1,0 +1,67 @@
+local util = require('util')
+local enemies = require('enemies')
+local player = require('player')
+
+local projectiles = {}
+
+function projectiles.updatePlayerBullets(state, dt)
+    for i = #state.bullets, 1, -1 do
+        local b = state.bullets[i]
+
+        if b.type == 'wand' then
+            b.x = b.x + b.vx * dt
+            b.y = b.y + b.vy * dt
+        elseif b.type == 'axe' then
+            b.x = b.x + b.vx * dt
+            b.y = b.y + b.vy * dt
+            b.vy = b.vy + 1000 * dt
+            b.rotation = b.rotation + 10 * dt
+        end
+
+        b.life = b.life - dt
+
+        local hit = false
+        if b.life <= 0 then
+            table.remove(state.bullets, i)
+        else
+            for j = #state.enemies, 1, -1 do
+                local e = state.enemies[j]
+                if util.checkCollision(b, e) then
+                    if b.type == 'wand' then
+                        enemies.damageEnemy(state, e, b.damage, false, 0)
+                        table.remove(state.bullets, i)
+                        hit = true
+                        break
+                    elseif b.type == 'axe' then
+                        b.hitTargets = b.hitTargets or {}
+                        if not b.hitTargets[e] then
+                            b.hitTargets[e] = true
+                            enemies.damageEnemy(state, e, b.damage, false, 0)
+                        end
+                    end
+                end
+            end
+            if not hit and b.type == 'axe' and b.y > state.player.y + 600 then
+                table.remove(state.bullets, i)
+            end
+        end
+    end
+end
+
+function projectiles.updateEnemyBullets(state, dt)
+    for i = #state.enemyBullets, 1, -1 do
+        local eb = state.enemyBullets[i]
+        eb.x = eb.x + eb.vx * dt
+        eb.y = eb.y + eb.vy * dt
+        eb.life = eb.life - dt
+
+        if eb.life <= 0 or math.abs(eb.x - state.player.x) > 1500 or math.abs(eb.y - state.player.y) > 1500 then
+            table.remove(state.enemyBullets, i)
+        elseif state.player.invincibleTimer <= 0 and util.checkCollision(eb, {x=state.player.x, y=state.player.y, size=state.player.size}) then
+            player.hurt(state, eb.damage)
+            table.remove(state.enemyBullets, i)
+        end
+    end
+end
+
+return projectiles
