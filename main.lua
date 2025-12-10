@@ -4,13 +4,15 @@ function love.load()
     
     -- === 1. 基础配置 ===
     gameState = 'PLAYING'
+    pendingLevelUps = 0
     gameTimer = 0
     font = love.graphics.newFont(14)
     titleFont = love.graphics.newFont(24)
     
     -- === 2. 玩家与全局属性 (Stats) ===
     player = { 
-        x = 400, y = 300, 
+        x = 400, y = 300,
+        size = 20,
         hp = 100, maxHp = 100,
         level = 1, xp = 0, xpToNextLevel = 10,
         invincibleTimer = 0,
@@ -35,7 +37,15 @@ function love.load()
             desc = "Fires at nearest enemy.",
             maxLevel = 5,
             base = { damage=10, cd=0.8, speed=400 },
-            onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.9 end
+            onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.9 end,
+            evolveInfo = { target='holy_wand', require='tome' }
+        },
+        holy_wand = {
+            type = 'weapon', name = "Holy Wand",
+            desc = "Evolved Magic Wand. Fires rapidly.",
+            maxLevel = 1,
+            base = { damage=15, cd=0.1, speed=600 },
+            onUpgrade = function(w) end
         },
         garlic = {
             type = 'weapon', name = "Garlic", 
@@ -49,7 +59,15 @@ function love.load()
             desc = "High damage, high arc.",
             maxLevel = 5,
             base = { damage=30, cd=1.2, speed=450, area=1.5 }, -- area决定斧头大小
-            onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end
+            onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end,
+            evolveInfo = { target='death_spiral', require='spinach' }
+        },
+        death_spiral = {
+            type = 'weapon', name = "Death Spiral",
+            desc = "Evolved Axe. Spirals out.",
+            maxLevel = 1,
+            base = { damage=40, cd=1.0, speed=500, area=2.0 },
+            onUpgrade = function(w) end
         },
         -- 被动类
         spinach = {
@@ -82,13 +100,17 @@ function love.load()
     addWeapon('wand')
 
     -- === 4. 实体容器 ===
-    enemies = {}; bullets = {}; gems = {}; texts = {}
+    enemies = {}; bullets = {}; gems = {}; texts = {}; chests = {}
     
     -- 升级选项缓存
     upgradeOptions = {} 
     
     spawnTimer = 0
     camera = { x = 0, y = 0 }
+    
+    -- 导演系统状态
+    directorState = { event60 = false, event120 = false }
+    player.size = 20 -- 确保玩家有尺寸定义
 end
 
 function love.update(dt)
@@ -176,14 +198,18 @@ function love.update(dt)
             for j = #enemies, 1, -1 do
                 local e = enemies[j]
                 if checkCollision(b, e) then
-                    damageEnemy(e, b.damage, false, 0)
                     if b.type == 'wand' then 
+                        damageEnemy(e, b.damage, false, 0)
                         table.remove(bullets, i) -- 魔杖单体
                         hit = true
                         break 
                     elseif b.type == 'axe' then
-                        -- 斧头高穿透，不消失，但需要冷却防止一帧多次伤害同一个怪
-                        -- 这里简单处理：斧头穿透一切，不销毁
+                        -- 斧头穿透，一发只打一次同一目标
+                        b.hitTargets = b.hitTargets or {}
+                        if not b.hitTargets[e] then
+                            b.hitTargets[e] = true
+                            damageEnemy(e, b.damage, false, 0)
+                        end
                     end 
                 end
             end
@@ -193,10 +219,23 @@ function love.update(dt)
     end
 
     -- === 4. 敌人生成与移动 ===
+    -- 导演事件：固定时间生成精英怪
+    if not directorState.event60 and gameTimer >= 60 then
+        spawnEnemy('skeleton', true)
+        directorState.event60 = true
+        table.insert(texts, {x=player.x, y=player.y-100, text="ELITE SKELETON!", color={1,0,0}, life=3})
+    end
+    if not directorState.event120 and gameTimer >= 120 then
+        spawnEnemy('bat', true)
+        directorState.event120 = true
+        table.insert(texts, {x=player.x, y=player.y-100, text="ELITE BAT!", color={1,0,0}, life=3})
+    end
+
     spawnTimer = spawnTimer - dt
     if spawnTimer <= 0 then
         local type = (gameTimer > 30 and math.random() > 0.5) and 'bat' or 'skeleton'
-        spawnEnemy(type)
+        local isElite = math.random() < 0.05 -- 5% chance for elite
+        spawnEnemy(type, isElite)
         spawnTimer = math.max(0.1, 0.5 - player.level * 0.01)
     end
     
@@ -208,43 +247,91 @@ function love.update(dt)
         
         -- 玩家受伤检测
         local pDist = math.sqrt((player.x-e.x)^2+(player.y-e.y)^2)
-        if pDist < (player.stats.pickupRange/4 + e.size) and player.invincibleTimer <= 0 then
-            player.hp = player.hp - 10
+        local playerRadius = (player.size or 20) / 2
+        local enemyRadius = (e.size or 16) / 2
+        if pDist < (playerRadius + enemyRadius) and player.invincibleTimer <= 0 then
+            player.hp = math.max(0, player.hp - 10)
             player.invincibleTimer = 0.5
             table.insert(texts, {x=player.x, y=player.y-30, text="-10", color={1,0,0}, life=1})
             if player.hp <= 0 then gameState = 'GAME_OVER' end
         end
         
         if e.hp <= 0 then
-            table.insert(gems, {x=e.x, y=e.y, value=1})
+            if e.isElite then
+                table.insert(chests, {x=e.x, y=e.y, w=20, h=20})
+            else
+                table.insert(gems, {x=e.x, y=e.y, value=1})
+            end
             table.remove(enemies, i)
         end
     end
 
     -- 玩家无敌闪烁
-    if player.invincibleTimer > 0 then player.invincibleTimer = player.invincibleTimer - dt end
+    if player.invincibleTimer > 0 then
+        player.invincibleTimer = player.invincibleTimer - dt
+        if player.invincibleTimer < 0 then player.invincibleTimer = 0 end
+    end
 
     -- === 5. 宝石与飘字 ===
     for i = #gems, 1, -1 do
         local g = gems[i]
-        local d = (player.x-g.x)^2 + (player.y-g.y)^2
-        if d < player.stats.pickupRange^2 then
-            local a = math.atan2(player.y-g.y, player.x-g.x)
-            g.x = g.x + math.cos(a)*600*dt; g.y = g.y + math.sin(a)*600*dt
+        local dx = player.x - g.x
+        local dy = player.y - g.y
+        local distSq = dx * dx + dy * dy
+
+        -- 吸附：先判断是否在拾取范围，再更新距离用于后续拾取判定
+        if distSq < player.stats.pickupRange^2 then
+            local a = math.atan2(dy, dx)
+            g.x = g.x + math.cos(a) * 600 * dt
+            g.y = g.y + math.sin(a) * 600 * dt
+            dx = player.x - g.x
+            dy = player.y - g.y
+            distSq = dx * dx + dy * dy
         end
-        if d < 400 then
+
+        -- 实际拾取判定：用更新后的距离且统一使用平方距离
+        local pickupRadius = (player.size or 20) / 2
+        if distSq < pickupRadius * pickupRadius then
             player.xp = player.xp + g.value
             table.remove(gems, i)
-            if player.xp >= player.xpToNextLevel then
+            while player.xp >= player.xpToNextLevel do
                 player.level = player.level + 1
-                player.xp = 0
+                player.xp = player.xp - player.xpToNextLevel
                 player.xpToNextLevel = math.floor(player.xpToNextLevel * 1.5)
+                pendingLevelUps = pendingLevelUps + 1
+            end
+            if gameState ~= 'LEVEL_UP' and pendingLevelUps > 0 then
+                pendingLevelUps = pendingLevelUps - 1
                 generateUpgradeOptions() -- 生成随机卡牌
                 gameState = 'LEVEL_UP'
             end
         end
     end
     
+    -- === 6. 宝箱碰撞 ===
+    for i = #chests, 1, -1 do
+        local c = chests[i]
+        local dist = math.sqrt((player.x - c.x)^2 + (player.y - c.y)^2)
+        if dist < 30 then
+            print("Chest Collected")
+            local evolvedWeapon = tryEvolveWeapon()
+            if evolvedWeapon then
+                table.insert(texts, {x=player.x, y=player.y-50, text="EVOLVED! " .. evolvedWeapon, color={1, 0.84, 0}, life=2})
+            else
+                player.xp = player.xp + 500
+                table.insert(texts, {x=player.x, y=player.y-50, text="+500 XP", color={0, 1, 0}, life=1})
+                if player.xp >= player.xpToNextLevel then
+                    player.level = player.level + 1
+                    player.xp = 0
+                    player.xpToNextLevel = math.floor(player.xpToNextLevel * 1.5)
+                    generateUpgradeOptions()
+                    gameState = 'LEVEL_UP'
+                end
+            end
+            table.remove(chests, i)
+        end
+    end
+
     for i=#texts,1,-1 do texts[i].life=texts[i].life-dt; texts[i].y=texts[i].y-30*dt; if texts[i].life<=0 then table.remove(texts, i) end end
 end
 
@@ -252,9 +339,22 @@ function love.draw()
     love.graphics.push()
     love.graphics.translate(-camera.x, -camera.y)
     
-    -- 简陋背景
+    -- 背景网格
     love.graphics.setColor(0.1, 0.1, 0.1)
     love.graphics.rectangle('fill', camera.x, camera.y, love.graphics.getWidth(), love.graphics.getHeight())
+    
+    love.graphics.setColor(0.2, 0.2, 0.2)
+    local gridSize = 100
+    local startX = math.floor(camera.x / gridSize) * gridSize
+    local startY = math.floor(camera.y / gridSize) * gridSize
+    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+    
+    for x = startX, camera.x + w, gridSize do
+        love.graphics.line(x, camera.y, x, camera.y + h)
+    end
+    for y = startY, camera.y + h, gridSize do
+        love.graphics.line(camera.x, y, camera.x + w, y)
+    end
     
     -- 大蒜圈
     if inventory.weapons.garlic then
@@ -264,10 +364,15 @@ function love.draw()
     end
     
     -- 实体
+    love.graphics.setColor(1, 0.84, 0) -- Gold for chests
+    for _, c in ipairs(chests) do
+        love.graphics.rectangle('fill', c.x - c.w/2, c.y - c.h/2, c.w, c.h)
+    end
+    
     love.graphics.setColor(0,0.5,1); for _,g in ipairs(gems) do love.graphics.rectangle('fill', g.x-3, g.y-3, 6, 6) end
     for _,e in ipairs(enemies) do love.graphics.setColor(e.color); love.graphics.rectangle('fill', e.x-e.size/2, e.y-e.size/2, e.size, e.size) end
     love.graphics.setColor(0,1,0); if player.invincibleTimer>0 and love.timer.getTime()%0.2<0.1 then love.graphics.setColor(1,1,1) end
-    love.graphics.rectangle('fill', player.x-10, player.y-10, 20, 20)
+    love.graphics.rectangle('fill', player.x-(player.size/2), player.y-(player.size/2), player.size, player.size)
     
     -- 投射物
     for _,b in ipairs(bullets) do
@@ -285,8 +390,15 @@ function love.draw()
 
     -- HUD
     love.graphics.setColor(0,0,1); love.graphics.rectangle('fill',0,0,love.graphics.getWidth()*(player.xp/player.xpToNextLevel),10)
-    love.graphics.setColor(1,0,0); love.graphics.rectangle('fill',10,20,150*(player.hp/player.maxHp),15)
+    local hpRatio = math.min(1, math.max(0, player.hp / player.maxHp))
+    love.graphics.setColor(1,0,0); love.graphics.rectangle('fill',10,20,150*hpRatio,15)
     love.graphics.setColor(1,1,1); love.graphics.print("LV "..player.level, 10, 40)
+
+    -- 游戏时间
+    local minutes = math.floor(gameTimer / 60)
+    local seconds = math.floor(gameTimer % 60)
+    local timeStr = string.format("%02d:%02d", minutes, seconds)
+    love.graphics.printf(timeStr, 0, 20, love.graphics.getWidth(), "center")
     
     -- 升级菜单 (RNG核心)
     if gameState == 'LEVEL_UP' then
@@ -322,12 +434,40 @@ function love.keypressed(key)
         local idx = tonumber(key)
         if idx and idx >= 1 and idx <= #upgradeOptions then
             applyUpgrade(upgradeOptions[idx])
-            gameState = 'PLAYING'
+            if pendingLevelUps > 0 then
+                pendingLevelUps = pendingLevelUps - 1
+                generateUpgradeOptions()
+                gameState = 'LEVEL_UP'
+            else
+                gameState = 'PLAYING'
+            end
         end
     end
 end
 
 -- === 系统核心逻辑 ===
+
+function tryEvolveWeapon()
+    for key, w in pairs(inventory.weapons) do
+        local def = catalog[key]
+        if def.evolveInfo and w.level >= def.maxLevel then
+            local req = def.evolveInfo.require
+            if inventory.passives[req] then
+                -- 满足进化条件
+                local targetKey = def.evolveInfo.target
+                local targetDef = catalog[targetKey]
+                
+                -- 移除旧武器
+                inventory.weapons[key] = nil
+                -- 添加新武器
+                addWeapon(targetKey)
+                
+                return targetDef.name
+            end
+        end
+    end
+    return nil
+end
 
 function generateUpgradeOptions()
     -- 1. 找出所有合法的升级项（未满级的）
@@ -404,18 +544,37 @@ function spawnProjectile(type, x, y, target)
         local spd = wStats.speed * player.stats.speed
         local vx = (math.random()-0.5) * 200 -- 水平随机散布
         local vy = -spd -- 初始向上速度
-        table.insert(bullets, {type='axe', x=x, y=y, vx=vx, vy=vy, life=3, size=12, damage=finalDmg, rotation=0})
+        table.insert(bullets, {type='axe', x=x, y=y, vx=vx, vy=vy, life=3, size=12, damage=finalDmg, rotation=0, hitTargets={}})
     end
 end
 
-function spawnEnemy(type)
+function spawnEnemy(type, isElite)
     local types = {
         skeleton = {hp=10, spd=50, col={0.8,0.8,0.8}, sz=16},
         bat = {hp=5, spd=150, col={0.6,0,1}, sz=12}
     }
     local t = types[type]
     local ang = math.random()*6.28; local d = 500
-    table.insert(enemies, {x=player.x+math.cos(ang)*d, y=player.y+math.sin(ang)*d, hp=t.hp, speed=t.spd, color=t.col, size=t.sz})
+    
+    local hp = t.hp
+    local size = t.sz
+    local color = t.col
+    
+    if isElite then
+        hp = hp * 5
+        size = size * 1.5
+        color = {1, 0, 0} -- Red for elite
+    end
+    
+    table.insert(enemies, {
+        x=player.x+math.cos(ang)*d, 
+        y=player.y+math.sin(ang)*d, 
+        hp=hp, 
+        speed=t.spd, 
+        color=color, 
+        size=size,
+        isElite=isElite
+    })
 end
 
 function damageEnemy(e, dmg, knock, kForce)
