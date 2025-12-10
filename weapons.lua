@@ -11,7 +11,9 @@ local function cloneStats(base)
         radius = base.radius,
         knockback = base.knockback,
         area = base.area or 1,
-        effectType = base.effectType
+        effectType = base.effectType,
+        pierce = base.pierce or 1,
+        duration = base.duration
     }
 end
 
@@ -71,10 +73,10 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
     local finalDmg = math.floor((wStats.damage or 0) * (state.player.stats.might or 1))
     local area = wStats.area or 1
 
-    if type == 'wand' or type == 'holy_wand' then
+    if type == 'wand' or type == 'holy_wand' or type == 'fire_wand' or type == 'oil_bottle' or type == 'heavy_hammer' or type == 'dagger' then
         local angle = math.atan2(target.y - y, target.x - x)
         local spd = (wStats.speed or 0) * (state.player.stats.speed or 1)
-        table.insert(state.bullets, {type='wand', x=x, y=y, vx=math.cos(angle)*spd, vy=math.sin(angle)*spd, life=2, size=6 * area, damage=finalDmg, effectType=effectType, weaponTags=weaponTags})
+        table.insert(state.bullets, {type=type, x=x, y=y, vx=math.cos(angle)*spd, vy=math.sin(angle)*spd, life=2, size=6 * area, damage=finalDmg, effectType=effectType, weaponTags=weaponTags, pierce=wStats.pierce or 1})
     elseif type == 'axe' then
         local spd = (wStats.speed or 0) * (state.player.stats.speed or 1)
         local vx = (math.random() - 0.5) * 200
@@ -117,6 +119,33 @@ function weapons.update(state, dt)
                     weapons.spawnProjectile(state, 'holy_wand', state.player.x, state.player.y, t, computedStats)
                     w.timer = actualCD
                 end
+            elseif key == 'fire_wand' then
+                local t = enemies.findNearestEnemy(state, 700)
+                if t then
+                    if state.playSfx then state.playSfx('shoot') end
+                    weapons.spawnProjectile(state, 'fire_wand', state.player.x, state.player.y, t, computedStats)
+                    w.timer = actualCD
+                end
+            elseif key == 'oil_bottle' then
+                local t = enemies.findNearestEnemy(state, 700)
+                if t then
+                    if state.playSfx then state.playSfx('shoot') end
+                    weapons.spawnProjectile(state, 'oil_bottle', state.player.x, state.player.y, t, computedStats)
+                    w.timer = actualCD
+                end
+            elseif key == 'dagger' then
+                local t = enemies.findNearestEnemy(state, 550)
+                if t then
+                    weapons.spawnProjectile(state, 'dagger', state.player.x, state.player.y, t, computedStats)
+                    w.timer = actualCD
+                end
+            elseif key == 'heavy_hammer' then
+                local t = enemies.findNearestEnemy(state, 550)
+                if t then
+                    if state.playSfx then state.playSfx('shoot') end
+                    weapons.spawnProjectile(state, 'heavy_hammer', state.player.x, state.player.y, t, computedStats)
+                    w.timer = actualCD
+                end
             elseif key == 'axe' then
                 if state.playSfx then state.playSfx('shoot') end
                 weapons.spawnProjectile(state, 'axe', state.player.x, state.player.y, nil, computedStats)
@@ -135,6 +164,20 @@ function weapons.update(state, dt)
                     if d < actualRadius then
                         enemies.applyStatus(state, e, effectType, actualDmg, weaponDef.tags)
                         enemies.damageEnemy(state, e, actualDmg, true, computedStats.knockback or 0)
+                        hit = true
+                    end
+                end
+                if hit then w.timer = actualCD end
+            elseif key == 'ice_ring' then
+                local hit = false
+                local actualDmg = math.floor((computedStats.damage or 0) * (state.player.stats.might or 1))
+                local actualRadius = (computedStats.radius or 0) * (computedStats.area or 1) * (state.player.stats.area or 1)
+                local effectType = weaponDef.effectType or computedStats.effectType
+                for _, e in ipairs(state.enemies) do
+                    local d = math.sqrt((state.player.x - e.x)^2 + (state.player.y - e.y)^2)
+                    if d < actualRadius then
+                        enemies.applyStatus(state, e, effectType, actualDmg, weaponDef.tags)
+                        if actualDmg > 0 then enemies.damageEnemy(state, e, actualDmg, true, computedStats.knockback or 0) end
                         hit = true
                     end
                 end

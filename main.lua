@@ -11,6 +11,11 @@ local draw = require('draw')
 function love.load()
     state.init()
     weapons.addWeapon(state, 'wand')
+    -- Debug combos for testing status synergies (uncomment as needed):
+    -- weapons.addWeapon(state, 'oil_bottle')
+    -- weapons.addWeapon(state, 'fire_wand')
+    -- weapons.addWeapon(state, 'ice_ring')
+    -- weapons.addWeapon(state, 'heavy_hammer')
 end
 
 function love.update(dt)

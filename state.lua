@@ -33,7 +33,7 @@ function state.init()
             desc = "Fires at nearest enemy.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'magic'},
-            base = { damage=10, cd=0.8, speed=400 },
+            base = { damage=8, cd=1.2, speed=380 },
             onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.9 end,
             evolveInfo = { target='holy_wand', require='tome' }
         },
@@ -42,7 +42,7 @@ function state.init()
             desc = "Evolved Magic Wand. Fires rapidly.",
             maxLevel = 1,
             tags = {'weapon', 'projectile', 'magic'},
-            base = { damage=15, cd=0.1, speed=600 },
+            base = { damage=15, cd=0.16, speed=600 },
             evolvedOnly = true,
             onUpgrade = function(w) end
         },
@@ -51,7 +51,7 @@ function state.init()
             desc = "Damages enemies nearby.",
             maxLevel = 5,
             tags = {'weapon', 'area', 'aura', 'magic'},
-            base = { damage=3, cd=0.2, radius=70, knockback=30 },
+            base = { damage=3, cd=0.35, radius=70, knockback=30 },
             onUpgrade = function(w) w.damage = w.damage + 2; w.radius = w.radius + 10 end
         },
         axe = {
@@ -59,7 +59,7 @@ function state.init()
             desc = "High damage, high arc.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'physical', 'arc'},
-            base = { damage=30, cd=1.2, speed=450, area=1.5 },
+            base = { damage=30, cd=1.4, speed=450, area=1.5 },
             onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end,
             evolveInfo = { target='death_spiral', require='spinach' }
         },
@@ -68,9 +68,49 @@ function state.init()
             desc = "Evolved Axe. Spirals out.",
             maxLevel = 1,
             tags = {'weapon', 'projectile', 'physical', 'arc'},
-            base = { damage=40, cd=1.0, speed=500, area=2.0 },
+            base = { damage=40, cd=1.2, speed=500, area=2.0 },
             evolvedOnly = true,
             onUpgrade = function(w) end
+        },
+        oil_bottle = {
+            type = 'weapon', name = "Oil Bottle",
+            desc = "Coats enemies in Oil.",
+            maxLevel = 5,
+            tags = {'weapon', 'projectile', 'chemical'},
+            base = { damage=0, cd=2.0, speed=300, pierce=999, effectType='OIL' },
+            onUpgrade = function(w) w.cd = w.cd * 0.95 end
+        },
+        fire_wand = {
+            type = 'weapon', name = "Fire Wand",
+            desc = "Ignites Oiled enemies.",
+            maxLevel = 5,
+            tags = {'weapon', 'projectile', 'fire', 'magic'},
+            base = { damage=15, cd=0.9, speed=450, effectType='FIRE' },
+            onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.95 end
+        },
+        ice_ring = {
+            type = 'weapon', name = "Ice Ring",
+            desc = "Freezes nearby enemies.",
+            maxLevel = 5,
+            tags = {'weapon', 'area', 'magic', 'ice'},
+            base = { damage=2, cd=2.5, radius=100, duration=0.5, effectType='FREEZE' },
+            onUpgrade = function(w) w.radius = w.radius + 10; w.cd = w.cd * 0.95 end
+        },
+        heavy_hammer = {
+            type = 'weapon', name = "Warhammer",
+            desc = "Shatters Frozen enemies for 3x Damage.",
+            maxLevel = 5,
+            tags = {'weapon', 'projectile', 'physical', 'heavy'},
+            base = { damage=40, cd=2.0, speed=180, knockback=100, effectType='HEAVY' },
+            onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end
+        },
+        dagger = {
+            type = 'weapon', name = "Throwing Knife",
+            desc = "Stacks Bleed. Explodes at 10 stacks.",
+            maxLevel = 5,
+            tags = {'weapon', 'projectile', 'physical', 'fast'},
+            base = { damage=5, cd=0.18, speed=600, effectType='BLEED' },
+            onUpgrade = function(w) w.damage = w.damage + 2 end
         },
         spinach = {
             type = 'passive', name = "Spinach",
@@ -137,7 +177,18 @@ function state.init()
     }
     function state.playSfx(key)
         local s = state.sfx[key]
-        if s then s:clone():play() end
+        if s and s.clone then
+            local ok, src = pcall(function() return s:clone() end)
+            if ok and src and src.play then
+                local okPlay = pcall(function() src:play() end)
+                if okPlay then return end
+            end
+        end
+        if s and s.play then
+            local okPlay = pcall(function() s:play() end)
+            if okPlay then return end
+        end
+        print("Play Sound: " .. tostring(key))
     end
 
     -- 背景平铺纹理（简单生成一张无缝草地占位图）

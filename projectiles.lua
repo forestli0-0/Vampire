@@ -8,7 +8,7 @@ function projectiles.updatePlayerBullets(state, dt)
     for i = #state.bullets, 1, -1 do
         local b = state.bullets[i]
 
-        if b.type == 'wand' then
+        if b.type == 'wand' or b.type == 'holy_wand' or b.type == 'fire_wand' or b.type == 'oil_bottle' or b.type == 'heavy_hammer' or b.type == 'dagger' then
             b.x = b.x + b.vx * dt
             b.y = b.y + b.vy * dt
         elseif b.type == 'axe' then
@@ -35,12 +35,15 @@ function projectiles.updatePlayerBullets(state, dt)
             for j = #state.enemies, 1, -1 do
                 local e = state.enemies[j]
                 if util.checkCollision(b, e) then
-                    if b.type == 'wand' then
+                    if b.type == 'wand' or b.type == 'holy_wand' or b.type == 'fire_wand' or b.type == 'oil_bottle' or b.type == 'heavy_hammer' or b.type == 'dagger' then
                         enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags)
-                        enemies.damageEnemy(state, e, b.damage, false, 0)
-                        table.remove(state.bullets, i)
-                        hit = true
-                        break
+                        if (b.damage or 0) > 0 then enemies.damageEnemy(state, e, b.damage, false, 0) end
+                        b.pierce = (b.pierce or 1) - 1
+                        if b.pierce <= 0 then
+                            table.remove(state.bullets, i)
+                            hit = true
+                            break
+                        end
                     elseif b.type == 'axe' then
                         b.hitTargets = b.hitTargets or {}
                         if not b.hitTargets[e] then

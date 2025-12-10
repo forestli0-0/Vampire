@@ -50,8 +50,9 @@ function pickups.updateChests(state, dt)
             if evolvedWeapon then
                 table.insert(state.texts, {x=p.x, y=p.y-50, text="EVOLVED! " .. evolvedWeapon, color={1, 0.84, 0}, life=2})
             else
-                addXp(state, 500)
-                table.insert(state.texts, {x=p.x, y=p.y-50, text="+500 XP", color={0, 1, 0}, life=1})
+                local chestXp = 120
+                addXp(state, chestXp)
+                table.insert(state.texts, {x=p.x, y=p.y-50, text="+"..chestXp.." XP", color={0, 1, 0}, life=1})
             end
             table.remove(state.chests, i)
         end
