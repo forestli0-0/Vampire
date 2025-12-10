@@ -114,6 +114,18 @@ function draw.render(state)
     local timeStr = string.format("%02d:%02d", minutes, seconds)
     love.graphics.printf(timeStr, 0, 20, love.graphics.getWidth(), "center")
 
+    if state.gameState == 'GAME_OVER' then
+        local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+        love.graphics.setColor(0,0,0,0.75)
+        love.graphics.rectangle('fill', 0, 0, w, h)
+        love.graphics.setFont(state.titleFont)
+        love.graphics.setColor(1,0.2,0.2)
+        love.graphics.printf("GAME OVER", 0, h/2 - 60, w, "center")
+        love.graphics.setFont(state.font)
+        love.graphics.setColor(1,1,1)
+        love.graphics.printf("Press R to restart", 0, h/2, w, "center")
+    end
+
     if state.gameState == 'LEVEL_UP' then
         love.graphics.setColor(0,0,0,0.9)
         love.graphics.rectangle('fill', 0, 0, love.graphics.getWidth(), love.graphics.getHeight())

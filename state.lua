@@ -41,6 +41,7 @@ function state.init()
             desc = "Evolved Magic Wand. Fires rapidly.",
             maxLevel = 1,
             base = { damage=15, cd=0.1, speed=600 },
+            evolvedOnly = true,
             onUpgrade = function(w) end
         },
         garlic = {
@@ -63,6 +64,7 @@ function state.init()
             desc = "Evolved Axe. Spirals out.",
             maxLevel = 1,
             base = { damage=40, cd=1.0, speed=500, area=2.0 },
+            evolvedOnly = true,
             onUpgrade = function(w) end
         },
         spinach = {

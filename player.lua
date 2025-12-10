@@ -21,11 +21,16 @@ function player.hurt(state, dmg)
     local p = state.player
     if p.invincibleTimer > 0 then return end
     p.hp = math.max(0, p.hp - dmg)
-    p.invincibleTimer = 0.5
-    state.shakeAmount = 5
+    if p.hp <= 0 then
+        p.invincibleTimer = 0
+        state.shakeAmount = 0
+        state.gameState = 'GAME_OVER'
+    else
+        p.invincibleTimer = 0.5
+        state.shakeAmount = 5
+    end
     if state.playSfx then state.playSfx('hit') end
     table.insert(state.texts, {x=p.x, y=p.y-30, text="-"..dmg, color={1,0,0}, life=1})
-    if p.hp <= 0 then state.gameState = 'GAME_OVER' end
 end
 
 function player.tickInvincibility(state, dt)

@@ -5,11 +5,21 @@ local upgrades = {}
 function upgrades.generateUpgradeOptions(state)
     local pool = {}
     for key, item in pairs(state.catalog) do
-        local currentLevel = 0
-        if item.type == 'weapon' and state.inventory.weapons[key] then currentLevel = state.inventory.weapons[key].level end
-        if item.type == 'passive' and state.inventory.passives[key] then currentLevel = state.inventory.passives[key] end
-        if currentLevel < item.maxLevel then
-            table.insert(pool, {key=key, item=item})
+        -- evolved-only武器不进入随机池；已经进化后隐藏基础武器
+        local skip = false
+        if item.evolvedOnly then
+            skip = true
+        elseif item.type == 'weapon' and item.evolveInfo and state.inventory.weapons[item.evolveInfo.target] then
+            skip = true
+        end
+
+        if not skip then
+            local currentLevel = 0
+            if item.type == 'weapon' and state.inventory.weapons[key] then currentLevel = state.inventory.weapons[key].level end
+            if item.type == 'passive' and state.inventory.passives[key] then currentLevel = state.inventory.passives[key] end
+            if currentLevel < item.maxLevel then
+                table.insert(pool, {key=key, item=item})
+            end
         end
     end
 
