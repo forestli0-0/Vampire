@@ -100,7 +100,7 @@ function love.load()
     addWeapon('wand')
 
     -- === 4. 实体容器 ===
-    enemies = {}; bullets = {}; gems = {}; texts = {}; chests = {}
+    enemies = {}; bullets = {}; enemyBullets = {}; gems = {}; texts = {}; chests = {}
     
     -- 升级选项缓存
     upgradeOptions = {} 
@@ -218,6 +218,24 @@ function love.update(dt)
         end
     end
 
+    -- === 3.5 敌方子弹 ===
+    for i = #enemyBullets, 1, -1 do
+        local eb = enemyBullets[i]
+        eb.x = eb.x + eb.vx * dt
+        eb.y = eb.y + eb.vy * dt
+        eb.life = eb.life - dt
+
+        if eb.life <= 0 or math.abs(eb.x - player.x) > 1500 or math.abs(eb.y - player.y) > 1500 then
+            table.remove(enemyBullets, i)
+        elseif player.invincibleTimer <= 0 and checkCollision(eb, {x=player.x, y=player.y, size=player.size}) then
+            player.hp = math.max(0, player.hp - eb.damage)
+            table.insert(texts, {x=player.x, y=player.y-30, text="-"..eb.damage, color={1,0,0}, life=1})
+            player.invincibleTimer = 0.5
+            table.remove(enemyBullets, i)
+            if player.hp <= 0 then gameState = 'GAME_OVER' end
+        end
+    end
+
     -- === 4. 敌人生成与移动 ===
     -- 导演事件：固定时间生成精英怪
     if not directorState.event60 and gameTimer >= 60 then
@@ -233,7 +251,12 @@ function love.update(dt)
 
     spawnTimer = spawnTimer - dt
     if spawnTimer <= 0 then
-        local type = (gameTimer > 30 and math.random() > 0.5) and 'bat' or 'skeleton'
+        local type
+        if gameTimer >= 120 and math.random() < 0.25 then
+            type = 'plant'
+        else
+            type = (gameTimer > 30 and math.random() > 0.5) and 'bat' or 'skeleton'
+        end
         local isElite = math.random() < 0.05 -- 5% chance for elite
         spawnEnemy(type, isElite)
         spawnTimer = math.max(0.1, 0.5 - player.level * 0.01)
@@ -263,6 +286,17 @@ function love.update(dt)
                     pushX = pushX + nx * overlap * strength
                     pushY = pushY + ny * overlap * strength
                 end
+            end
+        end
+
+        -- 植物类远程攻击
+        if e.kind == 'plant' then
+            e.shootTimer = (e.shootTimer or 0) - dt
+            if e.shootTimer <= 0 then
+                local ang = math.atan2(player.y - e.y, player.x - e.x)
+                local spd = 180
+                table.insert(enemyBullets, {x=e.x, y=e.y, vx=math.cos(ang)*spd, vy=math.sin(ang)*spd, size=10, life=5, damage=10})
+                e.shootTimer = 3
             end
         end
 
@@ -407,6 +441,12 @@ function love.draw()
         if b.rotation then love.graphics.rotate(b.rotation) end
         love.graphics.rectangle('fill', -b.size/2, -b.size/2, b.size, b.size)
         love.graphics.pop()
+    end
+
+    -- 敌方子弹
+    love.graphics.setColor(1,0,0)
+    for _,eb in ipairs(enemyBullets) do
+        love.graphics.rectangle('fill', eb.x-eb.size/2, eb.y-eb.size/2, eb.size, eb.size)
     end
     
     -- 飘字
@@ -576,7 +616,8 @@ end
 function spawnEnemy(type, isElite)
     local types = {
         skeleton = {hp=10, spd=50, col={0.8,0.8,0.8}, sz=16},
-        bat = {hp=5, spd=150, col={0.6,0,1}, sz=12}
+        bat = {hp=5, spd=150, col={0.6,0,1}, sz=12},
+        plant = {hp=35, spd=30, col={0,0.7,0.2}, sz=22, shoot=3}
     }
     local t = types[type]
     local ang = math.random()*6.28; local d = 500
@@ -598,7 +639,9 @@ function spawnEnemy(type, isElite)
         speed=t.spd, 
         color=color, 
         size=size,
-        isElite=isElite
+        isElite=isElite,
+        kind=type,
+        shootTimer=t.shoot
     })
 end
 
