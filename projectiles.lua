@@ -16,6 +16,14 @@ function projectiles.updatePlayerBullets(state, dt)
             b.y = b.y + b.vy * dt
             b.vy = b.vy + 1000 * dt
             b.rotation = b.rotation + 10 * dt
+        elseif b.type == 'death_spiral' then
+            local ang = math.atan2(b.vy, b.vx) + (b.angularVel or 0) * dt
+            local spd = math.sqrt(b.vx * b.vx + b.vy * b.vy)
+            b.vx = math.cos(ang) * spd
+            b.vy = math.sin(ang) * spd
+            b.x = b.x + b.vx * dt
+            b.y = b.y + b.vy * dt
+            b.rotation = (b.rotation or 0) + 8 * dt
         end
 
         b.life = b.life - dt
@@ -33,6 +41,12 @@ function projectiles.updatePlayerBullets(state, dt)
                         hit = true
                         break
                     elseif b.type == 'axe' then
+                        b.hitTargets = b.hitTargets or {}
+                        if not b.hitTargets[e] then
+                            b.hitTargets[e] = true
+                            enemies.damageEnemy(state, e, b.damage, false, 0)
+                        end
+                    elseif b.type == 'death_spiral' then
                         b.hitTargets = b.hitTargets or {}
                         if not b.hitTargets[e] then
                             b.hitTargets[e] = true

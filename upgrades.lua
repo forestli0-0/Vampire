@@ -2,8 +2,27 @@ local weapons = require('weapons')
 
 local upgrades = {}
 
+local function canEvolve(state, key)
+    local def = state.catalog[key]
+    if not def or not def.evolveInfo then return false end
+    local w = state.inventory.weapons[key]
+    if not w or w.level < def.maxLevel then return false end
+    if def.evolveInfo.require and not state.inventory.passives[def.evolveInfo.require] then return false end
+    if state.inventory.weapons[def.evolveInfo.target] then return false end
+    return true
+end
+
 function upgrades.generateUpgradeOptions(state)
     local pool = {}
+    local added = {}
+    local function addOption(opt)
+        local key = opt.key .. (opt.evolveFrom or "")
+        if not added[key] then
+            table.insert(pool, opt)
+            added[key] = true
+        end
+    end
+
     for key, item in pairs(state.catalog) do
         -- evolved-only武器不进入随机池；已经进化后隐藏基础武器
         local skip = false
@@ -18,8 +37,22 @@ function upgrades.generateUpgradeOptions(state)
             if item.type == 'weapon' and state.inventory.weapons[key] then currentLevel = state.inventory.weapons[key].level end
             if item.type == 'passive' and state.inventory.passives[key] then currentLevel = state.inventory.passives[key] end
             if currentLevel < item.maxLevel then
-                table.insert(pool, {key=key, item=item})
+                addOption({key=key, type=item.type, name=item.name, desc=item.desc, def=item})
             end
+        end
+
+        -- 可进化时将进化体作为额外选项（不会重复出现）
+        if item.type == 'weapon' and canEvolve(state, key) then
+            local targetKey = item.evolveInfo.target
+            local target = state.catalog[targetKey]
+            addOption({
+                key = targetKey,
+                type = target.type,
+                name = target.name,
+                desc = "Evolve " .. item.name .. " into " .. target.name,
+                def = target,
+                evolveFrom = key
+            })
         end
     end
 
@@ -28,13 +61,7 @@ function upgrades.generateUpgradeOptions(state)
         if #pool == 0 then break end
         local rndIdx = math.random(#pool)
         local choice = pool[rndIdx]
-        table.insert(state.upgradeOptions, {
-            key = choice.key,
-            type = choice.item.type,
-            name = choice.item.name,
-            desc = choice.item.desc,
-            def = choice.item
-        })
+        table.insert(state.upgradeOptions, choice)
         table.remove(pool, rndIdx)
     end
 end
@@ -49,7 +76,12 @@ function upgrades.queueLevelUp(state)
 end
 
 function upgrades.applyUpgrade(state, opt)
-    if opt.type == 'weapon' then
+    if opt.evolveFrom then
+        -- 直接进化：移除基础武器，添加目标武器
+        state.inventory.weapons[opt.evolveFrom] = nil
+        weapons.addWeapon(state, opt.key)
+        return
+    elseif opt.type == 'weapon' then
         if not state.inventory.weapons[opt.key] then
             weapons.addWeapon(state, opt.key)
         else

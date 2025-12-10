@@ -71,14 +71,16 @@ function draw.render(state)
         love.graphics.rectangle('fill', e.x - e.size/2, e.y - e.size/2, e.size, e.size)
     end
 
-    love.graphics.setColor(1,1,1)
+    local inv = state.player.invincibleTimer > 0
+    local blink = inv and love.timer.getTime() % 0.2 < 0.1
     if state.playerAnim then
+        if blink then love.graphics.setColor(1,1,1,0.35) else love.graphics.setColor(1,1,1) end
         state.playerAnim:draw(state.player.x, state.player.y)
     else
-        love.graphics.setColor(0,1,0)
-        if state.player.invincibleTimer > 0 and love.timer.getTime() % 0.2 < 0.1 then love.graphics.setColor(1,1,1) end
+        if blink then love.graphics.setColor(1,1,1) else love.graphics.setColor(0,1,0) end
         love.graphics.rectangle('fill', state.player.x - (state.player.size/2), state.player.y - (state.player.size/2), state.player.size, state.player.size)
     end
+    love.graphics.setColor(1,1,1)
 
     -- 玩家投射物
     for _, b in ipairs(state.bullets) do
