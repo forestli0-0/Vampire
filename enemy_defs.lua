@@ -1,3 +1,20 @@
+--[[
+Template for adding new enemies:
+enemyDefs.my_enemy = {
+    hp = 10,              -- base health
+    speed = 50,           -- movement speed toward player
+    size = 16,            -- hitbox size (square)
+    color = {1, 1, 1},    -- draw color
+    spawnDistance = 500,  -- optional spawn radius from player
+    -- Optional shooting behavior (omit for melee-only enemies)
+    shootInterval = 3,    -- seconds between shots
+    bulletSpeed = 180,
+    bulletDamage = 10,
+    bulletLife = 5,
+    bulletSize = 10
+}
+]]
+
 local enemyDefs = {
     skeleton = {
         hp = 10,
