@@ -391,6 +391,22 @@ function draw.render(state)
             love.graphics.setColor(0.7,0.7,0.7)
             love.graphics.print(opt.desc, 220, y+35)
 
+            if opt.type == 'weapon' and opt.def and opt.def.base then
+                local w = state.inventory.weapons[opt.key]
+                local base = opt.def.base
+                local crit = (w and w.critChance) or base.critChance or 0
+                local critMult = (w and w.critMultiplier) or base.critMultiplier or 1.5
+                local status = (w and w.statusChance) or base.statusChance or 0
+                local amount = (w and w.amount) or base.amount or 0
+                
+                local statStr = string.format("Crit: %d%% (x%.1f)  Status: %d%%", crit*100, critMult, status*100)
+                if amount > 0 then
+                    statStr = statStr .. string.format("  Multi: +%d", amount)
+                end
+                love.graphics.setColor(0.8, 0.8, 0.5)
+                love.graphics.print(statStr, 220, y+55)
+            end
+
             local curLv = 0
             if opt.type == 'weapon' and state.inventory.weapons[opt.key] then curLv = state.inventory.weapons[opt.key].level end
             if opt.type == 'passive' and state.inventory.passives[opt.key] then curLv = state.inventory.passives[opt.key] end

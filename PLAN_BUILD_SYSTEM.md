@@ -26,6 +26,18 @@ Transform the game's combat mechanics from simple flat values to a deep, scalabl
 - [x] **Integration**: Ensured all weapon types (AoE, Projectile, Melee) respect this stat.
 
 ## Next Steps
-- [ ] **UI**: Display these stats in the weapon selection/upgrade menu.
-- [ ] **Upgrades**: Add passive items or upgrades that boost these specific stats (e.g., "Hollow Point" for Crit Damage, "Rifle Aptitude" for Status Chance).
-- [ ] **Balancing**: Adjust base values in `state.lua` (currently placeholders).
+- [x] **UI**: Display these stats in the weapon selection/upgrade menu.
+    - Added stats display (Crit, Status, Multishot) to the Level Up screen in `draw.lua`.
+- [x] **Upgrades**: Add passive items or upgrades that boost these specific stats.
+    - Added `Clover` (+10% Crit Chance).
+    - Added `Titanium Skull` (+20% Crit Damage).
+    - Added `Venom Vial` (+20% Status Chance).
+- [x] **Balancing**: Adjust base values in `state.lua` (currently placeholders).
+    - Adjusted base `statusChance` for all weapons:
+        - `Oil Bottle`: 0.8 (High reliability)
+        - `Fire Wand`: 0.3 (Moderate) -> `Hellfire`: 0.5
+        - `Ice Ring`: 0.3 (Moderate) -> `Absolute Zero`: 0.6
+        - `Throwing Knife`: 0.2 (Low, relies on fire rate) -> `Thousand Edge`: 0.2
+        - `Static Orb`: 0.4 (Moderate) -> `Thunder Loop`: 0.5
+        - `Warhammer`: 0.5 (Moderate) -> `Earthquake`: 0.6
+    - This makes the `Venom Vial` (+20% Status Chance) a valuable upgrade for ensuring effects trigger.

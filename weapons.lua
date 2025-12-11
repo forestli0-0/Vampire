@@ -24,7 +24,7 @@ end
 local function applyPassiveEffects(stats, effect, level)
     for statKey, mod in pairs(effect) do
         if stats[statKey] ~= nil then
-            if statKey == 'amount' then
+            if statKey == 'amount' or statKey == 'critChance' or statKey == 'statusChance' or statKey == 'critMultiplier' then
                 stats[statKey] = stats[statKey] + mod * level
             else
                 local factor = 1 + (mod * level)
