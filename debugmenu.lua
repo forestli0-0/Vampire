@@ -1,9 +1,11 @@
 local upgrades = require('upgrades')
 local weapons = require('weapons')
+local enemies = require('enemies')
+local enemyDefs = require('enemy_defs')
 
 local debugmenu = {}
 
-local modes = {'weapon', 'passive', 'xp'}
+local modes = {'weapon', 'passive', 'xp', 'enemy'}
 
 local function cloneStats(base)
     local copy = {}
@@ -57,6 +59,13 @@ local function buildLists(state)
     table.sort(passivesList)
     state.debug.weaponList = weaponsList
     state.debug.passiveList = passivesList
+
+    local enemyList = {}
+    for key, _ in pairs(enemyDefs or {}) do
+        table.insert(enemyList, key)
+    end
+    table.sort(enemyList)
+    state.debug.enemyList = enemyList
 end
 
 local function grantXp(state, amount)
@@ -76,6 +85,7 @@ function debugmenu.init(state)
     state.debug.modeIdx = 1
     state.debug.weaponIdx = 1
     state.debug.passiveIdx = 1
+    state.debug.enemyIdx = 1
     state.debug.xpStep = 50
     buildLists(state)
 end
@@ -143,6 +153,26 @@ function debugmenu.keypressed(state, key)
             grantXp(state, state.debug.xpStep)
             return true
         end
+    elseif mode == 'enemy' then
+        if key == 'up' then
+            state.debug.enemyIdx = clampIndex(state.debug.enemyIdx - 1, state.debug.enemyList)
+            return true
+        elseif key == 'down' then
+            state.debug.enemyIdx = clampIndex(state.debug.enemyIdx + 1, state.debug.enemyList)
+            return true
+        elseif key == 'right' or key == 'return' then
+            local keyName = state.debug.enemyList[state.debug.enemyIdx]
+            if keyName then
+                enemies.spawnEnemy(state, keyName, false)
+                -- Move spawned enemy near player for quick testing
+                local spawned = state.enemies[#state.enemies]
+                if spawned then
+                    spawned.x = state.player.x + math.random(-80, 80)
+                    spawned.y = state.player.y + math.random(-80, 80)
+                end
+            end
+            return true
+        end
     end
 
     return false
@@ -181,6 +211,10 @@ function debugmenu.draw(state)
         love.graphics.print(string.format("XP Step: %d  | Player Lv: %d  XP: %d / %d", state.debug.xpStep, state.player.level, state.player.xp, state.player.xpToNextLevel), 20, y)
         y = y + 20
         love.graphics.print("Up/Down to change step, Right/Enter to grant XP (triggers level-ups)", 20, y)
+    elseif mode == 'enemy' then
+        local list = state.debug.enemyList
+        local keyName = list[state.debug.enemyIdx] or "N/A"
+        love.graphics.print(string.format("Enemy: [%s] | Up/Down to pick, Right/Enter to spawn near player", keyName), 20, y)
     end
 end
 

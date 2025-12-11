@@ -226,12 +226,17 @@ function enemies.update(state, dt)
             if e.shootTimer <= 0 then
                 local ang = math.atan2(p.y - e.y, p.x - e.x)
                 local spd = e.bulletSpeed or 180
+                local spriteKey = nil
+                if e.kind == 'plant' then spriteKey = 'plant_bullet' end
                 table.insert(state.enemyBullets, {
                     x = e.x, y = e.y,
                     vx = math.cos(ang) * spd, vy = math.sin(ang) * spd,
                     size = e.bulletSize or 10,
                     life = e.bulletLife or 5,
-                    damage = e.bulletDamage or 10
+                    damage = e.bulletDamage or 10,
+                    type = e.kind,
+                    rotation = ang,
+                    spriteKey = spriteKey
                 })
                 e.shootTimer = e.shootInterval
             end

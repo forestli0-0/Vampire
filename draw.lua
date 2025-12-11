@@ -169,9 +169,24 @@ function draw.render(state)
     end
 
     -- 敌方子弹
-    love.graphics.setColor(1,0,0)
     for _, eb in ipairs(state.enemyBullets) do
-        love.graphics.rectangle('fill', eb.x - eb.size/2, eb.y - eb.size/2, eb.size, eb.size)
+        local sprite = state.enemySprites and state.enemySprites[eb.spriteKey or '']
+        if sprite then
+            local sw, sh = sprite:getWidth(), sprite:getHeight()
+            local baseScale = (eb.size or sw) / sw
+            if eb.spriteKey == 'plant_bullet' then baseScale = baseScale * 2 end
+            local scale = baseScale
+            love.graphics.setColor(1,1,1)
+            love.graphics.draw(sprite, eb.x, eb.y, eb.rotation or 0, scale, scale, sw/2, sh/2)
+        else
+            love.graphics.setColor(1,0,0)
+            love.graphics.push()
+            love.graphics.translate(eb.x, eb.y)
+            if eb.rotation then love.graphics.rotate(eb.rotation) end
+            local size = eb.size or 10
+            love.graphics.rectangle('fill', -size/2, -size/2, size, size)
+            love.graphics.pop()
+        end
     end
 
     -- 飘字

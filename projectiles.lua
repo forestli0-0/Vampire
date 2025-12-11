@@ -127,6 +127,7 @@ function projectiles.updateEnemyBullets(state, dt)
         eb.x = eb.x + eb.vx * dt
         eb.y = eb.y + eb.vy * dt
         eb.life = eb.life - dt
+        eb.rotation = math.atan2(eb.vy, eb.vx)
 
         if eb.life <= 0 or math.abs(eb.x - state.player.x) > 1500 or math.abs(eb.y - state.player.y) > 1500 then
             table.remove(state.enemyBullets, i)

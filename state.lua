@@ -334,6 +334,14 @@ function state.init()
         end
     end
     state.weaponSpriteScale['axe'] = 2
+
+    -- 敌人子弹贴图
+    state.enemySprites = {}
+    local plantBullet = loadImage('assets/enemies/plant_bullet.png')
+    if plantBullet then
+        plantBullet:setFilter('nearest', 'nearest')
+        state.enemySprites['plant_bullet'] = plantBullet
+    end
 end
 
 return state
