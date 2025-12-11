@@ -1,3 +1,4 @@
+-- Love2D 主入口，协调状态、渲染与更新循环
 local state = require('state')
 local player = require('player')
 local weapons = require('weapons')
@@ -10,6 +11,7 @@ local draw = require('draw')
 local debugmenu = require('debugmenu')
 local logger = require('logger')
 
+-- 游戏启动时的初始化（状态、日志、默认武器等）
 function love.load()
     if state.stopMusic then state.stopMusic() end
     state.init()
@@ -17,7 +19,7 @@ function love.load()
     weapons.addWeapon(state, 'wand')
     if state.playMusic then state.playMusic() end
     debugmenu.init(state)
-    -- Debug combos for testing status synergies (uncomment as needed):
+    -- 调试用武器组合：测试状态联动时取消注释
     -- weapons.addWeapon(state, 'oil_bottle')
     -- weapons.addWeapon(state, 'fire_wand')
     -- weapons.addWeapon(state, 'ice_ring')
@@ -25,26 +27,31 @@ function love.load()
 end
 
 function love.update(dt)
+    -- 升级/死亡界面下暂停主循环
     if state.gameState == 'LEVEL_UP' then return end
     if state.gameState == 'GAME_OVER' then
         if love.keyboard.isDown('r') then love.load() end
         return
     end
 
+    -- 逐帧衰减屏幕震动
     if state.shakeAmount > 0 then
         state.shakeAmount = math.max(0, state.shakeAmount - dt * 10)
     end
 
+    -- 全局计时与场景效果
     state.gameTimer = state.gameTimer + dt
     pickups.updateMagnetSpawns(state, dt)
     if state.updateEffects then state.updateEffects(dt) end
 
+    -- 核心更新顺序：玩家 → 武器 → 子弹 → 刷怪
     player.updateMovement(state, dt)
     weapons.update(state, dt)
     projectiles.updatePlayerBullets(state, dt)
     projectiles.updateEnemyBullets(state, dt)
     director.update(state, dt)
     enemies.update(state, dt)
+    -- 根据移动状态控制玩家动画
     if state.playerAnim then
         if state.player.isMoving then
             if not state.playerAnim.playing then state.playerAnim:play(false) end
@@ -62,15 +69,18 @@ function love.update(dt)
 end
 
 function love.draw()
+    -- 渲染世界并叠加调试菜单
     draw.render(state)
     debugmenu.draw(state)
 end
 
 function love.quit()
+    -- 退出时尝试刷新日志落盘
     if logger.flushIfActive then logger.flushIfActive(state, 'quit') end
 end
 
 function love.keypressed(key)
+    -- 等级界面：按数字选择升级
     if debugmenu.keypressed(state, key) then return end
     if state.gameState == 'LEVEL_UP' then
         local idx = tonumber(key)
