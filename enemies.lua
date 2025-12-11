@@ -31,6 +31,7 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         e.speed = 0
     elseif effect == 'OIL' then
         e.status.oiled = true
+        e.status.oiledTimer = math.max((effectData and effectData.duration) or 6.0, 0)
     elseif effect == 'BLEED' then
         e.status.bleedStacks = (e.status.bleedStacks or 0) + 1
         if e.status.bleedStacks >= 10 then
@@ -42,7 +43,8 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         if e.status.oiled then
             e.status.burnTimer = 5
             e.status.oiled = false
-            e.status.burnDps = math.max(1, (e.maxHp or e.hp or 0) * 0.05)
+            e.status.oiledTimer = nil
+            e.status.burnDps = math.max(1, (e.maxHp or e.hp or 0) * 0.03)
         end
     elseif effect == 'HEAVY' then
         if e.status.frozen then
@@ -55,6 +57,9 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         end
     elseif effect == 'STATIC' then
         e.status.static = true
+        e.status.staticTimer = 0
+        e.status.staticDuration = math.max((effectData and effectData.duration) or 2.0, 0)
+        e.status.staticRange = (effectData and effectData.range) or 160
     end
 end
 
@@ -154,10 +159,19 @@ function enemies.update(state, dt)
             if e.status.burnTimer < 0 then e.status.burnTimer = 0 end
         end
 
+        if e.status.oiled and e.status.oiledTimer then
+            e.status.oiledTimer = e.status.oiledTimer - dt
+            if e.status.oiledTimer <= 0 then
+                e.status.oiled = false
+                e.status.oiledTimer = nil
+            end
+        end
+
         if e.status.static then
             e.status.staticTimer = (e.status.staticTimer or 0) - dt
+            e.status.staticDuration = (e.status.staticDuration or 0) - dt
             if e.status.staticTimer <= 0 then
-                local nearest, dist2 = nil, 30 * 30
+                local nearest, dist2 = nil, (e.status.staticRange or 160) * (e.status.staticRange or 160)
                 for j, o in ipairs(state.enemies) do
                     if i ~= j then
                         local dx = o.x - e.x
@@ -176,6 +190,11 @@ function enemies.update(state, dt)
                     table.insert(state.chainLinks, {x1=e.x, y1=e.y, x2=nearest.x, y2=nearest.y})
                     e.status.staticTimer = 0.5
                 end
+            end
+            if e.status.staticDuration <= 0 then
+                e.status.static = false
+                e.status.staticTimer = nil
+                e.status.staticDuration = nil
             end
         end
 

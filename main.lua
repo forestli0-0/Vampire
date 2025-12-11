@@ -7,10 +7,12 @@ local pickups = require('pickups')
 local upgrades = require('upgrades')
 local director = require('director')
 local draw = require('draw')
+local debugmenu = require('debugmenu')
 
 function love.load()
     state.init()
     weapons.addWeapon(state, 'wand')
+    debugmenu.init(state)
     -- Debug combos for testing status synergies (uncomment as needed):
     -- weapons.addWeapon(state, 'oil_bottle')
     -- weapons.addWeapon(state, 'fire_wand')
@@ -47,9 +49,11 @@ end
 
 function love.draw()
     draw.render(state)
+    debugmenu.draw(state)
 end
 
 function love.keypressed(key)
+    if debugmenu.keypressed(state, key) then return end
     if state.gameState == 'LEVEL_UP' then
         local idx = tonumber(key)
         if idx and idx >= 1 and idx <= #state.upgradeOptions then

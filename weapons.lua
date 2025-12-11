@@ -13,7 +13,9 @@ local function cloneStats(base)
         area = base.area or 1,
         effectType = base.effectType,
         pierce = base.pierce or 1,
-        duration = base.duration
+        duration = base.duration,
+        splashRadius = base.splashRadius,
+        staticRange = base.staticRange
     }
 end
 
@@ -77,7 +79,12 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
         local angle = math.atan2(target.y - y, target.x - x)
         local spd = (wStats.speed or 0) * (state.player.stats.speed or 1)
         local size = (wStats.size or 6) * area
-        table.insert(state.bullets, {type=type, x=x, y=y, vx=math.cos(angle)*spd, vy=math.sin(angle)*spd, life=2, size=size, damage=finalDmg, effectType=effectType, weaponTags=weaponTags, pierce=wStats.pierce or 1, rotation=angle})
+        table.insert(state.bullets, {
+            type=type, x=x, y=y, vx=math.cos(angle)*spd, vy=math.sin(angle)*spd,
+            life=2, size=size, damage=finalDmg, effectType=effectType, weaponTags=weaponTags,
+            pierce=wStats.pierce or 1, rotation=angle,
+            effectDuration=wStats.duration, splashRadius=wStats.splashRadius, effectRange=wStats.staticRange
+        })
     elseif type == 'axe' then
         local spd = (wStats.speed or 0) * (state.player.stats.speed or 1)
         local vx = (math.random() - 0.5) * 200

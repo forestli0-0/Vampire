@@ -78,7 +78,7 @@ function state.init()
             desc = "Coats enemies in Oil.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'chemical'},
-            base = { damage=0, cd=2.0, speed=300, pierce=999, effectType='OIL', size=16 },
+            base = { damage=0, cd=2.0, speed=300, pierce=1, effectType='OIL', size=16, splashRadius=80, duration=6.0 },
             onUpgrade = function(w) w.cd = w.cd * 0.95 end
         },
         fire_wand = {
@@ -86,7 +86,7 @@ function state.init()
             desc = "Ignites Oiled enemies.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'fire', 'magic'},
-            base = { damage=15, cd=0.9, speed=450, effectType='FIRE' },
+            base = { damage=15, cd=0.9, speed=450, effectType='FIRE', splashRadius=70 },
             onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.95 end
         },
         ice_ring = {
@@ -110,7 +110,7 @@ function state.init()
             desc = "Stacks Bleed. Explodes at 10 stacks.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'physical', 'fast'},
-            base = { damage=5, cd=0.18, speed=600, effectType='BLEED' },
+            base = { damage=4, cd=0.18, speed=600, effectType='BLEED' },
             onUpgrade = function(w) w.damage = w.damage + 2 end
         },
         static_orb = {
@@ -118,8 +118,8 @@ function state.init()
             desc = "Applies Shock that chains between enemies.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'magic', 'electric'},
-            base = { damage=12, cd=1.25, speed=380, effectType='STATIC' },
-            onUpgrade = function(w) w.damage = w.damage + 4; w.cd = w.cd * 0.95 end
+            base = { damage=6, cd=1.25, speed=380, effectType='STATIC', duration=2.0, staticRange=160 },
+            onUpgrade = function(w) w.damage = w.damage + 3; w.cd = w.cd * 0.95 end
         },
         spinach = {
             type = 'passive', name = "Spinach",

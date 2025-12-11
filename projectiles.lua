@@ -36,8 +36,60 @@ function projectiles.updatePlayerBullets(state, dt)
             for j = #state.enemies, 1, -1 do
                 local e = state.enemies[j]
                 if util.checkCollision(b, e) then
-                    if b.type == 'wand' or b.type == 'holy_wand' or b.type == 'fire_wand' or b.type == 'oil_bottle' or b.type == 'heavy_hammer' or b.type == 'dagger' or b.type == 'static_orb' then
-                        enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags)
+                    if b.type == 'oil_bottle' then
+                        -- Apply oil to target and splash neighbors, then disappear
+                        local effectData
+                        if b.effectDuration then effectData = {duration = b.effectDuration} end
+                        enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags, effectData)
+                        local splash = b.splashRadius or 0
+                        if splash > 0 then
+                            local splashSq = splash * splash
+                            for jj, o in ipairs(state.enemies) do
+                                if jj ~= j then
+                                    local dx = o.x - e.x
+                                    local dy = o.y - e.y
+                                    if dx*dx + dy*dy <= splashSq then
+                                        enemies.applyStatus(state, o, b.effectType, b.damage, b.weaponTags, effectData)
+                                    end
+                                end
+                            end
+                        end
+                        table.remove(state.bullets, i)
+                        hit = true
+                        break
+                    elseif b.type == 'fire_wand' then
+                        local effectData
+                        if b.effectDuration or b.effectRange then
+                            effectData = {duration = b.effectDuration, range = b.effectRange}
+                        end
+                        enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags, effectData)
+                        if (b.damage or 0) > 0 then enemies.damageEnemy(state, e, b.damage, false, 0) end
+                        -- Ignite nearby oiled enemies in splash radius
+                        local splash = b.splashRadius or 0
+                        if splash > 0 then
+                            local splashSq = splash * splash
+                            for jj, o in ipairs(state.enemies) do
+                                if jj ~= j then
+                                    local dx = o.x - e.x
+                                    local dy = o.y - e.y
+                                    if dx*dx + dy*dy <= splashSq then
+                                        if o.status and o.status.oiled then
+                                            enemies.applyStatus(state, o, b.effectType, b.damage, b.weaponTags, effectData)
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        b.pierce = (b.pierce or 1) - 1
+                        table.remove(state.bullets, i)
+                        hit = true
+                        break
+                    elseif b.type == 'wand' or b.type == 'holy_wand' or b.type == 'heavy_hammer' or b.type == 'dagger' or b.type == 'static_orb' then
+                        local effectData
+                        if b.effectDuration or b.effectRange then
+                            effectData = {duration = b.effectDuration, range = b.effectRange}
+                        end
+                        enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags, effectData)
                         if (b.damage or 0) > 0 then enemies.damageEnemy(state, e, b.damage, false, 0) end
                         b.pierce = (b.pierce or 1) - 1
                         if b.pierce <= 0 then

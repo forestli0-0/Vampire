@@ -111,8 +111,8 @@ function draw.render(state)
     end
 
     if state.chainLinks then
-        love.graphics.setColor(0.4, 0.7, 1)
-        love.graphics.setLineWidth(2)
+        love.graphics.setColor(0.9, 0.95, 1, 0.9)
+        love.graphics.setLineWidth(3)
         for _, link in ipairs(state.chainLinks) do
             love.graphics.line(link.x1, link.y1, link.x2, link.y2)
         end
