@@ -10,6 +10,7 @@ local draw = require('draw')
 local debugmenu = require('debugmenu')
 
 function love.load()
+    if state.stopMusic then state.stopMusic() end
     state.init()
     weapons.addWeapon(state, 'wand')
     if state.playMusic then state.playMusic() end
@@ -41,7 +42,14 @@ function love.update(dt)
     projectiles.updateEnemyBullets(state, dt)
     director.update(state, dt)
     enemies.update(state, dt)
-    if state.playerAnim then state.playerAnim:update(dt) end
+    if state.playerAnim then
+        if state.player.isMoving then
+            if not state.playerAnim.playing then state.playerAnim:play(false) end
+            state.playerAnim:update(dt)
+        else
+            if state.playerAnim.playing then state.playerAnim:stop() end
+        end
+    end
     player.tickInvincibility(state, dt)
     pickups.updateGems(state, dt)
     pickups.updateChests(state, dt)

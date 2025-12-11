@@ -111,6 +111,10 @@ function draw.render(state)
     end
 
     for _, e in ipairs(state.enemies) do
+        local shadowR = (e.size or 16) * 0.6
+        local shadowY = shadowR * 0.4
+        love.graphics.setColor(0,0,0,0.25)
+        love.graphics.ellipse('fill', e.x, e.y + (e.size or 16) * 0.55, shadowR, shadowY)
         if e.flashTimer and e.flashTimer > 0 then
             love.graphics.setColor(1,1,1)
         else
@@ -182,6 +186,15 @@ function draw.render(state)
             love.graphics.setColor(0.7, 0.9, 1, 0.2)
             love.graphics.circle('line', state.player.x, state.player.y, r)
         end
+    end
+
+    -- 玩家阴影
+    do
+        local size = state.player.size or 20
+        local shadowR = size * 0.7
+        local shadowY = shadowR * 0.35
+        love.graphics.setColor(0,0,0,0.25)
+        love.graphics.ellipse('fill', state.player.x, state.player.y + size * 0.55, shadowR, shadowY)
     end
 
     local inv = state.player.invincibleTimer > 0

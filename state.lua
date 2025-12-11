@@ -15,6 +15,7 @@ function state.init()
         x = 400, y = 300,
         size = 20,
         facing = 1,
+        isMoving = false,
         hp = 100, maxHp = 100,
         level = 1, xp = 0, xpToNextLevel = 10,
         invincibleTimer = 0,
@@ -257,6 +258,11 @@ function state.init()
             pcall(function() state.music:play() end)
         end
     end
+    function state.stopMusic()
+        if state.music and state.music.stop then
+            pcall(function() state.music:stop() end)
+        end
+    end
 
     -- 背景平铺纹理：优先加载素材，缺失时用占位生成
     local bgTexture = loadImage('assets/tiles/grass.png')
@@ -351,7 +357,7 @@ function state.init()
         end
     end
     state.weaponSpriteScale['axe'] = 2
-
+    state.weaponSpriteScale['death_spiral'] = 2
     -- 状态特效贴图（3 帧横条）
     state.effectSprites = {}
     state.hitEffects = {}

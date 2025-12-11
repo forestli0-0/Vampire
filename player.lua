@@ -7,7 +7,8 @@ function player.updateMovement(state, dt)
     if love.keyboard.isDown('s') then dy = 1 end
     if love.keyboard.isDown('a') then dx = -1 end
     if love.keyboard.isDown('d') then dx = 1 end
-    if dx ~= 0 or dy ~= 0 then
+    local moving = dx ~= 0 or dy ~= 0
+    if moving then
         local len = math.sqrt(dx * dx + dy * dy)
         p.x = p.x + (dx / len) * p.stats.moveSpeed * dt
         p.y = p.y + (dy / len) * p.stats.moveSpeed * dt
@@ -15,6 +16,7 @@ function player.updateMovement(state, dt)
 
     if dx > 0 then p.facing = 1
     elseif dx < 0 then p.facing = -1 end
+    p.isMoving = moving
 
     state.camera.x = p.x - love.graphics.getWidth() / 2
     state.camera.y = p.y - love.graphics.getHeight() / 2
@@ -28,6 +30,7 @@ function player.hurt(state, dmg)
         p.invincibleTimer = 0
         state.shakeAmount = 0
         state.gameState = 'GAME_OVER'
+        if state.stopMusic then state.stopMusic() end
     else
         p.invincibleTimer = 0.5
         state.shakeAmount = 5
