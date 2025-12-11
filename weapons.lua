@@ -1,4 +1,5 @@
 local enemies = require('enemies')
+local calculator = require('calculator')
 
 local weapons = {}
 
@@ -58,6 +59,17 @@ local function updateQuakes(state, dt)
         local currR2 = currR * currR
         local lastR2 = lastR * lastR
         q.hit = q.hit or {}
+        local instance = calculator.createInstance({
+            damage = q.damage or 0,
+            critChance = q.critChance,
+            critMultiplier = q.critMultiplier,
+            statusChance = q.statusChance,
+            effectType = 'FREEZE',
+            effectData = {duration = q.stun or 0.6},
+            weaponTags = q.tags,
+            knock = false,
+            knockForce = q.knock
+        })
         local cx, cy = q.x or state.player.x, q.y or state.player.y
         for _, e in ipairs(state.enemies) do
             if not q.hit[e] then
@@ -65,14 +77,7 @@ local function updateQuakes(state, dt)
                 local dy = e.y - cy
                 local d2 = dx*dx + dy*dy
                 if d2 <= currR2 and d2 >= lastR2 then
-                    if math.random() < (q.statusChance or 0) then
-                        enemies.applyStatus(state, e, 'FREEZE', q.damage or 0, q.tags, {duration = q.stun or 0.6})
-                    end
-                    if (q.damage or 0) > 0 then
-                        local isCrit = math.random() < (q.critChance or 0)
-                        local finalDmg = math.floor(q.damage * (isCrit and (q.critMultiplier or 1.5) or 1))
-                        enemies.damageEnemy(state, e, finalDmg, false, q.knock or 0, isCrit)
-                    end
+                    calculator.applyHit(state, e, instance)
                     q.hit[e] = true
                 end
             end
@@ -277,15 +282,20 @@ function weapons.update(state, dt)
                 local actualRadius = (computedStats.radius or 0) * (computedStats.area or 1) * (state.player.stats.area or 1)
                 local effectType = weaponDef.effectType or computedStats.effectType
                 local lifesteal = computedStats.lifesteal
+                local instance = calculator.createInstance({
+                    damage = actualDmg,
+                    critChance = computedStats.critChance,
+                    critMultiplier = computedStats.critMultiplier,
+                    statusChance = computedStats.statusChance,
+                    effectType = effectType,
+                    weaponTags = weaponDef.tags,
+                    knock = true,
+                    knockForce = computedStats.knockback or 0
+                })
                 for _, e in ipairs(state.enemies) do
                     local d = math.sqrt((state.player.x - e.x)^2 + (state.player.y - e.y)^2)
                     if d < actualRadius then
-                        if math.random() < (computedStats.statusChance or 0) then
-                            enemies.applyStatus(state, e, effectType, actualDmg, weaponDef.tags, nil)
-                        end
-                        local isCrit = math.random() < (computedStats.critChance or 0)
-                        local finalDmg = math.floor(actualDmg * (isCrit and (computedStats.critMultiplier or 1.5) or 1))
-                        enemies.damageEnemy(state, e, finalDmg, true, computedStats.knockback or 0, isCrit)
+                        calculator.applyHit(state, e, instance)
                         if lifesteal and actualDmg > 0 then
                             local heal = math.max(1, math.floor(actualDmg * lifesteal))
                             state.player.hp = math.min(state.player.maxHp, state.player.hp + heal)
@@ -300,17 +310,21 @@ function weapons.update(state, dt)
                 local actualRadius = (computedStats.radius or 0) * (computedStats.area or 1) * (state.player.stats.area or 1)
                 local effectType = weaponDef.effectType or computedStats.effectType
                 local effectData = {duration = computedStats.duration or weaponDef.base.duration}
+                local instance = calculator.createInstance({
+                    damage = actualDmg,
+                    critChance = computedStats.critChance,
+                    critMultiplier = computedStats.critMultiplier,
+                    statusChance = computedStats.statusChance,
+                    effectType = effectType,
+                    effectData = effectData,
+                    weaponTags = weaponDef.tags,
+                    knock = true,
+                    knockForce = computedStats.knockback or 0
+                })
                 for _, e in ipairs(state.enemies) do
                     local d = math.sqrt((state.player.x - e.x)^2 + (state.player.y - e.y)^2)
                     if d < actualRadius then
-                        if math.random() < (computedStats.statusChance or 0) then
-                            enemies.applyStatus(state, e, effectType, actualDmg, weaponDef.tags, effectData)
-                        end
-                        if actualDmg > 0 then
-                            local isCrit = math.random() < (computedStats.critChance or 0)
-                            local finalDmg = math.floor(actualDmg * (isCrit and (computedStats.critMultiplier or 1.5) or 1))
-                            enemies.damageEnemy(state, e, finalDmg, true, computedStats.knockback or 0, isCrit)
-                        end
+                        calculator.applyHit(state, e, instance)
                         hit = true
                     end
                 end

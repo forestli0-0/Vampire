@@ -1,8 +1,28 @@
 local util = require('util')
 local enemies = require('enemies')
 local player = require('player')
+local calculator = require('calculator')
 
 local projectiles = {}
+
+local function buildInstanceFromBullet(bullet, effectData, knock, knockForce)
+    return calculator.createInstance({
+        damage = bullet.damage or 0,
+        critChance = bullet.critChance or 0,
+        critMultiplier = bullet.critMultiplier or 1.5,
+        statusChance = bullet.statusChance or 0,
+        effectType = bullet.effectType,
+        effectData = effectData,
+        weaponTags = bullet.weaponTags,
+        knock = knock,
+        knockForce = knockForce
+    })
+end
+
+local function applyProjectileHit(state, enemy, bullet, effectData, knock, knockForce)
+    local instance = buildInstanceFromBullet(bullet, effectData, knock, knockForce)
+    return calculator.applyHit(state, enemy, instance)
+end
 
 function projectiles.updatePlayerBullets(state, dt)
     for i = #state.bullets, 1, -1 do
@@ -18,18 +38,12 @@ function projectiles.updatePlayerBullets(state, dt)
                 local radius = b.radius or (b.size or 0)
                 local r2 = radius * radius
                 local effectData = {duration = b.effectDuration or 1.2}
+                local instance = buildInstanceFromBullet(b, effectData)
                 for _, e in ipairs(state.enemies) do
                     local dx = e.x - b.x
                     local dy = e.y - b.y
                     if dx*dx + dy*dy <= r2 then
-                        if math.random() < (b.statusChance or 0) then
-                            enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags, effectData)
-                        end
-                        if (b.damage or 0) > 0 then
-                            local isCrit = math.random() < (b.critChance or 0)
-                            local finalDmg = math.floor(b.damage * (isCrit and (b.critMultiplier or 1.5) or 1))
-                            enemies.damageEnemy(state, e, finalDmg, false, 0, isCrit)
-                        end
+                        calculator.applyHit(state, e, instance)
                     end
                 end
             end
@@ -71,9 +85,8 @@ function projectiles.updatePlayerBullets(state, dt)
                             -- Apply oil to target and splash neighbors, then disappear
                             local effectData
                             if b.effectDuration then effectData = {duration = b.effectDuration} end
-                            if math.random() < (b.statusChance or 0) then
-                                enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags, effectData)
-                            end
+                            local instance = buildInstanceFromBullet(b, effectData)
+                            calculator.applyStatus(state, e, instance)
                             local splash = b.splashRadius or 0
                             if splash > 0 then
                                 local splashSq = splash * splash
@@ -82,9 +95,7 @@ function projectiles.updatePlayerBullets(state, dt)
                                         local dx = o.x - e.x
                                         local dy = o.y - e.y
                                         if dx*dx + dy*dy <= splashSq then
-                                            if math.random() < (b.statusChance or 0) then
-                                                enemies.applyStatus(state, o, b.effectType, b.damage, b.weaponTags, effectData)
-                                            end
+                                            calculator.applyStatus(state, o, instance)
                                         end
                                     end
                                 end
@@ -97,17 +108,11 @@ function projectiles.updatePlayerBullets(state, dt)
                             if not b.hitTargets[e] then
                                 b.hitTargets[e] = true
                                 local effectData
-                        if b.effectDuration or b.effectRange or b.chain or b.allowRepeat then
-                            effectData = {duration = b.effectDuration, range = b.effectRange, chain = b.chain, allowRepeat = b.allowRepeat}
-                        end
-                                if math.random() < (b.statusChance or 0) then
-                                    enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags, effectData)
+                                if b.effectDuration or b.effectRange or b.chain or b.allowRepeat then
+                                    effectData = {duration = b.effectDuration, range = b.effectRange, chain = b.chain, allowRepeat = b.allowRepeat}
                                 end
-                                if (b.damage or 0) > 0 then
-                                    local isCrit = math.random() < (b.critChance or 0)
-                                    local finalDmg = math.floor(b.damage * (isCrit and (b.critMultiplier or 1.5) or 1))
-                                    enemies.damageEnemy(state, e, finalDmg, false, 0, isCrit)
-                                end
+                                local instance = buildInstanceFromBullet(b, effectData)
+                                calculator.applyHit(state, e, instance)
                                 -- Ignite nearby oiled enemies in splash radius
                                 local splash = b.splashRadius or 0
                                 if splash > 0 then
@@ -118,7 +123,7 @@ function projectiles.updatePlayerBullets(state, dt)
                                             local dy = o.y - e.y
                                             if dx*dx + dy*dy <= splashSq then
                                                 if o.status and o.status.oiled then
-                                                    enemies.applyStatus(state, o, b.effectType, b.damage, b.weaponTags, effectData)
+                                                    calculator.applyStatus(state, o, instance, 1)
                                                 end
                                             end
                                         end
@@ -139,14 +144,8 @@ function projectiles.updatePlayerBullets(state, dt)
                                 if b.effectDuration or b.effectRange or b.chain or b.allowRepeat then
                                     effectData = {duration = b.effectDuration, range = b.effectRange, chain = b.chain, allowRepeat = b.allowRepeat}
                                 end
-                                if math.random() < (b.statusChance or 0) then
-                                    enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags, effectData)
-                                end
-                                if (b.damage or 0) > 0 then
-                                    local isCrit = math.random() < (b.critChance or 0)
-                                    local finalDmg = math.floor(b.damage * (isCrit and (b.critMultiplier or 1.5) or 1))
-                                    enemies.damageEnemy(state, e, finalDmg, false, 0, isCrit)
-                                end
+                                local instance = buildInstanceFromBullet(b, effectData)
+                                calculator.applyHit(state, e, instance)
                                 b.pierce = (b.pierce or 1) - 1
                                 if b.pierce <= 0 then
                                     table.remove(state.bullets, i)
@@ -158,23 +157,15 @@ function projectiles.updatePlayerBullets(state, dt)
                             b.hitTargets = b.hitTargets or {}
                             if not b.hitTargets[e] then
                                 b.hitTargets[e] = true
-                                if math.random() < (b.statusChance or 0) then
-                                    enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags)
-                                end
-                                local isCrit = math.random() < (b.critChance or 0)
-                                local finalDmg = math.floor(b.damage * (isCrit and (b.critMultiplier or 1.5) or 1))
-                                enemies.damageEnemy(state, e, finalDmg, false, 0, isCrit)
+                                local instance = buildInstanceFromBullet(b)
+                                calculator.applyHit(state, e, instance)
                             end
                         elseif b.type == 'death_spiral' then
                             b.hitTargets = b.hitTargets or {}
                             if not b.hitTargets[e] then
                                 b.hitTargets[e] = true
-                                if math.random() < (b.statusChance or 0) then
-                                    enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags)
-                                end
-                                local isCrit = math.random() < (b.critChance or 0)
-                                local finalDmg = math.floor(b.damage * (isCrit and (b.critMultiplier or 1.5) or 1))
-                                enemies.damageEnemy(state, e, finalDmg, false, 0, isCrit)
+                                local instance = buildInstanceFromBullet(b)
+                                calculator.applyHit(state, e, instance)
                             end
                         end
                     end
