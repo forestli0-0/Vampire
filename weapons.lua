@@ -65,7 +65,9 @@ local function updateQuakes(state, dt)
                 local dy = e.y - cy
                 local d2 = dx*dx + dy*dy
                 if d2 <= currR2 and d2 >= lastR2 then
-                    enemies.applyStatus(state, e, 'FREEZE', q.damage or 0, q.tags, {duration = q.stun or 0.6})
+                    if math.random() < (q.statusChance or 0) then
+                        enemies.applyStatus(state, e, 'FREEZE', q.damage or 0, q.tags, {duration = q.stun or 0.6})
+                    end
                     if (q.damage or 0) > 0 then
                         local isCrit = math.random() < (q.critChance or 0)
                         local finalDmg = math.floor(q.damage * (isCrit and (q.critMultiplier or 1.5) or 1))
@@ -127,16 +129,16 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
             life=wStats.life or 2, size=size, damage=finalDmg, effectType=effectType, weaponTags=weaponTags,
             pierce=wStats.pierce or 1, rotation=angle,
             effectDuration=wStats.duration, splashRadius=wStats.splashRadius, effectRange=wStats.staticRange, chain=wStats.chain, allowRepeat=wStats.allowRepeat,
-            critChance=wStats.critChance, critMultiplier=wStats.critMultiplier
+            critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance
         })
     elseif type == 'axe' then
         local spd = (wStats.speed or 0) * (state.player.stats.speed or 1)
         local vx = (math.random() - 0.5) * 200
         local vy = -spd
         local angle = math.atan2(vy, vx)
-        table.insert(state.bullets, {type='axe', x=x, y=y, vx=vx, vy=vy, life=3, size=12 * area, damage=finalDmg, rotation=angle, hitTargets={}, effectType=effectType, weaponTags=weaponTags, critChance=wStats.critChance, critMultiplier=wStats.critMultiplier})
+        table.insert(state.bullets, {type='axe', x=x, y=y, vx=vx, vy=vy, life=3, size=12 * area, damage=finalDmg, rotation=angle, hitTargets={}, effectType=effectType, weaponTags=weaponTags, critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance})
     elseif type == 'death_spiral' then
-        local count = 8
+        local count = 8 + (wStats.amount or 0)
         local spd = (wStats.speed or 300) * (state.player.stats.speed or 1)
         for i = 1, count do
             local angle = (i - 1) / count * math.pi * 2
@@ -145,7 +147,7 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
                 vx=math.cos(angle)*spd, vy=math.sin(angle)*spd,
                 life=3, size=14 * area, damage=finalDmg,
                 rotation=angle, angularVel=1.5, hitTargets={}, effectType=effectType, weaponTags=weaponTags,
-                critChance=wStats.critChance, critMultiplier=wStats.critMultiplier
+                critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance
             })
         end
     elseif type == 'absolute_zero' then
@@ -156,7 +158,7 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
             damage=finalDmg, effectType=effectType, weaponTags=weaponTags,
             effectDuration=wStats.duration,
             tick=0,
-            critChance=wStats.critChance, critMultiplier=wStats.critMultiplier
+            critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance
         })
     end
 end
@@ -274,7 +276,9 @@ function weapons.update(state, dt)
                 for _, e in ipairs(state.enemies) do
                     local d = math.sqrt((state.player.x - e.x)^2 + (state.player.y - e.y)^2)
                     if d < actualRadius then
-                        enemies.applyStatus(state, e, effectType, actualDmg, weaponDef.tags, nil)
+                        if math.random() < (computedStats.statusChance or 0) then
+                            enemies.applyStatus(state, e, effectType, actualDmg, weaponDef.tags, nil)
+                        end
                         local isCrit = math.random() < (computedStats.critChance or 0)
                         local finalDmg = math.floor(actualDmg * (isCrit and (computedStats.critMultiplier or 1.5) or 1))
                         enemies.damageEnemy(state, e, finalDmg, true, computedStats.knockback or 0, isCrit)
@@ -295,7 +299,9 @@ function weapons.update(state, dt)
                 for _, e in ipairs(state.enemies) do
                     local d = math.sqrt((state.player.x - e.x)^2 + (state.player.y - e.y)^2)
                     if d < actualRadius then
-                        enemies.applyStatus(state, e, effectType, actualDmg, weaponDef.tags, effectData)
+                        if math.random() < (computedStats.statusChance or 0) then
+                            enemies.applyStatus(state, e, effectType, actualDmg, weaponDef.tags, effectData)
+                        end
                         if actualDmg > 0 then
                             local isCrit = math.random() < (computedStats.critChance or 0)
                             local finalDmg = math.floor(actualDmg * (isCrit and (computedStats.critMultiplier or 1.5) or 1))
@@ -330,7 +336,8 @@ function weapons.update(state, dt)
                         knock = knock,
                         tags = weaponDef.tags,
                         critChance = computedStats.critChance,
-                        critMultiplier = computedStats.critMultiplier
+                        critMultiplier = computedStats.critMultiplier,
+                        statusChance = computedStats.statusChance
                     })
                     delay = delay + 0.5
                 end
