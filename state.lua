@@ -178,6 +178,13 @@ function state.init()
         if ok and src then return src end
         return genBeep(fallbackFreq)
     end
+    local function loadMusic(paths)
+        for _, path in ipairs(paths or {}) do
+            local ok, src = pcall(love.audio.newSource, path, 'stream')
+            if ok and src then return src end
+        end
+        return nil
+    end
     local function loadImage(path)
         local ok, img = pcall(love.graphics.newImage, path)
         if ok and img then return img end
@@ -225,6 +232,10 @@ function state.init()
         bleed     = loadSfx('assets/sfx/bleed.wav', 400),
         explosion = loadSfx('assets/sfx/explosion.wav', 300)
     }
+    state.music = loadMusic({
+        'assets/music/bgm.ogg','assets/music/bgm.mp3','assets/music/bgm.wav',
+        'assets/sfx/bgm.ogg','assets/sfx/bgm.mp3','assets/sfx/bgm.wav'
+    })
     function state.playSfx(key)
         local s = state.sfx[key]
         if s and s.clone then
@@ -239,6 +250,12 @@ function state.init()
             if okPlay then return end
         end
         print("Play Sound: " .. tostring(key))
+    end
+    function state.playMusic()
+        if state.music and state.music.setLooping then
+            state.music:setLooping(true)
+            pcall(function() state.music:play() end)
+        end
     end
 
     -- 背景平铺纹理：优先加载素材，缺失时用占位生成
@@ -334,6 +351,80 @@ function state.init()
         end
     end
     state.weaponSpriteScale['axe'] = 2
+
+    -- 状态特效贴图（3 帧横条）
+    state.effectSprites = {}
+    state.hitEffects = {}
+    local effectScaleOverrides = {
+        freeze = 0.4,
+        oil = 0.2,
+        fire = 0.5,
+        static = 0.4,
+        bleed = 0.2
+    }
+    local function loadEffectFrames(name, frameCount)
+        frameCount = frameCount or 3
+        local frames = {}
+        for i = 1, frameCount do
+            local img = loadImage(string.format('assets/effects/%s/%d.png', name, i))
+            if img then
+                img:setFilter('nearest', 'nearest')
+                table.insert(frames, img)
+            end
+        end
+        if #frames > 0 then
+            local frameW = frames[1]:getWidth()
+            local frameH = frames[1]:getHeight()
+            local autoScale = frameW > 32 and (32 / frameW) or 1 -- fallback auto downscale
+            local defaultScale = effectScaleOverrides[name] or autoScale
+            state.effectSprites[name] = {
+                frames = frames,
+                frameW = frameW,
+                frameH = frameH,
+                frameCount = #frames,
+                duration = 0.3,
+                defaultScale = defaultScale
+            }
+        end
+    end
+    local effectKeys = {'freeze','oil','fire','static','bleed'}
+    for _, k in ipairs(effectKeys) do loadEffectFrames(k, 3) end
+    function state.spawnEffect(key, x, y, scale)
+        local eff = state.effectSprites[key]
+        if not eff then return end
+        local useScale = scale or eff.defaultScale or 1
+        table.insert(state.hitEffects, {key = key, x = x, y = y, t = 0, duration = eff.duration or 0.3, scale = useScale})
+    end
+    function state.updateEffects(dt)
+        for i = #state.hitEffects, 1, -1 do
+            local e = state.hitEffects[i]
+            e.t = e.t + dt
+            if e.t >= (e.duration or 0.3) then
+                table.remove(state.hitEffects, i)
+            end
+        end
+    end
+
+    -- 宝箱/道具贴图
+    state.pickupSprites = {}
+    state.pickupSpriteScale = {}
+    local chestImg = loadImage('assets/pickups/chest.png')
+    if chestImg then
+        chestImg:setFilter('nearest', 'nearest')
+        state.pickupSprites['chest'] = chestImg
+    end
+    local function loadPickup(key, scale)
+        local img = loadImage(string.format('assets/pickups/%s.png', key))
+        if img then
+            img:setFilter('nearest', 'nearest')
+            state.pickupSprites[key] = img
+            state.pickupSpriteScale[key] = scale or 1
+        end
+    end
+    loadPickup('chicken')
+    loadPickup('magnet')
+    loadPickup('bomb')
+    loadPickup('gem', 0.01) -- adjust this scale if the gem sprite looks too big/small
 
     -- 敌人子弹贴图
     state.enemySprites = {}

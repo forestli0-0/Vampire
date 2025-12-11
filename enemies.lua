@@ -29,11 +29,14 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         local remaining = e.status.frozenTimer or 0
         e.status.frozenTimer = math.max(dur, remaining)
         e.speed = 0
+        if state.spawnEffect then state.spawnEffect('freeze', e.x, e.y) end
     elseif effect == 'OIL' then
         e.status.oiled = true
         e.status.oiledTimer = math.max((effectData and effectData.duration) or 6.0, 0)
+        if state.spawnEffect then state.spawnEffect('oil', e.x, e.y) end
     elseif effect == 'BLEED' then
         e.status.bleedStacks = (e.status.bleedStacks or 0) + 1
+        if state.spawnEffect then state.spawnEffect('bleed', e.x, e.y) end
         if e.status.bleedStacks >= 10 then
             local boom = math.floor((e.maxHp or e.hp or 0) * 0.2)
             if boom > 0 then enemies.damageEnemy(state, e, boom, false, 0) end
@@ -45,6 +48,7 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
             e.status.oiled = false
             e.status.oiledTimer = nil
             e.status.burnDps = math.max(1, (e.maxHp or e.hp or 0) * 0.03)
+            if state.spawnEffect then state.spawnEffect('fire', e.x, e.y) end
         end
     elseif effect == 'HEAVY' then
         if e.status.frozen then
@@ -60,6 +64,7 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         e.status.staticTimer = 0
         e.status.staticDuration = math.max((effectData and effectData.duration) or 2.0, 0)
         e.status.staticRange = (effectData and effectData.range) or 160
+        if state.spawnEffect then state.spawnEffect('static', e.x, e.y) end
     end
 end
 

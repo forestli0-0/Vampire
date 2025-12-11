@@ -12,6 +12,7 @@ local debugmenu = require('debugmenu')
 function love.load()
     state.init()
     weapons.addWeapon(state, 'wand')
+    if state.playMusic then state.playMusic() end
     debugmenu.init(state)
     -- Debug combos for testing status synergies (uncomment as needed):
     -- weapons.addWeapon(state, 'oil_bottle')
@@ -32,6 +33,7 @@ function love.update(dt)
     end
 
     state.gameTimer = state.gameTimer + dt
+    if state.updateEffects then state.updateEffects(dt) end
 
     player.updateMovement(state, dt)
     weapons.update(state, dt)

@@ -45,34 +45,69 @@ function draw.render(state)
     end
 
     -- 实体
-    love.graphics.setColor(1, 0.84, 0)
     for _, c in ipairs(state.chests) do
-        love.graphics.rectangle('fill', c.x - c.w/2, c.y - c.h/2, c.w, c.h)
+        local sprite = state.pickupSprites and state.pickupSprites['chest']
+        if sprite then
+            local sw, sh = sprite:getWidth(), sprite:getHeight()
+            local scale = (c.w or sw) / sw
+            scale = scale * 2
+            love.graphics.setColor(1,1,1)
+            love.graphics.draw(sprite, c.x, c.y, 0, scale, scale, sw/2, sh/2)
+        else
+            love.graphics.setColor(1, 0.84, 0)
+            love.graphics.rectangle('fill', c.x - c.w/2, c.y - c.h/2, c.w, c.h)
+        end
     end
 
     -- 地面道具
     for _, item in ipairs(state.floorPickups) do
-        if item.kind == 'chicken' then
-            love.graphics.setColor(1, 0.7, 0)
-            love.graphics.rectangle('fill', item.x - 7, item.y - 7, 14, 14)
+        local sprite = state.pickupSprites and state.pickupSprites[item.kind]
+        if sprite then
+            local sw, sh = sprite:getWidth(), sprite:getHeight()
+            local size = (item.size or 16)
+            local scale = size / sw
+            local scale = scale * 2
             love.graphics.setColor(1,1,1)
-            love.graphics.print("H", item.x - 4, item.y - 6)
-        elseif item.kind == 'magnet' then
-            love.graphics.setColor(0, 0.8, 1)
-            love.graphics.rectangle('fill', item.x - 7, item.y - 7, 14, 14)
-            love.graphics.setColor(1,1,1)
-            love.graphics.print("M", item.x - 4, item.y - 6)
-        elseif item.kind == 'bomb' then
-            love.graphics.setColor(1, 0, 0)
-            love.graphics.rectangle('fill', item.x - 7, item.y - 7, 14, 14)
-            love.graphics.setColor(1,1,1)
-            love.graphics.print("B", item.x - 4, item.y - 6)
+            love.graphics.draw(sprite, item.x, item.y, 0, scale, scale, sw/2, sh/2)
+        else
+            if item.kind == 'chicken' then
+                love.graphics.setColor(1, 0.8, 0.4)
+                love.graphics.circle('fill', item.x, item.y, 8)
+                love.graphics.setColor(1, 0.95, 0.8)
+                love.graphics.circle('fill', item.x, item.y - 2, 5)
+                love.graphics.setColor(0.8, 0.4, 0.2)
+                love.graphics.rectangle('fill', item.x - 2, item.y + 4, 4, 4)
+            elseif item.kind == 'magnet' then
+                love.graphics.setColor(0, 0.7, 1)
+                love.graphics.setLineWidth(3)
+                love.graphics.arc('line', 'open', item.x, item.y, 8, math.pi * 0.2, math.pi * 1.8)
+                love.graphics.line(item.x - 6, item.y + 6, item.x - 2, item.y + 6)
+                love.graphics.line(item.x + 2, item.y + 6, item.x + 6, item.y + 6)
+                love.graphics.setLineWidth(1)
+            elseif item.kind == 'bomb' then
+                love.graphics.setColor(0.2, 0.2, 0.2)
+                love.graphics.circle('fill', item.x, item.y, 8)
+                love.graphics.setColor(0.9, 0.5, 0.1)
+                love.graphics.rectangle('fill', item.x - 2, item.y - 10, 4, 5)
+                love.graphics.setColor(1, 0.1, 0.1)
+                love.graphics.circle('fill', item.x, item.y - 12, 2)
+            end
         end
     end
 
-    love.graphics.setColor(0,0.5,1)
+    -- 经验宝石
     for _, g in ipairs(state.gems) do
-        love.graphics.rectangle('fill', g.x-3, g.y-3, 6, 6)
+        local sprite = state.pickupSprites and state.pickupSprites['gem']
+        if sprite then
+            local sw, sh = sprite:getWidth(), sprite:getHeight()
+            local baseSize = 8
+            local scale = (state.pickupSpriteScale and state.pickupSpriteScale['gem']) or (baseSize / sw)
+            love.graphics.setColor(1,1,1)
+            love.graphics.draw(sprite, g.x, g.y, 0, scale, scale, sw/2, sh/2)
+        else
+            love.graphics.setColor(0,0.5,1)
+            love.graphics.rectangle('fill', g.x-3, g.y-3, 6, 6)
+        end
     end
 
     for _, e in ipairs(state.enemies) do
@@ -99,13 +134,12 @@ function draw.render(state)
             love.graphics.rectangle('fill', e.x - e.size/2, e.y - e.size/2, e.size, e.size)
         end
         if e.status and e.status.static then
-            love.graphics.setColor(1,1,0)
+            love.graphics.setColor(1,1,0,0.5)
             love.graphics.setLineWidth(2)
-            if e.anim then
-                love.graphics.rectangle('line', e.x - e.size/2 - 2, e.y - e.size/2 - 2, e.size + 4, e.size + 4)
-            else
-                love.graphics.rectangle('line', e.x - e.size/2 - 2, e.y - e.size/2 - 2, e.size + 4, e.size + 4)
-            end
+            love.graphics.circle('line', e.x, e.y, (e.size or 16) * 0.75)
+            love.graphics.setColor(1,1,0,0.8)
+            local lx = e.x; local ly = e.y
+            love.graphics.line(lx - 4, ly - 6, lx - 1, ly - 1, lx - 6, ly + 3, lx, ly + 8, lx + 5, ly + 2)
             love.graphics.setLineWidth(1)
         end
     end
@@ -117,6 +151,21 @@ function draw.render(state)
             love.graphics.line(link.x1, link.y1, link.x2, link.y2)
         end
         love.graphics.setLineWidth(1)
+    end
+
+    -- 状态特效
+    if state.hitEffects then
+        for _, eff in ipairs(state.hitEffects) do
+            local def = state.effectSprites and state.effectSprites[eff.key]
+            if def then
+                local frac = math.max(0, math.min(0.999, eff.t / (eff.duration or 0.3)))
+                local frameIdx = math.floor(frac * (def.frameCount or 1)) + 1
+                local img = def.frames and def.frames[frameIdx] or def.frames[#def.frames]
+                local scale = eff.scale or def.defaultScale or 1
+                love.graphics.setColor(1,1,1)
+                love.graphics.draw(img, eff.x, eff.y, 0, scale, scale, def.frameW / 2, def.frameH / 2)
+            end
+        end
     end
 
     -- 冰环提示

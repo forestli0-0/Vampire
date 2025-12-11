@@ -142,3 +142,38 @@ ZH: 像素风投射物，单帧 [宽x高]，顶视角，武器：[名称/描述]
   EN: Pixel art projectile, 16x16, top-down, bright electric orb with crackling sparks and a short arc trail, facing right, light outline, simple shading, transparent background.
   ZH: 像素风投射物，16x16，顶视角，明亮电能球，带噼啪电火花和短弧形尾迹，朝右，轻描边，简单明暗，透明背景。
   ```
+
+## Status VFX (3-frame strip) / 状态特效（3 帧横条）
+
+**Template / 模板**
+```text
+EN: Pixel art status effect sprite strip, 3 frames horizontal, each frame [WxH], top-down hit flash for [effect: freeze/oil/fire/static/bleed], light outline, simple shading, transparent background.
+ZH: 像素风状态特效图条，横向 3 帧，单帧 [宽x高]，顶视角 [效果：冰冻/上油/点燃/感电/流血] 命中特效，轻描边，简单明暗，透明背景。
+```
+
+**Examples / 示例**
+- Freeze  
+  ```
+  EN: Pixel art status effect sprite strip, 3 frames horizontal, each frame 24x24, top-down frosty burst with pale blue shards, light outline, simple shading, transparent background.
+  ZH: 像素风状态特效图条，横向 3 帧，单帧 24x24，顶视角冰霜爆裂，淡蓝碎冰，轻描边，简单明暗，透明背景。
+  ```
+- Oil  
+  ```
+  EN: Pixel art status effect sprite strip, 3 frames horizontal, each frame 24x24, top-down splash of dark brown oil drops, light outline, simple shading, transparent background.
+  ZH: 像素风状态特效图条，横向 3 帧，单帧 24x24，顶视角黑褐色油滴飞溅，轻描边，简单明暗，透明背景。
+  ```
+- Fire  
+  ```
+  EN: Pixel art status effect sprite strip, 3 frames horizontal, each frame 24x24, top-down flame burst with orange sparks, light outline, simple shading, transparent background.
+  ZH: 像素风状态特效图条，横向 3 帧，单帧 24x24，顶视角橙色火焰爆裂伴随火星，轻描边，简单明暗，透明背景。
+  ```
+- Static  
+  ```
+  EN: Pixel art status effect sprite strip, 3 frames horizontal, each frame 24x24, top-down electric zap with small lightning arcs, light outline, simple shading, transparent background.
+  ZH: 像素风状态特效图条，横向 3 帧，单帧 24x24，顶视角电击闪光，带细小闪电弧，轻描边，简单明暗，透明背景。
+  ```
+- Bleed  
+  ```
+  EN: Pixel art status effect sprite strip, 3 frames horizontal, each frame 24x24, top-down blood splatter flash with droplets, light outline, simple shading, transparent background.
+  ZH: 像素风状态特效图条，横向 3 帧，单帧 24x24，顶视角血液飞溅闪光，带血滴，轻描边，简单明暗，透明背景。
+  ```
