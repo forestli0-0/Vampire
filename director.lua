@@ -17,20 +17,16 @@ function director.update(state, dt)
 
     state.spawnTimer = state.spawnTimer - dt
     if state.spawnTimer <= 0 then
-        local type
-        local plantChance = 0.0
-        if state.gameTimer >= 180 then
-            plantChance = 0.8
-        elseif state.gameTimer >= 120 then
-            plantChance = 0.65
-        elseif state.gameTimer >= 60 then
-            plantChance = 0.4
+        local pool = {}
+        local function add(key, weight)
+            for _ = 1, weight do table.insert(pool, key) end
         end
-        if math.random() < plantChance then
-            type = 'plant'
-        else
-            type = (state.gameTimer > 30 and math.random() > 0.5) and 'bat' or 'skeleton'
-        end
+        add('skeleton', 5)
+        if state.gameTimer > 30 then add('bat', 5) end
+        if state.gameTimer >= 60 then add('plant', 3) end
+        if state.gameTimer >= 150 then add('shield_lancer', 3) end
+        if state.gameTimer >= 210 then add('armored_brute', 2) end
+        local type = pool[math.random(#pool)]
         local eliteCap = 1.0 + (state.player.level or 1) * 0.5 -- at most ~3 elites on screen early game
         local elitesAlive = 0
         for _, e in ipairs(state.enemies) do if e.isElite then elitesAlive = elitesAlive + 1 end end

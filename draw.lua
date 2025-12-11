@@ -156,6 +156,28 @@ function draw.render(state)
             love.graphics.line(lx - 4, ly - 6, lx - 1, ly - 1, lx - 6, ly + 3, lx, ly + 8, lx + 5, ly + 2)
             love.graphics.setLineWidth(1)
         end
+        local barW = math.max(14, math.min(30, (e.size or 16) * 1.2))
+        local barX = e.x - barW / 2
+        local barY = e.y - (e.size or 16) * 0.6 - 6
+        if e.maxShield and e.maxShield > 0 then
+            love.graphics.setColor(0.1, 0.2, 0.35, 0.5)
+            love.graphics.rectangle('fill', barX, barY - 4, barW, 3)
+            local sr = math.max(0, math.min(1, (e.shield or 0) / e.maxShield))
+            love.graphics.setColor(0.4, 0.7, 1)
+            love.graphics.rectangle('fill', barX, barY - 4, barW * sr, 3)
+        end
+        love.graphics.setColor(0.3, 0, 0, 0.5)
+        love.graphics.rectangle('fill', barX, barY, barW, 4)
+        local hr = math.max(0, math.min(1, (e.health or e.hp or 0) / (e.maxHealth or e.maxHp or 1)))
+        love.graphics.setColor(1, 0.2, 0.2)
+        love.graphics.rectangle('fill', barX, barY, barW * hr, 4)
+        if e.armor and e.armor > 0 then
+            local dr = e.armor / (e.armor + 300)
+            if dr > 0.9 then dr = 0.9 end
+            love.graphics.setColor(1, 0.9, 0.2)
+            love.graphics.rectangle('fill', barX, barY + 5, barW * dr, 2)
+        end
+        love.graphics.setColor(1,1,1)
     end
 
     if state.chainLinks then

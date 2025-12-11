@@ -113,6 +113,7 @@ function pickups.updateFloorPickups(state, dt)
                 for ei = #state.enemies, 1, -1 do
                     local e = state.enemies[ei]
                     if math.abs(e.x - p.x) <= halfW and math.abs(e.y - p.y) <= halfH then
+                        e.health = 0
                         e.hp = 0
                     end
                 end

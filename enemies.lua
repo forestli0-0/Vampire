@@ -4,6 +4,9 @@ local logger = require('logger')
 
 local enemies = {}
 
+local SHIELD_REGEN_DELAY = 2.5
+local SHIELD_REGEN_RATE = 0.25 -- fraction of max shield per second
+
 local function ensureStatus(e)
     if not e.status then
         e.status = {
@@ -194,9 +197,12 @@ function enemies.damageEnemy(state, e, dmg, knock, kForce, isCrit)
     if isCrit then
         color = {1, 1, 0}
         scale = 1.5
+    elseif shieldHit > 0 and healthHit == 0 then
+        color = {0.4, 0.7, 1}
     end
     if appliedTotal > 0 then
-        table.insert(state.texts, {x=e.x, y=e.y-20, text=appliedTotal, color=color, life=0.5, scale=scale})
+        local shown = math.floor(appliedTotal + 0.5)
+        table.insert(state.texts, {x=e.x, y=e.y-20, text=shown, color=color, life=0.5, scale=scale})
     end
     if knock then
         local a = math.atan2(e.y - state.player.y, e.x - state.player.x)
@@ -305,6 +311,14 @@ function enemies.update(state, dt)
                     e.status.staticRange = nil
                     e.status.staticData = nil
                 end
+            end
+        end
+
+        if e.maxShield and e.maxShield > 0 then
+            e.shieldDelayTimer = (e.shieldDelayTimer or 0) + dt
+            if e.shieldDelayTimer >= SHIELD_REGEN_DELAY and e.shield < e.maxShield then
+                local regen = e.maxShield * SHIELD_REGEN_RATE * dt
+                e.shield = math.min(e.maxShield, e.shield + regen)
             end
         end
 

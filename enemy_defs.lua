@@ -2,6 +2,8 @@
 Template for adding new enemies:
 enemyDefs.my_enemy = {
     hp = 10,              -- base health
+    shield = 0,           -- optional shields (regenerates)
+    armor = 0,            -- optional damage reduction
     speed = 50,           -- movement speed toward player
     size = 16,            -- hitbox size (square)
     color = {1, 1, 1},    -- draw color
@@ -38,6 +40,21 @@ local enemyDefs = {
         bulletDamage = 10,
         bulletLife = 5,
         bulletSize = 10
+    },
+    shield_lancer = {
+        hp = 22,
+        shield = 24,
+        armor = 15,
+        speed = 55,
+        size = 18,
+        color = {0.2, 0.5, 1}
+    },
+    armored_brute = {
+        hp = 80,
+        armor = 160,
+        speed = 28,
+        size = 24,
+        color = {0.8, 0.6, 0.1}
     }
 }
 
