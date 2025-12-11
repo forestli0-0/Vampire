@@ -8,9 +8,10 @@ function projectiles.updatePlayerBullets(state, dt)
     for i = #state.bullets, 1, -1 do
         local b = state.bullets[i]
 
-        if b.type == 'wand' or b.type == 'holy_wand' or b.type == 'fire_wand' or b.type == 'oil_bottle' or b.type == 'heavy_hammer' or b.type == 'dagger' then
+        if b.type == 'wand' or b.type == 'holy_wand' or b.type == 'fire_wand' or b.type == 'oil_bottle' or b.type == 'heavy_hammer' or b.type == 'dagger' or b.type == 'static_orb' then
             b.x = b.x + b.vx * dt
             b.y = b.y + b.vy * dt
+            b.rotation = math.atan2(b.vy, b.vx)
         elseif b.type == 'axe' then
             b.x = b.x + b.vx * dt
             b.y = b.y + b.vy * dt
@@ -35,7 +36,7 @@ function projectiles.updatePlayerBullets(state, dt)
             for j = #state.enemies, 1, -1 do
                 local e = state.enemies[j]
                 if util.checkCollision(b, e) then
-                    if b.type == 'wand' or b.type == 'holy_wand' or b.type == 'fire_wand' or b.type == 'oil_bottle' or b.type == 'heavy_hammer' or b.type == 'dagger' then
+                    if b.type == 'wand' or b.type == 'holy_wand' or b.type == 'fire_wand' or b.type == 'oil_bottle' or b.type == 'heavy_hammer' or b.type == 'dagger' or b.type == 'static_orb' then
                         enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags)
                         if (b.damage or 0) > 0 then enemies.damageEnemy(state, e, b.damage, false, 0) end
                         b.pierce = (b.pierce or 1) - 1

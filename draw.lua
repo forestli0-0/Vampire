@@ -30,8 +30,18 @@ function draw.render(state)
     if state.inventory.weapons.garlic then
         local gStats = weapons.calculateStats(state, 'garlic') or state.inventory.weapons.garlic.stats
         local r = (gStats.radius or 0) * (gStats.area or 1) * (state.player.stats.area or 1)
-        love.graphics.setColor(1, 0.2, 0.2, 0.2)
-        love.graphics.circle('fill', state.player.x, state.player.y, r)
+        local sprite = state.weaponSprites and state.weaponSprites['garlic']
+        if sprite then
+            local sw, sh = sprite:getWidth(), sprite:getHeight()
+            local scale = (r * 2) / sw
+            love.graphics.setColor(1, 1, 1, 0.25)
+            love.graphics.draw(sprite, state.player.x, state.player.y, 0, scale, scale, sw / 2, sh / 2)
+            love.graphics.setColor(0, 0, 0, 0.2) -- fade the center/icon
+            love.graphics.circle('fill', state.player.x, state.player.y, r * 0.4)
+        else
+            love.graphics.setColor(1, 0.2, 0.2, 0.2)
+            love.graphics.circle('fill', state.player.x, state.player.y, r)
+        end
     end
 
     -- 实体
@@ -107,6 +117,22 @@ function draw.render(state)
             love.graphics.line(link.x1, link.y1, link.x2, link.y2)
         end
         love.graphics.setLineWidth(1)
+    end
+
+    -- 冰环提示
+    if state.inventory.weapons.ice_ring then
+        local iStats = weapons.calculateStats(state, 'ice_ring') or state.inventory.weapons.ice_ring.stats
+        local r = (iStats.radius or 0) * (iStats.area or 1) * (state.player.stats.area or 1)
+        local sprite = state.weaponSprites and state.weaponSprites['ice_ring']
+        if sprite then
+            local sw, sh = sprite:getWidth(), sprite:getHeight()
+            local scale = (r * 2) / sw
+            love.graphics.setColor(0.7, 0.9, 1, 0.35)
+            love.graphics.draw(sprite, state.player.x, state.player.y, 0, scale, scale, sw / 2, sh / 2)
+        else
+            love.graphics.setColor(0.7, 0.9, 1, 0.2)
+            love.graphics.circle('line', state.player.x, state.player.y, r)
+        end
     end
 
     local inv = state.player.invincibleTimer > 0

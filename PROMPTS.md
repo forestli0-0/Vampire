@@ -137,3 +137,8 @@ ZH: 像素风投射物，单帧 [宽x高]，顶视角，武器：[名称/描述]
   EN: Pixel art projectile, 14x14, top-down, slender steel throwing knife with a small red ribbon, facing right, light outline, simple shading, transparent background.
   ZH: 像素风投射物，14x14，顶视角，细长钢制飞刀，带小红绳，朝右，轻描边，简单明暗，透明背景。
   ```
+- Static Orb  
+  ```
+  EN: Pixel art projectile, 16x16, top-down, bright electric orb with crackling sparks and a short arc trail, facing right, light outline, simple shading, transparent background.
+  ZH: 像素风投射物，16x16，顶视角，明亮电能球，带噼啪电火花和短弧形尾迹，朝右，轻描边，简单明暗，透明背景。
+  ```

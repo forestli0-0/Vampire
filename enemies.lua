@@ -17,7 +17,7 @@ local function ensureStatus(e)
     e.maxHp = e.maxHp or e.hp
 end
 
-function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags)
+function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effectData)
     if not effectType or not e then return end
     if type(effectType) ~= 'string' then return end
     ensureStatus(e)
@@ -25,6 +25,9 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags)
     local effect = string.upper(effectType)
     if effect == 'FREEZE' then
         e.status.frozen = true
+        local dur = (effectData and effectData.duration) or 0.5
+        local remaining = e.status.frozenTimer or 0
+        e.status.frozenTimer = math.max(dur, remaining)
         e.speed = 0
     elseif effect == 'OIL' then
         e.status.oiled = true
@@ -46,6 +49,7 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags)
             local extra = math.floor((baseDamage or 0) * 2)
             if extra > 0 then enemies.damageEnemy(state, e, extra, false, 0) end
             e.status.frozen = false
+            e.status.frozenTimer = nil
             e.speed = e.baseSpeed or e.speed
             if state.playSfx then state.playSfx('glass') end
         end
@@ -125,6 +129,15 @@ function enemies.update(state, dt)
         if e.flashTimer and e.flashTimer > 0 then
             e.flashTimer = e.flashTimer - dt
             if e.flashTimer < 0 then e.flashTimer = 0 end
+        end
+
+        if e.status.frozen then
+            e.status.frozenTimer = (e.status.frozenTimer or 0) - dt
+            if e.status.frozenTimer <= 0 then
+                e.status.frozen = false
+                e.status.frozenTimer = nil
+                e.speed = e.baseSpeed or e.speed
+            end
         end
 
         if e.anim then e.anim:update(dt) end

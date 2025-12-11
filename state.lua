@@ -78,7 +78,7 @@ function state.init()
             desc = "Coats enemies in Oil.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'chemical'},
-            base = { damage=0, cd=2.0, speed=300, pierce=999, effectType='OIL' },
+            base = { damage=0, cd=2.0, speed=300, pierce=999, effectType='OIL', size=16 },
             onUpgrade = function(w) w.cd = w.cd * 0.95 end
         },
         fire_wand = {
@@ -102,7 +102,7 @@ function state.init()
             desc = "Shatters Frozen enemies for 3x Damage.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'physical', 'heavy'},
-            base = { damage=40, cd=2.0, speed=180, knockback=100, effectType='HEAVY' },
+            base = { damage=40, cd=2.0, speed=220, knockback=100, effectType='HEAVY', size=16 },
             onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end
         },
         dagger = {
@@ -112,6 +112,14 @@ function state.init()
             tags = {'weapon', 'projectile', 'physical', 'fast'},
             base = { damage=5, cd=0.18, speed=600, effectType='BLEED' },
             onUpgrade = function(w) w.damage = w.damage + 2 end
+        },
+        static_orb = {
+            type = 'weapon', name = "Static Orb",
+            desc = "Applies Shock that chains between enemies.",
+            maxLevel = 5,
+            tags = {'weapon', 'projectile', 'magic', 'electric'},
+            base = { damage=12, cd=1.25, speed=380, effectType='STATIC' },
+            onUpgrade = function(w) w.damage = w.damage + 4; w.cd = w.cd * 0.95 end
         },
         spinach = {
             type = 'passive', name = "Spinach",
@@ -314,7 +322,7 @@ function state.init()
     end
 
     -- Weapon sprites (optional). Missing files are simply skipped.
-    local weaponKeys = {'wand','holy_wand','axe','death_spiral','fire_wand','oil_bottle','heavy_hammer','dagger'}
+    local weaponKeys = {'wand','holy_wand','axe','death_spiral','fire_wand','oil_bottle','heavy_hammer','dagger','static_orb','garlic','ice_ring'}
     state.weaponSprites = {}
     state.weaponSpriteScale = {}
     for _, key in ipairs(weaponKeys) do
@@ -322,10 +330,10 @@ function state.init()
         if img then
             img:setFilter('nearest', 'nearest')
             state.weaponSprites[key] = img
-            state.weaponSpriteScale[key] = 2
+            state.weaponSpriteScale[key] = 5
         end
     end
-    state.weaponSpriteScale['wand'] = 5
+    state.weaponSpriteScale['axe'] = 2
 end
 
 return state
