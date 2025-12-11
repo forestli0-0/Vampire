@@ -255,6 +255,47 @@ function draw.render(state)
     for _, t in ipairs(state.texts) do love.graphics.setColor(t.color); love.graphics.print(t.text, t.x, t.y) end
     love.graphics.pop()
 
+    -- 屏幕边缘指示道具方向（磁铁/炸弹/鸡腿/宝箱）
+    do
+        local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+        local cx, cy = w / 2, h / 2
+        local colors = {
+            magnet = {0,0.8,1},
+            chest = {1,0.84,0},
+            bomb = {1,0.2,0.2},
+            chicken = {1,0.7,0.2}
+        }
+        local function drawArrow(wx, wy, kind)
+            local col = colors[kind] or {1,1,1}
+            local sx = wx - state.camera.x
+            local sy = wy - state.camera.y
+            local dx, dy = sx - cx, sy - cy
+            local dist = math.sqrt(dx*dx + dy*dy)
+            if dist < 20 then return end
+            dx, dy = dx / dist, dy / dist
+            local margin = 24
+            local ex = cx + dx * (cx - margin)
+            local ey = cy + dy * (cy - margin)
+            ex = math.min(w - margin, math.max(margin, ex))
+            ey = math.min(h - margin, math.max(margin, ey))
+            local angle = math.atan2(dy, dx)
+            love.graphics.setColor(col[1], col[2], col[3], 0.95)
+            love.graphics.push()
+            love.graphics.translate(ex, ey)
+            love.graphics.rotate(angle)
+            love.graphics.polygon('fill', -8, -6, -8, 6, 12, 0)
+            love.graphics.pop()
+        end
+        for _, c in ipairs(state.chests) do
+            drawArrow(c.x, c.y, 'chest')
+        end
+        for _, item in ipairs(state.floorPickups) do
+            if item.kind == 'magnet' or item.kind == 'bomb' or item.kind == 'chicken' then
+                drawArrow(item.x, item.y, item.kind)
+            end
+        end
+    end
+
     -- HUD
     love.graphics.setColor(0,0,1)
     love.graphics.rectangle('fill', 0, 0, love.graphics.getWidth() * (state.player.xp / state.player.xpToNextLevel), 10)
