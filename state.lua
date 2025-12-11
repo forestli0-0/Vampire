@@ -37,7 +37,7 @@ function state.init()
             desc = "Fires at nearest enemy.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'magic'},
-            base = { damage=8, cd=1.2, speed=380 },
+            base = { damage=8, cd=1.2, speed=380, critChance=0.05, critMultiplier=1.5 },
             onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.9 end,
             evolveInfo = { target='holy_wand', require='tome' }
         },
@@ -46,7 +46,7 @@ function state.init()
             desc = "Evolved Magic Wand. Fires rapidly.",
             maxLevel = 1,
             tags = {'weapon', 'projectile', 'magic'},
-            base = { damage=15, cd=0.16, speed=600 },
+            base = { damage=15, cd=0.16, speed=600, critChance=0.05, critMultiplier=1.5 },
             evolvedOnly = true,
             onUpgrade = function(w) end
         },
@@ -55,7 +55,7 @@ function state.init()
             desc = "Damages enemies nearby.",
             maxLevel = 5,
             tags = {'weapon', 'area', 'aura', 'magic'},
-            base = { damage=3, cd=0.35, radius=70, knockback=30 },
+            base = { damage=3, cd=0.35, radius=70, knockback=30, critChance=0.05, critMultiplier=1.5 },
             onUpgrade = function(w) w.damage = w.damage + 2; w.radius = w.radius + 10 end,
             evolveInfo = { target='soul_eater', require='pummarola' }
         },
@@ -64,7 +64,7 @@ function state.init()
             desc = "High damage, high arc.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'physical', 'arc'},
-            base = { damage=30, cd=1.4, speed=450, area=1.5 },
+            base = { damage=30, cd=1.4, speed=450, area=1.5, critChance=0.10, critMultiplier=2.5 },
             onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end,
             evolveInfo = { target='death_spiral', require='spinach' }
         },
@@ -73,7 +73,7 @@ function state.init()
             desc = "Evolved Axe. Spirals out.",
             maxLevel = 1,
             tags = {'weapon', 'projectile', 'physical', 'arc'},
-            base = { damage=40, cd=1.2, speed=500, area=2.0 },
+            base = { damage=40, cd=1.2, speed=500, area=2.0, critChance=0.10, critMultiplier=2.5 },
             evolvedOnly = true,
             onUpgrade = function(w) end
         },
@@ -82,7 +82,7 @@ function state.init()
             desc = "Coats enemies in Oil.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'chemical'},
-            base = { damage=0, cd=2.0, speed=300, pierce=1, effectType='OIL', size=16, splashRadius=80, duration=6.0 },
+            base = { damage=0, cd=2.0, speed=300, pierce=1, effectType='OIL', size=16, splashRadius=80, duration=6.0, critChance=0.05, critMultiplier=1.5 },
             onUpgrade = function(w) w.cd = w.cd * 0.95 end
         },
         fire_wand = {
@@ -90,7 +90,7 @@ function state.init()
             desc = "Ignites Oiled enemies.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'fire', 'magic'},
-            base = { damage=15, cd=0.9, speed=450, effectType='FIRE', splashRadius=70 },
+            base = { damage=15, cd=0.9, speed=450, effectType='FIRE', splashRadius=70, critChance=0.05, critMultiplier=1.5 },
             onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.95 end,
             evolveInfo = { target='hellfire', require='candelabrador' }
         },
@@ -99,7 +99,7 @@ function state.init()
             desc = "Freezes nearby enemies.",
             maxLevel = 5,
             tags = {'weapon', 'area', 'magic', 'ice'},
-            base = { damage=2, cd=2.5, radius=100, duration=0.5, effectType='FREEZE' },
+            base = { damage=2, cd=2.5, radius=100, duration=0.5, effectType='FREEZE', critChance=0.05, critMultiplier=1.5 },
             onUpgrade = function(w) w.radius = w.radius + 10; w.cd = w.cd * 0.95 end,
             evolveInfo = { target='absolute_zero', require='spellbinder' }
         },
@@ -108,7 +108,7 @@ function state.init()
             desc = "Shatters Frozen enemies for 3x Damage.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'physical', 'heavy'},
-            base = { damage=40, cd=2.0, speed=220, knockback=100, effectType='HEAVY', size=16 },
+            base = { damage=40, cd=2.0, speed=220, knockback=100, effectType='HEAVY', size=16, critChance=0.05, critMultiplier=1.5 },
             onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end,
             evolveInfo = { target='earthquake', require='armor' }
         },
@@ -117,7 +117,7 @@ function state.init()
             desc = "Stacks Bleed. Explodes at 10 stacks.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'physical', 'fast'},
-            base = { damage=4, cd=0.18, speed=600, effectType='BLEED' },
+            base = { damage=4, cd=0.18, speed=600, effectType='BLEED', critChance=0.20, critMultiplier=2.0 },
             onUpgrade = function(w) w.damage = w.damage + 2 end,
             evolveInfo = { target='thousand_edge', require='bracer' }
         },
@@ -126,7 +126,7 @@ function state.init()
             desc = "Applies Shock that chains between enemies.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'magic', 'electric'},
-            base = { damage=6, cd=1.25, speed=380, effectType='STATIC', duration=2.0, staticRange=160, chain=4 },
+            base = { damage=6, cd=1.25, speed=380, effectType='STATIC', duration=2.0, staticRange=160, chain=4, critChance=0.05, critMultiplier=1.5 },
             onUpgrade = function(w) w.damage = w.damage + 3; w.cd = w.cd * 0.95 end,
             evolveInfo = { target='thunder_loop', require='duplicator' }
         },
@@ -135,7 +135,7 @@ function state.init()
             desc = "Evolved Garlic. Huge aura that heals on hit.",
             maxLevel = 1,
             tags = {'weapon', 'area', 'aura', 'magic'},
-            base = { damage=8, cd=0.3, radius=130, knockback=50, lifesteal=0.4, area=1.5 },
+            base = { damage=8, cd=0.3, radius=130, knockback=50, lifesteal=0.4, area=1.5, critChance=0.05, critMultiplier=1.5 },
             evolvedOnly = true,
             onUpgrade = function(w) end
         },
@@ -144,7 +144,7 @@ function state.init()
             desc = "Evolved Throwing Knife. Rapid endless barrage.",
             maxLevel = 1,
             tags = {'weapon', 'projectile', 'physical', 'fast'},
-            base = { damage=7, cd=0.05, speed=650, effectType='BLEED', pierce=6, amount=1 },
+            base = { damage=7, cd=0.05, speed=650, effectType='BLEED', pierce=6, amount=1, critChance=0.20, critMultiplier=2.0 },
             evolvedOnly = true,
             onUpgrade = function(w) end
         },

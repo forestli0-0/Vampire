@@ -23,7 +23,11 @@ function projectiles.updatePlayerBullets(state, dt)
                     local dy = e.y - b.y
                     if dx*dx + dy*dy <= r2 then
                         enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags, effectData)
-                        if (b.damage or 0) > 0 then enemies.damageEnemy(state, e, b.damage, false, 0) end
+                        if (b.damage or 0) > 0 then
+                            local isCrit = math.random() < (b.critChance or 0)
+                            local finalDmg = math.floor(b.damage * (isCrit and (b.critMultiplier or 1.5) or 1))
+                            enemies.damageEnemy(state, e, finalDmg, false, 0, isCrit)
+                        end
                     end
                 end
             end
@@ -91,7 +95,11 @@ function projectiles.updatePlayerBullets(state, dt)
                             effectData = {duration = b.effectDuration, range = b.effectRange, chain = b.chain, allowRepeat = b.allowRepeat}
                         end
                                 enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags, effectData)
-                                if (b.damage or 0) > 0 then enemies.damageEnemy(state, e, b.damage, false, 0) end
+                                if (b.damage or 0) > 0 then
+                                    local isCrit = math.random() < (b.critChance or 0)
+                                    local finalDmg = math.floor(b.damage * (isCrit and (b.critMultiplier or 1.5) or 1))
+                                    enemies.damageEnemy(state, e, finalDmg, false, 0, isCrit)
+                                end
                                 -- Ignite nearby oiled enemies in splash radius
                                 local splash = b.splashRadius or 0
                                 if splash > 0 then
@@ -124,7 +132,11 @@ function projectiles.updatePlayerBullets(state, dt)
                                     effectData = {duration = b.effectDuration, range = b.effectRange, chain = b.chain, allowRepeat = b.allowRepeat}
                                 end
                                 enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags, effectData)
-                                if (b.damage or 0) > 0 then enemies.damageEnemy(state, e, b.damage, false, 0) end
+                                if (b.damage or 0) > 0 then
+                                    local isCrit = math.random() < (b.critChance or 0)
+                                    local finalDmg = math.floor(b.damage * (isCrit and (b.critMultiplier or 1.5) or 1))
+                                    enemies.damageEnemy(state, e, finalDmg, false, 0, isCrit)
+                                end
                                 b.pierce = (b.pierce or 1) - 1
                                 if b.pierce <= 0 then
                                     table.remove(state.bullets, i)
@@ -137,14 +149,18 @@ function projectiles.updatePlayerBullets(state, dt)
                             if not b.hitTargets[e] then
                                 b.hitTargets[e] = true
                                 enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags)
-                                enemies.damageEnemy(state, e, b.damage, false, 0)
+                                local isCrit = math.random() < (b.critChance or 0)
+                                local finalDmg = math.floor(b.damage * (isCrit and (b.critMultiplier or 1.5) or 1))
+                                enemies.damageEnemy(state, e, finalDmg, false, 0, isCrit)
                             end
                         elseif b.type == 'death_spiral' then
                             b.hitTargets = b.hitTargets or {}
                             if not b.hitTargets[e] then
                                 b.hitTargets[e] = true
                                 enemies.applyStatus(state, e, b.effectType, b.damage, b.weaponTags)
-                                enemies.damageEnemy(state, e, b.damage, false, 0)
+                                local isCrit = math.random() < (b.critChance or 0)
+                                local finalDmg = math.floor(b.damage * (isCrit and (b.critMultiplier or 1.5) or 1))
+                                enemies.damageEnemy(state, e, finalDmg, false, 0, isCrit)
                             end
                         end
                     end

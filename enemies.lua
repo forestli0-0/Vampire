@@ -137,11 +137,17 @@ function enemies.findNearestEnemy(state, maxDist)
     return t
 end
 
-function enemies.damageEnemy(state, e, dmg, knock, kForce)
+function enemies.damageEnemy(state, e, dmg, knock, kForce, isCrit)
     e.hp = e.hp - dmg
     e.flashTimer = 0.1
     if state.playSfx then state.playSfx('hit') end
-    table.insert(state.texts, {x=e.x, y=e.y-20, text=dmg, color={1,1,1}, life=0.5})
+    local color = {1,1,1}
+    local scale = 1
+    if isCrit then
+        color = {1, 1, 0}
+        scale = 1.5
+    end
+    table.insert(state.texts, {x=e.x, y=e.y-20, text=dmg, color=color, life=0.5, scale=scale})
     if knock then
         local a = math.atan2(e.y - state.player.y, e.x - state.player.x)
         e.x = e.x + math.cos(a) * (kForce or 10)
