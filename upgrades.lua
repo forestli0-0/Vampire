@@ -15,11 +15,12 @@ end
 
 function upgrades.generateUpgradeOptions(state)
     local pool = {}
+    local evolvePool = {}
     local added = {}
-    local function addOption(opt)
+    local function addOption(list, opt)
         local key = opt.key .. (opt.evolveFrom or "")
         if not added[key] then
-            table.insert(pool, opt)
+            table.insert(list, opt)
             added[key] = true
         end
     end
@@ -38,7 +39,7 @@ function upgrades.generateUpgradeOptions(state)
             if item.type == 'weapon' and state.inventory.weapons[key] then currentLevel = state.inventory.weapons[key].level end
             if item.type == 'passive' and state.inventory.passives[key] then currentLevel = state.inventory.passives[key] end
             if currentLevel < item.maxLevel then
-                addOption({key=key, type=item.type, name=item.name, desc=item.desc, def=item})
+                addOption(pool, {key=key, type=item.type, name=item.name, desc=item.desc, def=item})
             end
         end
 
@@ -46,7 +47,7 @@ function upgrades.generateUpgradeOptions(state)
         if item.type == 'weapon' and canEvolve(state, key) then
             local targetKey = item.evolveInfo.target
             local target = state.catalog[targetKey]
-            addOption({
+            addOption(evolvePool, {
                 key = targetKey,
                 type = target.type,
                 name = target.name,
@@ -58,12 +59,26 @@ function upgrades.generateUpgradeOptions(state)
     end
 
     state.upgradeOptions = {}
-    for i = 1, 3 do
-        if #pool == 0 then break end
-        local rndIdx = math.random(#pool)
-        local choice = pool[rndIdx]
+    -- 若有进化候选，优先保底塞入 1 个
+    local function takeRandom(list)
+        if #list == 0 then return nil end
+        local idx = math.random(#list)
+        local opt = list[idx]
+        table.remove(list, idx)
+        return opt
+    end
+
+    if #evolvePool > 0 then
+        table.insert(state.upgradeOptions, takeRandom(evolvePool))
+    end
+
+    for i = #state.upgradeOptions + 1, 3 do
+        local choice = takeRandom(pool)
+        if not choice then
+            choice = takeRandom(evolvePool)
+        end
+        if not choice then break end
         table.insert(state.upgradeOptions, choice)
-        table.remove(pool, rndIdx)
     end
 end
 

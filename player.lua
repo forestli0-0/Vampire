@@ -27,8 +27,10 @@ end
 function player.hurt(state, dmg)
     local p = state.player
     if p.invincibleTimer > 0 then return end
-    p.hp = math.max(0, p.hp - dmg)
-    logger.damageTaken(state, dmg, p.hp)
+    local armor = (p.stats and p.stats.armor) or 0
+    local applied = math.max(1, math.floor((dmg or 0) - armor))
+    p.hp = math.max(0, p.hp - applied)
+    logger.damageTaken(state, applied, p.hp)
     if p.hp <= 0 then
         p.invincibleTimer = 0
         state.shakeAmount = 0
@@ -40,13 +42,20 @@ function player.hurt(state, dmg)
         state.shakeAmount = 5
     end
     if state.playSfx then state.playSfx('hit') end
-    table.insert(state.texts, {x=p.x, y=p.y-30, text="-"..dmg, color={1,0,0}, life=1})
+    table.insert(state.texts, {x=p.x, y=p.y-30, text="-"..applied, color={1,0,0}, life=1})
 end
 
 function player.tickInvincibility(state, dt)
     if state.player.invincibleTimer > 0 then
         state.player.invincibleTimer = state.player.invincibleTimer - dt
         if state.player.invincibleTimer < 0 then state.player.invincibleTimer = 0 end
+    end
+end
+
+function player.tickRegen(state, dt)
+    local regen = state.player.stats.regen or 0
+    if regen > 0 and state.player.hp < state.player.maxHp then
+        state.player.hp = math.min(state.player.maxHp, state.player.hp + regen * dt)
     end
 end
 

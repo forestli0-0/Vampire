@@ -10,6 +10,9 @@ local modes = {'weapon', 'passive', 'xp', 'enemy'}
 local function cloneStats(base)
     local copy = {}
     for k, v in pairs(base or {}) do copy[k] = v end
+    if copy.area == nil then copy.area = 1 end
+    if copy.pierce == nil then copy.pierce = 1 end
+    if copy.amount == nil then copy.amount = 0 end
     return copy
 end
 
@@ -34,6 +37,12 @@ local function downgradePassive(state, key)
     if key == 'boots' then
         -- boots onUpgrade multiplies moveSpeed by 1.1; invert on downgrade
         state.player.stats.moveSpeed = state.player.stats.moveSpeed / 1.1
+    elseif key == 'attractorb' then
+        state.player.stats.pickupRange = math.max(0, state.player.stats.pickupRange - 40)
+    elseif key == 'pummarola' then
+        state.player.stats.regen = math.max(0, state.player.stats.regen - 0.25)
+    elseif key == 'armor' then
+        state.player.stats.armor = math.max(0, state.player.stats.armor - 1)
     end
     if newLv == 0 then
         state.inventory.passives[key] = nil

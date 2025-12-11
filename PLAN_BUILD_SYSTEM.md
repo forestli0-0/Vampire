@@ -19,6 +19,12 @@
 4.  **Attractorb (吸引器)**
     *   **效果**: 增加拾取范围 (`pickupRange`)。
     *   **爽点**: 站桩输出必备，减少跑图捡经验的麻烦。
+5.  **Pummarola (番茄/红心)**
+    *   **效果**: 提供生命回复 (`regen`)。
+6.  **Bracer (护腕)**
+    *   **效果**: 提升投射物速度 (`speed`)。
+7.  **Armor (护甲)**
+    *   **效果**: 降低受到的伤害 (`armor`)。
 
 ## 阶段二：补全进化路线 (New Evolutions)
 目前只有 2 个进化。目标是让所有基础武器都有对应的进化形态。
@@ -30,8 +36,8 @@
 | **Dagger (飞刀)** | Bracer (护腕) *[需新增]* | **Thousand Edge (千刃)** | 无CD连发飞刀，像机枪一样扫射。 |
 | **Fire Wand (火杖)** | Candelabrador (烛台) | **Hellfire (地狱火)** | 发射巨大的火球，能够穿透所有敌人。 |
 | **Ice Ring (冰戒)** | Spellbinder (缚咒者) | **Absolute Zero (绝对零度)** | 持续存在的暴风雪区域，进入的敌人被永久减速/冻结。 |
-| **Static Orb (静电球)** | Duplicator (复制器) | **Thunder Loop (雷环)** | 投射物数量翻倍，且在两点间形成电流网。 |
-| **Heavy Hammer (重锤)** | Armor (护甲) *[需新增]* | **Earthquake (地震)** | 攻击变为全屏震动，眩晕所有地面敌人。 |
+| **Static Orb (静电球)** | Duplicator (复制器) | **Thunder Loop (雷环)** | 可连续链状感电，进化后可重复命中目标。 |
+| **Heavy Hammer (重锤)** | Armor (护甲) *[需新增]* | **Earthquake (地震)** | 多段波纹扩散的震击，递减伤害并眩晕。 |
 
 *(注：Oil Bottle 作为辅助武器，暂时可以不进化，或者设计为与 Fire Wand 的特殊连携)*
 
@@ -46,6 +52,8 @@
 
 ### 2. 优化元素交互 (Status Scaling)
 *   让状态效果（流血伤害、燃烧伤害）能受到 `Might` (攻击力) 的加成，避免后期元素流刮痧。
+*   `STATIC` 链雷支持连锁次数/可重复命中配置，链路随进化变化。
+*   `EARTHQUAKE` 伤害随多段波纹扩散触发，递减系数 1.0/0.7/0.5，且与波前同步。
 
 ## 执行步骤 (Action Plan)
 

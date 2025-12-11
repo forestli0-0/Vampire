@@ -25,7 +25,9 @@ function state.init()
             cooldown = 1.0,
             area = 1.0,
             speed = 1.0,
-            pickupRange = 80
+            pickupRange = 80,
+            armor = 0,
+            regen = 0
         }
     }
 
@@ -54,7 +56,8 @@ function state.init()
             maxLevel = 5,
             tags = {'weapon', 'area', 'aura', 'magic'},
             base = { damage=3, cd=0.35, radius=70, knockback=30 },
-            onUpgrade = function(w) w.damage = w.damage + 2; w.radius = w.radius + 10 end
+            onUpgrade = function(w) w.damage = w.damage + 2; w.radius = w.radius + 10 end,
+            evolveInfo = { target='soul_eater', require='pummarola' }
         },
         axe = {
             type = 'weapon', name = "Axe",
@@ -88,7 +91,8 @@ function state.init()
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'fire', 'magic'},
             base = { damage=15, cd=0.9, speed=450, effectType='FIRE', splashRadius=70 },
-            onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.95 end
+            onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.95 end,
+            evolveInfo = { target='hellfire', require='candelabrador' }
         },
         ice_ring = {
             type = 'weapon', name = "Ice Ring",
@@ -96,7 +100,8 @@ function state.init()
             maxLevel = 5,
             tags = {'weapon', 'area', 'magic', 'ice'},
             base = { damage=2, cd=2.5, radius=100, duration=0.5, effectType='FREEZE' },
-            onUpgrade = function(w) w.radius = w.radius + 10; w.cd = w.cd * 0.95 end
+            onUpgrade = function(w) w.radius = w.radius + 10; w.cd = w.cd * 0.95 end,
+            evolveInfo = { target='absolute_zero', require='spellbinder' }
         },
         heavy_hammer = {
             type = 'weapon', name = "Warhammer",
@@ -104,7 +109,8 @@ function state.init()
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'physical', 'heavy'},
             base = { damage=40, cd=2.0, speed=220, knockback=100, effectType='HEAVY', size=16 },
-            onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end
+            onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end,
+            evolveInfo = { target='earthquake', require='armor' }
         },
         dagger = {
             type = 'weapon', name = "Throwing Knife",
@@ -112,15 +118,71 @@ function state.init()
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'physical', 'fast'},
             base = { damage=4, cd=0.18, speed=600, effectType='BLEED' },
-            onUpgrade = function(w) w.damage = w.damage + 2 end
+            onUpgrade = function(w) w.damage = w.damage + 2 end,
+            evolveInfo = { target='thousand_edge', require='bracer' }
         },
         static_orb = {
             type = 'weapon', name = "Static Orb",
             desc = "Applies Shock that chains between enemies.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'magic', 'electric'},
-            base = { damage=6, cd=1.25, speed=380, effectType='STATIC', duration=2.0, staticRange=160 },
-            onUpgrade = function(w) w.damage = w.damage + 3; w.cd = w.cd * 0.95 end
+            base = { damage=6, cd=1.25, speed=380, effectType='STATIC', duration=2.0, staticRange=160, chain=4 },
+            onUpgrade = function(w) w.damage = w.damage + 3; w.cd = w.cd * 0.95 end,
+            evolveInfo = { target='thunder_loop', require='duplicator' }
+        },
+        soul_eater = {
+            type = 'weapon', name = "Soul Eater",
+            desc = "Evolved Garlic. Huge aura that heals on hit.",
+            maxLevel = 1,
+            tags = {'weapon', 'area', 'aura', 'magic'},
+            base = { damage=8, cd=0.3, radius=130, knockback=50, lifesteal=0.4, area=1.5 },
+            evolvedOnly = true,
+            onUpgrade = function(w) end
+        },
+        thousand_edge = {
+            type = 'weapon', name = "Thousand Edge",
+            desc = "Evolved Throwing Knife. Rapid endless barrage.",
+            maxLevel = 1,
+            tags = {'weapon', 'projectile', 'physical', 'fast'},
+            base = { damage=7, cd=0.05, speed=650, effectType='BLEED', pierce=6, amount=1 },
+            evolvedOnly = true,
+            onUpgrade = function(w) end
+        },
+        hellfire = {
+            type = 'weapon', name = "Hellfire",
+            desc = "Evolved Fire Wand. Giant piercing fireballs.",
+            maxLevel = 1,
+            tags = {'weapon', 'projectile', 'fire', 'magic'},
+            base = { damage=40, cd=0.6, speed=520, effectType='FIRE', splashRadius=140, pierce=12, size=18, area=1.3, life=3.0 },
+            evolvedOnly = true,
+            onUpgrade = function(w) end
+        },
+        absolute_zero = {
+            type = 'weapon', name = "Absolute Zero",
+            desc = "Evolved Ice Ring. Persistent blizzard that freezes foes.",
+            maxLevel = 1,
+            tags = {'weapon', 'area', 'magic', 'ice'},
+            base = { damage=5, cd=2.2, radius=160, duration=2.5, effectType='FREEZE', area=1.2 },
+            evolvedOnly = true,
+            onUpgrade = function(w) end
+        },
+        thunder_loop = {
+            type = 'weapon', name = "Thunder Loop",
+            desc = "Evolved Static Orb. Double shocks forming an electric web.",
+            maxLevel = 1,
+            tags = {'weapon', 'projectile', 'magic', 'electric'},
+            base = { damage=10, cd=1.1, speed=420, effectType='STATIC', duration=3.0, staticRange=220, pierce=1, amount=1, chain=10, allowRepeat=true },
+            evolvedOnly = true,
+            onUpgrade = function(w) end
+        },
+        earthquake = {
+            type = 'weapon', name = "Earthquake",
+            desc = "Evolved Warhammer. Quakes stun everything on screen.",
+            maxLevel = 1,
+            tags = {'weapon', 'area', 'physical', 'heavy'},
+            base = { damage=60, cd=2.5, area=2.2, knockback=120, effectType='HEAVY', duration=0.6 },
+            evolvedOnly = true,
+            onUpgrade = function(w) end
         },
         spinach = {
             type = 'passive', name = "Spinach",
@@ -143,6 +205,58 @@ function state.init()
             targetTags = {'projectile'},
             effect = { speed = 0.05 },
             onUpgrade = function() state.player.stats.moveSpeed = state.player.stats.moveSpeed * 1.1 end
+        },
+        duplicator = {
+            type = 'passive', name = "Duplicator",
+            desc = "Adds +1 projectile to weapons per level.",
+            maxLevel = 2,
+            targetTags = {'weapon'},
+            effect = { amount = 1 }
+        },
+        candelabrador = {
+            type = 'passive', name = "Candelabrador",
+            desc = "Increases weapon area by 10%.",
+            maxLevel = 5,
+            targetTags = {'weapon'},
+            effect = { area = 0.1 }
+        },
+        spellbinder = {
+            type = 'passive', name = "Spellbinder",
+            desc = "Extends weapon duration by 10%.",
+            maxLevel = 5,
+            targetTags = {'weapon'},
+            effect = { duration = 0.1 }
+        },
+        attractorb = {
+            type = 'passive', name = "Attractorb",
+            desc = "Greatly increases pickup range.",
+            maxLevel = 5,
+            targetTags = {'weapon'},
+            onUpgrade = function() state.player.stats.pickupRange = state.player.stats.pickupRange + 40 end
+        },
+        pummarola = {
+            type = 'passive', name = "Pummarola",
+            desc = "Regenerates health over time.",
+            maxLevel = 5,
+            targetTags = {'weapon'},
+            onUpgrade = function()
+                state.player.stats.regen = (state.player.stats.regen or 0) + 0.25
+                state.player.hp = math.min(state.player.maxHp, state.player.hp + 2)
+            end
+        },
+        bracer = {
+            type = 'passive', name = "Bracer",
+            desc = "Increases projectile speed.",
+            maxLevel = 5,
+            targetTags = {'projectile', 'physical', 'fast'},
+            effect = { speed = 0.08 }
+        },
+        armor = {
+            type = 'passive', name = "Armor",
+            desc = "Reduces incoming damage.",
+            maxLevel = 5,
+            targetTags = {'weapon'},
+            onUpgrade = function() state.player.stats.armor = (state.player.stats.armor or 0) + 1 end
         }
     }
 
@@ -157,6 +271,7 @@ function state.init()
     state.chests = {}
     state.upgradeOptions = {}
     state.chainLinks = {}
+    state.quakeEffects = {}
 
     state.spawnTimer = 0
     state.camera = { x = 0, y = 0 }
@@ -346,7 +461,10 @@ function state.init()
     end
 
     -- Weapon sprites (optional). Missing files are simply skipped.
-    local weaponKeys = {'wand','holy_wand','axe','death_spiral','fire_wand','oil_bottle','heavy_hammer','dagger','static_orb','garlic','ice_ring'}
+    local weaponKeys = {
+        'wand','holy_wand','axe','death_spiral','fire_wand','oil_bottle','heavy_hammer','dagger','static_orb','garlic','ice_ring',
+        'soul_eater','thousand_edge','hellfire','absolute_zero','thunder_loop','earthquake'
+    }
     state.weaponSprites = {}
     state.weaponSpriteScale = {}
     for _, key in ipairs(weaponKeys) do
@@ -408,6 +526,13 @@ function state.init()
             e.t = e.t + dt
             if e.t >= (e.duration or 0.3) then
                 table.remove(state.hitEffects, i)
+            end
+        end
+        for i = #state.quakeEffects, 1, -1 do
+            local q = state.quakeEffects[i]
+            q.t = q.t + dt
+            if q.t >= (q.duration or 0.5) then
+                table.remove(state.quakeEffects, i)
             end
         end
     end

@@ -27,20 +27,30 @@ function draw.render(state)
     end
 
     -- 大蒜圈
-    if state.inventory.weapons.garlic then
-        local gStats = weapons.calculateStats(state, 'garlic') or state.inventory.weapons.garlic.stats
+    if state.inventory.weapons.garlic or state.inventory.weapons.soul_eater then
+        local key = state.inventory.weapons.soul_eater and 'soul_eater' or 'garlic'
+        local gStats = weapons.calculateStats(state, key) or state.inventory.weapons[key].stats
         local r = (gStats.radius or 0) * (gStats.area or 1) * (state.player.stats.area or 1)
-        local sprite = state.weaponSprites and state.weaponSprites['garlic']
+        local sprite = state.weaponSprites and state.weaponSprites[key]
         if sprite then
             local sw, sh = sprite:getWidth(), sprite:getHeight()
             local scale = (r * 2) / sw
-            love.graphics.setColor(1, 1, 1, 0.25)
+            local alpha = key == 'soul_eater' and 0.35 or 0.25
+            love.graphics.setColor(1, 1, 1, alpha)
             love.graphics.draw(sprite, state.player.x, state.player.y, 0, scale, scale, sw / 2, sh / 2)
-            love.graphics.setColor(0, 0, 0, 0.2) -- fade the center/icon
-            love.graphics.circle('fill', state.player.x, state.player.y, r * 0.4)
+            love.graphics.setColor(0, 0, 0, 0.2)
+            love.graphics.circle('fill', state.player.x, state.player.y, r * 0.45)
         else
-            love.graphics.setColor(1, 0.2, 0.2, 0.2)
-            love.graphics.circle('fill', state.player.x, state.player.y, r)
+            if key == 'soul_eater' then
+                love.graphics.setColor(0.7, 0.1, 0.6, 0.2)
+                love.graphics.circle('fill', state.player.x, state.player.y, r)
+                love.graphics.setColor(1, 0.8, 1, 0.25)
+                love.graphics.circle('line', state.player.x, state.player.y, r * 0.9)
+                love.graphics.setColor(1, 1, 1, 0.25)
+            else
+                love.graphics.setColor(1, 0.2, 0.2, 0.2)
+                love.graphics.circle('fill', state.player.x, state.player.y, r)
+            end
         end
     end
 
@@ -210,36 +220,79 @@ function draw.render(state)
 
     -- 玩家投射物
     for _, b in ipairs(state.bullets) do
-        local sprite = state.weaponSprites and state.weaponSprites[b.type]
-        if sprite then
+        if b.type == 'absolute_zero' then
+            love.graphics.setColor(0.7, 0.9, 1, 0.25)
+            local r = b.radius or b.size or 0
+            love.graphics.circle('fill', b.x, b.y, r)
             love.graphics.setColor(1,1,1)
-            local sw, sh = sprite:getWidth(), sprite:getHeight()
-            local scale = ((b.size or sw) / sw) * ((state.weaponSpriteScale and state.weaponSpriteScale[b.type]) or 1)
-            love.graphics.push()
-            love.graphics.translate(b.x, b.y)
-            if b.rotation then love.graphics.rotate(b.rotation) end
-            love.graphics.draw(sprite, 0, 0, 0, scale, scale, sw/2, sh/2)
-            love.graphics.pop()
         else
-            if b.type == 'axe' then love.graphics.setColor(0,1,1) else love.graphics.setColor(1,1,0) end
-            love.graphics.push()
-            love.graphics.translate(b.x, b.y)
-            if b.rotation then love.graphics.rotate(b.rotation) end
-            love.graphics.rectangle('fill', -b.size/2, -b.size/2, b.size, b.size)
-            love.graphics.pop()
+            local sprite = state.weaponSprites and state.weaponSprites[b.type]
+            if sprite then
+                love.graphics.setColor(1,1,1)
+                local sw, sh = sprite:getWidth(), sprite:getHeight()
+                local scale = ((b.size or sw) / sw) * ((state.weaponSpriteScale and state.weaponSpriteScale[b.type]) or 1)
+                love.graphics.push()
+                love.graphics.translate(b.x, b.y)
+                if b.rotation then love.graphics.rotate(b.rotation) end
+                love.graphics.draw(sprite, 0, 0, 0, scale, scale, sw/2, sh/2)
+                love.graphics.pop()
+            else
+                if b.type == 'axe' then love.graphics.setColor(0,1,1) else love.graphics.setColor(1,1,0) end
+                love.graphics.push()
+                love.graphics.translate(b.x, b.y)
+                if b.rotation then love.graphics.rotate(b.rotation) end
+                love.graphics.rectangle('fill', -b.size/2, -b.size/2, b.size, b.size)
+                love.graphics.pop()
+            end
         end
+    end
+
+    -- 地震特效
+    if state.quakeEffects then
+        for _, q in ipairs(state.quakeEffects) do
+            if (q.t or 0) < 0 then goto continue_quake end
+            local dur = q.duration or 0.6
+            local p = math.max(0, math.min(1, (q.t or 0) / dur))
+            local cx, cy = q.x or state.player.x, q.y or state.player.y
+            local baseR = q.radius or 420
+            -- subtle center flash
+            local flashAlpha = 0.12 * (1 - p)
+            if flashAlpha > 0.01 then
+                love.graphics.setColor(0.8, 0.65, 0.45, flashAlpha)
+                love.graphics.circle('fill', cx, cy, baseR * 0.35 * (1 - p * 0.6))
+            end
+            -- expanding ripples
+            local rings = 3
+            for i = 1, rings do
+                local phase = (p + (i - 1) * 0.12) % 1
+                local r = baseR * (0.25 + phase * 0.9)
+                local alpha = 0.5 * (1 - phase) * (1 - p * 0.8)
+                if alpha > 0.01 then
+                    love.graphics.setColor(0.75, 0.5, 0.25, alpha)
+                    love.graphics.setLineWidth(4 * (1 - phase) + 1.2)
+                    love.graphics.circle('line', cx, cy, r)
+                end
+            end
+            love.graphics.setLineWidth(1)
+            ::continue_quake::
+        end
+        love.graphics.setColor(1,1,1)
     end
 
     -- 敌方子弹
     for _, eb in ipairs(state.enemyBullets) do
         local sprite = state.enemySprites and state.enemySprites[eb.spriteKey or '']
         if sprite then
+            love.graphics.setColor(1,1,1)
             local sw, sh = sprite:getWidth(), sprite:getHeight()
             local baseScale = (eb.size or sw) / sw
             if eb.spriteKey == 'plant_bullet' then baseScale = baseScale * 2 end
             local scale = baseScale
-            love.graphics.setColor(1,1,1)
-            love.graphics.draw(sprite, eb.x, eb.y, eb.rotation or 0, scale, scale, sw/2, sh/2)
+            love.graphics.push()
+            love.graphics.translate(eb.x, eb.y)
+            if eb.rotation then love.graphics.rotate(eb.rotation) end
+            love.graphics.draw(sprite, 0, 0, 0, scale, scale, sw/2, sh/2)
+            love.graphics.pop()
         else
             love.graphics.setColor(1,0,0)
             love.graphics.push()

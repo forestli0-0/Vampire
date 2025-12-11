@@ -54,6 +54,7 @@ function love.update(dt)
         end
     end
     player.tickInvincibility(state, dt)
+    player.tickRegen(state, dt)
     pickups.updateGems(state, dt)
     pickups.updateChests(state, dt)
     pickups.updateFloorPickups(state, dt)

@@ -50,6 +50,38 @@ EN: Pixel art icon, 24x24, magic wand with blue gem, light outline, simple shadi
 ZH: 像素风图标，24x24，镶嵌蓝宝石的魔杖，轻描边，简单明暗，透明背景。
 ```
 
+**New Evolutions / 新增进化武器**
+- Soul Eater（噬魂者）  
+  ```
+  EN: Pixel art icon, 24x24, dark vampiric scythe-like aura glyph with purple glow, transparent background.
+  ZH: 像素风图标，24x24，暗色吸血镰形光符，带紫色发光，透明背景。
+  ```
+- Thousand Edge（千刃）  
+  ```
+  EN: Pixel art icon, 24x24, fan of silver throwing knives fanning out like a burst, light outline, simple shading, transparent background.
+  ZH: 像素风图标，24x24，银色飞刀扇形散射，轻描边，简单明暗，透明背景。
+  ```
+- Hellfire（地狱火）  
+  ```
+  EN: Pixel art icon, 24x24, massive crimson fireball with black core and orange flames, transparent background.
+  ZH: 像素风图标，24x24，巨大的猩红火球黑芯橙焰，透明背景。
+  ```
+- Absolute Zero（绝对零度）  
+  ```
+  EN: Pixel art icon, 24x24, icy blue blizzard vortex ring with snowflakes, transparent background.
+  ZH: 像素风图标，24x24，冰蓝暴风雪漩涡环，带雪花，透明背景。
+  ```
+- Thunder Loop（雷环）  
+  ```
+  EN: Pixel art icon, 24x24, twin yellow lightning rings interlocked, electric spark details, transparent background.
+  ZH: 像素风图标，24x24，双黄闪电环交织，带电火花细节，透明背景。
+  ```
+- Earthquake（地震）  
+  ```
+  EN: Pixel art icon, 24x24, cracked earth disc with shockwave rings, warm brown tones, transparent background.
+  ZH: 像素风图标，24x24，裂开的土色圆盘配震荡波环，暖褐色，透明背景。
+  ```
+
 ## Projectile Sprite / 投射物精灵
 
 **Template / 模板**
