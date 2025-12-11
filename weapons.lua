@@ -106,6 +106,10 @@ end
 
 function weapons.addWeapon(state, key)
     local proto = state.catalog[key]
+    if not proto then
+        print("Error: Attempted to add invalid weapon key: " .. tostring(key))
+        return
+    end
     local stats = cloneStats(proto.base)
     state.inventory.weapons[key] = { level = 1, timer = 0, stats = stats }
 end

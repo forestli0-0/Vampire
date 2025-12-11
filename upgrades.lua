@@ -83,6 +83,7 @@ function upgrades.generateUpgradeOptions(state)
 end
 
 function upgrades.queueLevelUp(state)
+    if state.noLevelUps or state.benchmarkMode then return end
     state.pendingLevelUps = state.pendingLevelUps + 1
     if state.gameState ~= 'LEVEL_UP' then
         state.pendingLevelUps = state.pendingLevelUps - 1

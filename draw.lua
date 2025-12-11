@@ -349,11 +349,15 @@ function draw.render(state)
         end
     end
 
-    -- HUD
-    love.graphics.setColor(0,0,1)
-    love.graphics.rectangle('fill', 0, 0, love.graphics.getWidth() * (state.player.xp / state.player.xpToNextLevel), 10)
-    local hpRatio = math.min(1, math.max(0, state.player.hp / state.player.maxHp))
-    love.graphics.setColor(1,0,0)
+      -- HUD
+      love.graphics.setColor(0,0,1)
+    local xpRatio = 0
+    if state.player.xpToNextLevel and state.player.xpToNextLevel > 0 then
+        xpRatio = math.min(1, (state.player.xp or 0) / state.player.xpToNextLevel)
+    end
+    love.graphics.rectangle('fill', 0, 0, love.graphics.getWidth() * xpRatio, 10)
+      local hpRatio = math.min(1, math.max(0, state.player.hp / state.player.maxHp))
+      love.graphics.setColor(1,0,0)
     love.graphics.rectangle('fill', 10, 20, 150 * hpRatio, 15)
     love.graphics.setColor(1,1,1)
     love.graphics.print("LV "..state.player.level, 10, 40)

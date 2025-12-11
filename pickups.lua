@@ -27,6 +27,9 @@ local function addXp(state, amount)
     local p = state.player
     p.xp = p.xp + amount
     logger.gainXp(state, amount)
+    if state.noLevelUps or state.benchmarkMode then
+        return
+    end
     while p.xp >= p.xpToNextLevel do
         p.level = p.level + 1
         p.xp = p.xp - p.xpToNextLevel

@@ -26,6 +26,7 @@ end
 
 function player.hurt(state, dmg)
     local p = state.player
+    if state.benchmarkMode then return end -- invincible during benchmark/debug runs
     if p.invincibleTimer > 0 then return end
     local armor = (p.stats and p.stats.armor) or 0
     local applied = math.max(1, math.floor((dmg or 0) - armor))

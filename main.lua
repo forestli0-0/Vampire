@@ -10,6 +10,7 @@ local director = require('director')
 local draw = require('draw')
 local debugmenu = require('debugmenu')
 local logger = require('logger')
+local benchmark = require('benchmark')
 
 -- 游戏启动时的初始化（状态、日志、默认武器等）
 function love.load()
@@ -66,11 +67,13 @@ function love.update(dt)
     pickups.updateChests(state, dt)
     pickups.updateFloorPickups(state, dt)
     player.tickTexts(state, dt)
+    benchmark.update(state, dt)
 end
 
 function love.draw()
     -- 渲染世界并叠加调试菜单
     draw.render(state)
+    benchmark.draw(state)
     debugmenu.draw(state)
 end
 
@@ -80,6 +83,7 @@ function love.quit()
 end
 
 function love.keypressed(key)
+    if key == 'f5' then benchmark.toggle(state) end
     -- 等级界面：按数字选择升级
     if debugmenu.keypressed(state, key) then return end
     if state.gameState == 'LEVEL_UP' then

@@ -84,7 +84,7 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
     end
 end
 
-function enemies.spawnEnemy(state, type, isElite)
+function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
     local def = enemyDefs[type] or enemyDefs.skeleton
     local color = def.color and {def.color[1], def.color[2], def.color[3]} or {1,1,1}
     local hp = def.hp
@@ -93,6 +93,8 @@ function enemies.spawnEnemy(state, type, isElite)
 
     local ang = math.random() * 6.28
     local d = def.spawnDistance or 500
+    local x = spawnX or (state.player.x + math.cos(ang) * d)
+    local y = spawnY or (state.player.y + math.sin(ang) * d)
 
     local hpScale = 1 + math.min((state.gameTimer or 0), 300) / 300 -- cap at ~2x at 5min
     if hpScale > 2.5 then hpScale = 2.5 end
@@ -105,8 +107,8 @@ function enemies.spawnEnemy(state, type, isElite)
     end
 
     table.insert(state.enemies, {
-        x = state.player.x + math.cos(ang) * d,
-        y = state.player.y + math.sin(ang) * d,
+        x = x,
+        y = y,
         hp = hp,
         speed = speed,
         color = color,
