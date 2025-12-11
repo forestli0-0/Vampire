@@ -1,4 +1,5 @@
 local weapons = require('weapons')
+local logger = require('logger')
 
 local upgrades = {}
 
@@ -80,18 +81,22 @@ function upgrades.applyUpgrade(state, opt)
         -- 直接进化：移除基础武器，添加目标武器
         state.inventory.weapons[opt.evolveFrom] = nil
         weapons.addWeapon(state, opt.key)
+        logger.upgrade(state, opt, 1)
         return
     elseif opt.type == 'weapon' then
         if not state.inventory.weapons[opt.key] then
             weapons.addWeapon(state, opt.key)
+            logger.upgrade(state, opt, 1)
         else
             local w = state.inventory.weapons[opt.key]
             w.level = w.level + 1
             if opt.def.onUpgrade then opt.def.onUpgrade(w.stats) end
+            logger.upgrade(state, opt, w.level)
         end
     elseif opt.type == 'passive' then
         if not state.inventory.passives[opt.key] then state.inventory.passives[opt.key] = 0 end
         state.inventory.passives[opt.key] = state.inventory.passives[opt.key] + 1
+        logger.upgrade(state, opt, state.inventory.passives[opt.key])
         if opt.def.onUpgrade then opt.def.onUpgrade() end
     end
 end

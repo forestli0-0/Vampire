@@ -1,3 +1,5 @@
+local logger = require('logger')
+
 local player = {}
 
 function player.updateMovement(state, dt)
@@ -26,11 +28,13 @@ function player.hurt(state, dmg)
     local p = state.player
     if p.invincibleTimer > 0 then return end
     p.hp = math.max(0, p.hp - dmg)
+    logger.damageTaken(state, dmg, p.hp)
     if p.hp <= 0 then
         p.invincibleTimer = 0
         state.shakeAmount = 0
         state.gameState = 'GAME_OVER'
         if state.stopMusic then state.stopMusic() end
+        logger.gameOver(state, 'death')
     else
         p.invincibleTimer = 0.5
         state.shakeAmount = 5

@@ -8,10 +8,12 @@ local upgrades = require('upgrades')
 local director = require('director')
 local draw = require('draw')
 local debugmenu = require('debugmenu')
+local logger = require('logger')
 
 function love.load()
     if state.stopMusic then state.stopMusic() end
     state.init()
+    logger.init(state)
     weapons.addWeapon(state, 'wand')
     if state.playMusic then state.playMusic() end
     debugmenu.init(state)
@@ -34,6 +36,7 @@ function love.update(dt)
     end
 
     state.gameTimer = state.gameTimer + dt
+    pickups.updateMagnetSpawns(state, dt)
     if state.updateEffects then state.updateEffects(dt) end
 
     player.updateMovement(state, dt)
@@ -60,6 +63,10 @@ end
 function love.draw()
     draw.render(state)
     debugmenu.draw(state)
+end
+
+function love.quit()
+    if logger.flushIfActive then logger.flushIfActive(state, 'quit') end
 end
 
 function love.keypressed(key)

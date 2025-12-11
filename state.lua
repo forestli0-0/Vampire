@@ -152,6 +152,7 @@ function state.init()
     state.enemyBullets = {}
     state.gems = {}
     state.floorPickups = {}
+    state.magnetTimer = 60
     state.texts = {}
     state.chests = {}
     state.upgradeOptions = {}
