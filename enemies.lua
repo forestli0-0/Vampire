@@ -1,5 +1,6 @@
 local player = require('player')
 local enemyDefs = require('enemy_defs')
+local logger = require('logger')
 
 local enemies = {}
 
@@ -77,6 +78,10 @@ function enemies.spawnEnemy(state, type, isElite)
 
     local ang = math.random() * 6.28
     local d = def.spawnDistance or 500
+
+    local hpScale = 1 + math.min((state.gameTimer or 0), 300) / 300 -- cap at ~2x at 5min
+    if hpScale > 2.5 then hpScale = 2.5 end
+    hp = hp * hpScale
 
     if isElite then
         hp = hp * 5
@@ -274,6 +279,7 @@ function enemies.update(state, dt)
                     table.insert(state.gems, {x=e.x, y=e.y, value=1})
                 end
             end
+            logger.kill(state, e)
             table.remove(state.enemies, i)
         end
     end
