@@ -15,7 +15,21 @@ local function ensureStatus(e)
         }
     end
     e.baseSpeed = e.baseSpeed or e.speed
-    e.maxHp = e.maxHp or e.hp
+    e.health = e.health or e.hp
+    e.maxHealth = e.maxHealth or e.maxHp or e.hp
+    e.maxHp = e.maxHealth
+    e.hp = e.health
+    e.shield = e.shield or 0
+    e.maxShield = e.maxShield or e.shield
+    e.armor = e.armor or 0
+    if e.shieldDelayTimer == nil then e.shieldDelayTimer = 0 end
+end
+
+local function applyArmorReduction(dmg, armor)
+    if not armor or armor <= 0 then return dmg end
+    local dr = armor / (armor + 300)
+    if dr > 0.9 then dr = 0.9 end
+    return dmg * (1 - dr)
 end
 
 function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effectData)
@@ -44,7 +58,7 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         e.status.bleedStacks = (e.status.bleedStacks or 0) + 1
         if state.spawnEffect then state.spawnEffect('bleed', e.x, e.y) end
         if e.status.bleedStacks >= 10 then
-            local boom = math.floor((e.maxHp or e.hp or 0) * 0.2 * might)
+            local boom = math.floor((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.2 * might)
             if boom > 0 then enemies.damageEnemy(state, e, boom, false, 0) end
             e.status.bleedStacks = 0
         end
@@ -53,7 +67,7 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
             e.status.burnTimer = 5
             e.status.oiled = false
             e.status.oiledTimer = nil
-            e.status.burnDps = math.max(1, (e.maxHp or e.hp or 0) * 0.03 * might)
+            e.status.burnDps = math.max(1, (e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.03 * might)
             if state.spawnEffect then state.spawnEffect('fire', e.x, e.y) end
         end
     elseif effect == 'HEAVY' then
@@ -88,6 +102,8 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
     local def = enemyDefs[type] or enemyDefs.skeleton
     local color = def.color and {def.color[1], def.color[2], def.color[3]} or {1,1,1}
     local hp = def.hp
+    local shield = def.shield or 0
+    local armor = def.armor or 0
     local size = def.size
     local speed = def.speed
 
@@ -99,9 +115,11 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
     local hpScale = 1 + math.min((state.gameTimer or 0), 300) / 300 -- cap at ~2x at 5min
     if hpScale > 2.5 then hpScale = 2.5 end
     hp = hp * hpScale
+    shield = shield * hpScale
 
     if isElite then
         hp = hp * 5
+        shield = shield * 5
         size = size * 1.5
         color = {1, 0, 0}
     end
@@ -110,6 +128,11 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
         x = x,
         y = y,
         hp = hp,
+        health = hp,
+        maxHealth = hp,
+        shield = shield,
+        maxShield = shield,
+        armor = armor,
         speed = speed,
         color = color,
         size = size,
@@ -140,21 +163,47 @@ function enemies.findNearestEnemy(state, maxDist)
 end
 
 function enemies.damageEnemy(state, e, dmg, knock, kForce, isCrit)
-    e.hp = e.hp - dmg
+    ensureStatus(e)
+    local incoming = dmg or 0
+    if incoming <= 0 then return 0 end
+
     e.flashTimer = 0.1
     if state.playSfx then state.playSfx('hit') end
+
+    local remaining = incoming
+    local shieldHit = 0
+    if e.shield and e.shield > 0 then
+        shieldHit = math.min(remaining, e.shield)
+        e.shield = e.shield - shieldHit
+        remaining = remaining - shieldHit
+    end
+
+    local healthHit = 0
+    if remaining > 0 then
+        local reduced = applyArmorReduction(remaining, e.armor)
+        healthHit = math.max(0, math.floor(reduced + 0.5))
+        e.health = e.health - healthHit
+        e.hp = e.health
+    end
+    e.maxHp = e.maxHealth
+    e.shieldDelayTimer = 0
+    local appliedTotal = shieldHit + healthHit
+
     local color = {1,1,1}
     local scale = 1
     if isCrit then
         color = {1, 1, 0}
         scale = 1.5
     end
-    table.insert(state.texts, {x=e.x, y=e.y-20, text=dmg, color=color, life=0.5, scale=scale})
+    if appliedTotal > 0 then
+        table.insert(state.texts, {x=e.x, y=e.y-20, text=appliedTotal, color=color, life=0.5, scale=scale})
+    end
     if knock then
         local a = math.atan2(e.y - state.player.y, e.x - state.player.x)
         e.x = e.x + math.cos(a) * (kForce or 10)
         e.y = e.y + math.sin(a) * (kForce or 10)
     end
+    return appliedTotal
 end
 
 function enemies.update(state, dt)
@@ -183,7 +232,7 @@ function enemies.update(state, dt)
 
         if e.status.burnTimer and e.status.burnTimer > 0 then
             e.status.burnTimer = e.status.burnTimer - dt
-            local dps = math.max(1, e.status.burnDps or ((e.maxHp or e.hp or 0) * 0.05))
+            local dps = math.max(1, e.status.burnDps or ((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.05))
             e.status._burnAcc = (e.status._burnAcc or 0) + dps * dt
             if e.status._burnAcc >= 1 then
                 local burnDmg = math.floor(e.status._burnAcc)
@@ -233,7 +282,7 @@ function enemies.update(state, dt)
                 end
                 if nearest then
                     ensureStatus(nearest)
-                    local staticDmg = math.max(1, math.floor((e.maxHp or 10) * 0.05 * playerMight))
+                    local staticDmg = math.max(1, math.floor((e.maxHealth or e.maxHp or 10) * 0.05 * playerMight))
                     enemies.damageEnemy(state, nearest, staticDmg, false, 0)
                     if not data.allowRepeat then visited[nearest] = true end
                     data.remaining = (data.remaining or 1) - 1
@@ -318,7 +367,7 @@ function enemies.update(state, dt)
             player.hurt(state, 10)
         end
 
-        if e.hp <= 0 then
+        if e.health <= 0 then
             if e.isElite then
                 table.insert(state.chests, {x=e.x, y=e.y, w=20, h=20})
             else
