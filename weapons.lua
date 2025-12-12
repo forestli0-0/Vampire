@@ -44,6 +44,38 @@ local function applyPassiveEffects(stats, effect, level)
     end
 end
 
+local function applyElementAdds(stats, addElements, level)
+    if not addElements or level <= 0 then return end
+    stats.elements = stats.elements or {}
+    stats.damageBreakdown = stats.damageBreakdown or {}
+    local existing = {}
+    for _, e in ipairs(stats.elements) do
+        existing[string.upper(e)] = true
+    end
+    for elem, weight in pairs(addElements) do
+        local key = string.upper(elem)
+        local add = (weight or 0) * level
+        if add > 0 then
+            stats.damageBreakdown[key] = (stats.damageBreakdown[key] or 0) + add
+            if not existing[key] then
+                table.insert(stats.elements, key)
+                existing[key] = true
+            end
+        end
+    end
+end
+
+local function getOrderedMods(state)
+    local order = state.inventory and state.inventory.modOrder
+    if order and #order > 0 then return order end
+    local keys = {}
+    for k, _ in pairs((state.inventory and state.inventory.mods) or {}) do
+        table.insert(keys, k)
+    end
+    table.sort(keys)
+    return keys
+end
+
 local function getProjectileCount(stats)
     local amt = 0
     if stats and stats.amount then amt = stats.amount end
@@ -110,6 +142,17 @@ function weapons.calculateStats(state, weaponKey)
         if level and level > 0 and passiveDef and passiveDef.targetTags and passiveDef.effect then
             if tagsMatch(weaponTags, passiveDef.targetTags) then
                 applyPassiveEffects(stats, passiveDef.effect, level)
+            end
+        end
+    end
+
+    for _, modKey in ipairs(getOrderedMods(state)) do
+        local level = state.inventory.mods and state.inventory.mods[modKey]
+        local modDef = state.catalog[modKey]
+        if level and level > 0 and modDef and modDef.targetTags then
+            if tagsMatch(weaponTags, modDef.targetTags) then
+                if modDef.effect then applyPassiveEffects(stats, modDef.effect, level) end
+                if modDef.addElements then applyElementAdds(stats, modDef.addElements, level) end
             end
         end
     end

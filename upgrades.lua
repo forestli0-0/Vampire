@@ -38,6 +38,7 @@ function upgrades.generateUpgradeOptions(state)
             local currentLevel = 0
             if item.type == 'weapon' and state.inventory.weapons[key] then currentLevel = state.inventory.weapons[key].level end
             if item.type == 'passive' and state.inventory.passives[key] then currentLevel = state.inventory.passives[key] end
+            if item.type == 'mod' and state.inventory.mods and state.inventory.mods[key] then currentLevel = state.inventory.mods[key] end
             if currentLevel < item.maxLevel then
                 addOption(pool, {key=key, type=item.type, name=item.name, desc=item.desc, def=item})
             end
@@ -113,6 +114,16 @@ function upgrades.applyUpgrade(state, opt)
         if not state.inventory.passives[opt.key] then state.inventory.passives[opt.key] = 0 end
         state.inventory.passives[opt.key] = state.inventory.passives[opt.key] + 1
         logger.upgrade(state, opt, state.inventory.passives[opt.key])
+        if opt.def.onUpgrade then opt.def.onUpgrade() end
+    elseif opt.type == 'mod' then
+        state.inventory.mods = state.inventory.mods or {}
+        state.inventory.modOrder = state.inventory.modOrder or {}
+        if not state.inventory.mods[opt.key] then
+            state.inventory.mods[opt.key] = 0
+            table.insert(state.inventory.modOrder, opt.key)
+        end
+        state.inventory.mods[opt.key] = state.inventory.mods[opt.key] + 1
+        logger.upgrade(state, opt, state.inventory.mods[opt.key])
         if opt.def.onUpgrade then opt.def.onUpgrade() end
     end
 end

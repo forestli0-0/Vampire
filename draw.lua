@@ -467,6 +467,7 @@ function draw.render(state)
             local curLv = 0
             if opt.type == 'weapon' and state.inventory.weapons[opt.key] then curLv = state.inventory.weapons[opt.key].level end
             if opt.type == 'passive' and state.inventory.passives[opt.key] then curLv = state.inventory.passives[opt.key] end
+            if opt.type == 'mod' and state.inventory.mods and state.inventory.mods[opt.key] then curLv = state.inventory.mods[opt.key] end
             love.graphics.print("Current Lv: " .. curLv, 500, y+10)
         end
         love.graphics.setColor(1,1,1)
