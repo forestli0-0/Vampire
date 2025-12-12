@@ -12,7 +12,15 @@ local effectOptions = {
 
 local function cloneStats(base)
     local copy = {}
-    for k, v in pairs(base or {}) do copy[k] = v end
+    for k, v in pairs(base or {}) do
+        if type(v) == 'table' then
+            local t = {}
+            for kk, vv in pairs(v) do t[kk] = vv end
+            copy[k] = t
+        else
+            copy[k] = v
+        end
+    end
     if copy.area == nil then copy.area = 1 end
     if copy.pierce == nil then copy.pierce = 1 end
     if copy.amount == nil then copy.amount = 0 end

@@ -5,7 +5,15 @@ local weapons = {}
 
 local function cloneStats(base)
     local stats = {}
-    for k, v in pairs(base or {}) do stats[k] = v end
+    for k, v in pairs(base or {}) do
+        if type(v) == 'table' then
+            local t = {}
+            for kk, vv in pairs(v) do t[kk] = vv end
+            stats[k] = t
+        else
+            stats[k] = v
+        end
+    end
     if stats.area == nil then stats.area = 1 end
     if stats.pierce == nil then stats.pierce = 1 end
     if stats.amount == nil then stats.amount = 0 end
@@ -138,6 +146,7 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
             life=wStats.life or 2, size=size, damage=finalDmg, effectType=effectType, weaponTags=weaponTags,
             pierce=wStats.pierce or 1, rotation=angle,
             effectDuration=wStats.duration, splashRadius=wStats.splashRadius, effectRange=wStats.staticRange, chain=wStats.chain, allowRepeat=wStats.allowRepeat,
+            elements=wStats.elements, damageBreakdown=wStats.damageBreakdown,
             critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance
         })
     elseif type == 'axe' then
@@ -145,7 +154,7 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
         local vx = (math.random() - 0.5) * 200
         local vy = -spd
         local angle = math.atan2(vy, vx)
-        table.insert(state.bullets, {type='axe', x=x, y=y, vx=vx, vy=vy, life=3, size=12 * area, damage=finalDmg, rotation=angle, hitTargets={}, effectType=effectType, weaponTags=weaponTags, critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance})
+        table.insert(state.bullets, {type='axe', x=x, y=y, vx=vx, vy=vy, life=3, size=12 * area, damage=finalDmg, rotation=angle, hitTargets={}, effectType=effectType, weaponTags=weaponTags, elements=wStats.elements, damageBreakdown=wStats.damageBreakdown, critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance})
     elseif type == 'death_spiral' then
         local count = 8 + (wStats.amount or 0)
         local spd = (wStats.speed or 300) * (state.player.stats.speed or 1)
@@ -155,7 +164,7 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
                 type='death_spiral', x=x, y=y,
                 vx=math.cos(angle)*spd, vy=math.sin(angle)*spd,
                 life=3, size=14 * area, damage=finalDmg,
-                rotation=angle, angularVel=1.5, hitTargets={}, effectType=effectType, weaponTags=weaponTags,
+                rotation=angle, angularVel=1.5, hitTargets={}, effectType=effectType, weaponTags=weaponTags, elements=wStats.elements, damageBreakdown=wStats.damageBreakdown,
                 critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance
             })
         end
@@ -167,6 +176,7 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
             damage=finalDmg, effectType=effectType, weaponTags=weaponTags,
             effectDuration=wStats.duration,
             tick=0,
+            elements=wStats.elements, damageBreakdown=wStats.damageBreakdown,
             critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance
         })
     end
@@ -288,6 +298,8 @@ function weapons.update(state, dt)
                     critMultiplier = computedStats.critMultiplier,
                     statusChance = computedStats.statusChance,
                     effectType = effectType,
+                    elements = computedStats.elements,
+                    damageBreakdown = computedStats.damageBreakdown,
                     weaponTags = weaponDef.tags,
                     knock = true,
                     knockForce = computedStats.knockback or 0
@@ -317,6 +329,8 @@ function weapons.update(state, dt)
                     statusChance = computedStats.statusChance,
                     effectType = effectType,
                     effectData = effectData,
+                    elements = computedStats.elements,
+                    damageBreakdown = computedStats.damageBreakdown,
                     weaponTags = weaponDef.tags,
                     knock = true,
                     knockForce = computedStats.knockback or 0

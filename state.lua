@@ -93,7 +93,7 @@ function state.init()
             desc = "Ignites Oiled enemies.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'fire', 'magic'},
-            base = { damage=15, cd=0.9, speed=450, effectType='FIRE', splashRadius=70, critChance=0.05, critMultiplier=1.5, statusChance=0.3 },
+            base = { damage=15, cd=0.9, speed=450, elements={'HEAT'}, damageBreakdown={HEAT=1}, splashRadius=70, critChance=0.05, critMultiplier=1.5, statusChance=0.3 },
             onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.95 end,
             evolveInfo = { target='hellfire', require='candelabrador' }
         },
@@ -102,7 +102,7 @@ function state.init()
             desc = "Chills nearby enemies, stacking to Freeze.",
             maxLevel = 5,
             tags = {'weapon', 'area', 'magic', 'ice'},
-            base = { damage=2, cd=2.5, radius=100, duration=6.0, effectType='FREEZE', critChance=0.05, critMultiplier=1.5, statusChance=0.3 },
+            base = { damage=2, cd=2.5, radius=100, duration=6.0, elements={'COLD'}, damageBreakdown={COLD=1}, critChance=0.05, critMultiplier=1.5, statusChance=0.3 },
             onUpgrade = function(w) w.radius = w.radius + 10; w.cd = w.cd * 0.95 end,
             evolveInfo = { target='absolute_zero', require='spellbinder' }
         },
@@ -120,7 +120,7 @@ function state.init()
             desc = "Applies Slash Bleed that bypasses armor.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'physical', 'fast'},
-            base = { damage=4, cd=0.18, speed=600, effectType='BLEED', critChance=0.20, critMultiplier=2.0, statusChance=0.2 },
+            base = { damage=4, cd=0.18, speed=600, elements={'SLASH'}, damageBreakdown={SLASH=1}, critChance=0.20, critMultiplier=2.0, statusChance=0.2 },
             onUpgrade = function(w) w.damage = w.damage + 2 end,
             evolveInfo = { target='thousand_edge', require='bracer' }
         },
@@ -129,7 +129,7 @@ function state.init()
             desc = "Electrocutes enemies, dealing AOE DoT and stunning.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'magic', 'electric'},
-            base = { damage=6, cd=1.25, speed=380, effectType='STATIC', duration=3.0, staticRange=160, chain=4, critChance=0.05, critMultiplier=1.5, statusChance=0.4 },
+            base = { damage=6, cd=1.25, speed=380, elements={'ELECTRIC'}, damageBreakdown={ELECTRIC=1}, duration=3.0, staticRange=160, chain=4, critChance=0.05, critMultiplier=1.5, statusChance=0.4 },
             onUpgrade = function(w) w.damage = w.damage + 3; w.cd = w.cd * 0.95 end,
             evolveInfo = { target='thunder_loop', require='duplicator' }
         },
@@ -147,7 +147,7 @@ function state.init()
             desc = "Evolved Throwing Knife. Rapid endless barrage.",
             maxLevel = 1,
             tags = {'weapon', 'projectile', 'physical', 'fast'},
-            base = { damage=7, cd=0.05, speed=650, effectType='BLEED', pierce=6, amount=1, critChance=0.20, critMultiplier=2.0, statusChance=0.2 },
+            base = { damage=7, cd=0.05, speed=650, elements={'SLASH'}, damageBreakdown={SLASH=1}, pierce=6, amount=1, critChance=0.20, critMultiplier=2.0, statusChance=0.2 },
             evolvedOnly = true,
             onUpgrade = function(w) end
         },
@@ -156,7 +156,7 @@ function state.init()
             desc = "Evolved Fire Wand. Giant piercing fireballs.",
             maxLevel = 1,
             tags = {'weapon', 'projectile', 'fire', 'magic'},
-            base = { damage=40, cd=0.6, speed=520, effectType='FIRE', splashRadius=140, pierce=12, size=18, area=1.3, life=3.0, statusChance=0.5 },
+            base = { damage=40, cd=0.6, speed=520, elements={'HEAT'}, damageBreakdown={HEAT=1}, splashRadius=140, pierce=12, size=18, area=1.3, life=3.0, statusChance=0.5 },
             evolvedOnly = true,
             onUpgrade = function(w) end
         },
@@ -165,7 +165,7 @@ function state.init()
             desc = "Evolved Ice Ring. Persistent blizzard that chills and freezes foes.",
             maxLevel = 1,
             tags = {'weapon', 'area', 'magic', 'ice'},
-            base = { damage=5, cd=2.2, radius=160, duration=2.5, effectType='FREEZE', area=1.2, statusChance=0.6 },
+            base = { damage=5, cd=2.2, radius=160, duration=2.5, elements={'COLD'}, damageBreakdown={COLD=1}, area=1.2, statusChance=0.6 },
             evolvedOnly = true,
             onUpgrade = function(w) end
         },
@@ -174,7 +174,7 @@ function state.init()
             desc = "Evolved Static Orb. Stronger, larger electric fields.",
             maxLevel = 1,
             tags = {'weapon', 'projectile', 'magic', 'electric'},
-            base = { damage=10, cd=1.1, speed=420, effectType='STATIC', duration=3.0, staticRange=220, pierce=1, amount=1, chain=10, allowRepeat=true, statusChance=0.5 },
+            base = { damage=10, cd=1.1, speed=420, elements={'ELECTRIC'}, damageBreakdown={ELECTRIC=1}, duration=3.0, staticRange=220, pierce=1, amount=1, chain=10, allowRepeat=true, statusChance=0.5 },
             evolvedOnly = true,
             onUpgrade = function(w) end
         },

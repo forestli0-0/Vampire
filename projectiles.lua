@@ -13,6 +13,8 @@ local function buildInstanceFromBullet(bullet, effectData, knock, knockForce)
         statusChance = bullet.statusChance or 0,
         effectType = bullet.effectType,
         effectData = effectData,
+        elements = bullet.elements,
+        damageBreakdown = bullet.damageBreakdown,
         weaponTags = bullet.weaponTags,
         knock = knock,
         knockForce = knockForce
