@@ -26,9 +26,10 @@ local ELEMENT_TO_EFFECT = {
     OIL='OIL'
 }
 
-local function combineElements(elements)
-    if not elements or #elements == 0 then return elements end
+local function combineElements(elements, damageByType)
+    if not elements or #elements == 0 then return elements, damageByType end
     local out = {}
+    local outDamage = {}
     local i = 1
     while i <= #elements do
         local a = string.upper(elements[i])
@@ -36,18 +37,28 @@ local function combineElements(elements)
         if b and PRIMARY[a] and PRIMARY[b] then
             local combo = (COMBOS[a] and COMBOS[a][b]) or (COMBOS[b] and COMBOS[b][a])
             if combo then
+                local dmgA = (damageByType and damageByType[a]) or 0
+                local dmgB = (damageByType and damageByType[b]) or 0
+                local dmgC = dmgA + dmgB
                 table.insert(out, combo)
+                outDamage[combo] = (outDamage[combo] or 0) + dmgC
                 i = i + 2
             else
                 table.insert(out, a)
+                if damageByType and damageByType[a] then
+                    outDamage[a] = (outDamage[a] or 0) + damageByType[a]
+                end
                 i = i + 1
             end
         else
             table.insert(out, a)
+            if damageByType and damageByType[a] then
+                outDamage[a] = (outDamage[a] or 0) + damageByType[a]
+            end
             i = i + 1
         end
     end
-    return out
+    return out, outDamage
 end
 
 local function normalizeElements(effectType, provided)
@@ -70,9 +81,60 @@ end
 
 function calculator.createInstance(params)
     params = params or {}
-    local elements = combineElements(normalizeElements(params.effectType, params.elements) or {})
+    local rawElements = normalizeElements(params.effectType, params.elements) or {}
+    local breakdown = params.damageBreakdown or {}
+    local baseDamage = params.damage or 0
+
+    local damageByType = {}
+    if params.damageByType and type(params.damageByType) == 'table' then
+        for k, v in pairs(params.damageByType) do
+            damageByType[string.upper(k)] = v
+        end
+    else
+        local weights = {}
+        local totalW = 0
+        for idx, elem in ipairs(rawElements) do
+            local key = string.upper(elem)
+            local w = breakdown[key]
+            if w == nil then w = 1 end
+            if w < 0 then w = 0 end
+            weights[idx] = {key = key, w = w}
+            totalW = totalW + w
+        end
+
+        if totalW > 0 and baseDamage > 0 then
+            local allocated = 0
+            local remainders = {}
+            for _, info in ipairs(weights) do
+                local exact = baseDamage * info.w / totalW
+                local intPart = math.floor(exact)
+                damageByType[info.key] = intPart
+                allocated = allocated + intPart
+                table.insert(remainders, {key = info.key, rem = exact - intPart})
+            end
+            local leftover = baseDamage - allocated
+            table.sort(remainders, function(a, b)
+                if a.rem == b.rem then return a.key < b.key end
+                return a.rem > b.rem
+            end)
+            local ri = 1
+            while leftover > 0 and #remainders > 0 do
+                local r = remainders[ri]
+                damageByType[r.key] = (damageByType[r.key] or 0) + 1
+                leftover = leftover - 1
+                ri = ri + 1
+                if ri > #remainders then ri = 1 end
+            end
+        else
+            for _, info in ipairs(weights) do
+                damageByType[info.key] = 0
+            end
+        end
+    end
+
+    local elements, combinedDamageByType = combineElements(rawElements, damageByType)
     return {
-        damage = params.damage or 0,
+        damage = baseDamage,
         critChance = params.critChance or 0,
         critMultiplier = params.critMultiplier or 1.5,
         statusChance = params.statusChance or 0,
@@ -82,19 +144,20 @@ function calculator.createInstance(params)
         knock = params.knock or false,
         knockForce = params.knockForce or params.knockback or 0,
         elements = elements,
-        damageBreakdown = params.damageBreakdown
+        damageBreakdown = breakdown,
+        damageByType = combinedDamageByType
     }
 end
 
 local function chooseProcElement(instance)
     local elems = instance.elements or {}
     if #elems == 0 then return nil end
-    local breakdown = instance.damageBreakdown or {}
+    local dmgByType = instance.damageByType or {}
     local total = 0
     local weights = {}
     for idx, elem in ipairs(elems) do
         local key = string.upper(elem)
-        local w = breakdown[key]
+        local w = dmgByType[key]
         if w == nil then w = 1 end
         if w < 0 then w = 0 end
         weights[idx] = w
@@ -137,7 +200,8 @@ function calculator.applyStatus(state, enemy, instance, overrideChance)
         local elem = chooseProcElement(instance)
         if elem then
             local effectType = ELEMENT_TO_EFFECT[string.upper(elem)] or string.upper(elem)
-            enemies.applyStatus(state, enemy, effectType, instance.damage, instance.weaponTags, instance.effectData)
+            local baseForElem = instance.damageByType and instance.damageByType[string.upper(elem)] or instance.damage
+            enemies.applyStatus(state, enemy, effectType, baseForElem, instance.weaponTags, instance.effectData)
             table.insert(applied, effectType)
         end
     end
@@ -146,18 +210,15 @@ function calculator.applyStatus(state, enemy, instance, overrideChance)
 end
 
 function calculator.computeDamage(instance)
-    if not instance then return 0, false end
-    local base = instance.damage or 0
-    if base <= 0 then return 0, false end
+    if not instance then return 1, false end
     local isCrit = false
     local mult = 1
     if math.random() < (instance.critChance or 0) then
         isCrit = true
         mult = instance.critMultiplier or 1.5
     end
-    local final = math.floor(base * mult)
-    if final < 0 then final = 0 end
-    return final, isCrit
+    if mult < 0 then mult = 0 end
+    return mult, isCrit
 end
 
 local function buildDamageMods(enemy, instance, appliedEffects)
@@ -177,8 +238,6 @@ local function buildDamageMods(enemy, instance, appliedEffects)
         return false
     end
 
-    if has('TOXIN') then opts.bypassShield = true end
-
     local magnetActive = status and status.magneticTimer and status.magneticTimer > 0
     if magnetActive or appliedSet['MAGNETIC'] then
         opts.shieldMult = math.max(opts.shieldMult or 1, (status and status.magneticMult) or 1.75)
@@ -193,11 +252,69 @@ local function buildDamageMods(enemy, instance, appliedEffects)
 end
 
 function calculator.applyDamage(state, enemy, instance, opts)
-    local dmg, isCrit = calculator.computeDamage(instance)
-    if dmg > 0 then
-        enemies.damageEnemy(state, enemy, dmg, instance.knock, instance.knockForce, isCrit, opts)
+    opts = opts or {}
+    local mult, isCrit = calculator.computeDamage(instance)
+    local totalApplied, totalShield, totalHealth = 0, 0, 0
+
+    local dmgByType = instance.damageByType or {}
+    local hasTypes = next(dmgByType) ~= nil
+    if hasTypes then
+        for elem, baseAmt in pairs(dmgByType) do
+            local amt = math.floor((baseAmt or 0) * mult + 0.5)
+            if amt > 0 then
+                local perOpts = {}
+                for k, v in pairs(opts) do perOpts[k] = v end
+                if string.upper(elem) == 'TOXIN' then
+                    perOpts.bypassShield = true
+                end
+                perOpts.noText = true
+                perOpts.noFlash = true
+                perOpts.noSfx = true
+                local applied, sh, hp = enemies.damageEnemy(state, enemy, amt, false, 0, isCrit, perOpts)
+                totalApplied = totalApplied + (applied or 0)
+                totalShield = totalShield + (sh or 0)
+                totalHealth = totalHealth + (hp or 0)
+            end
+        end
+    else
+        local base = instance.damage or 0
+        local amt = math.floor(base * mult + 0.5)
+        if amt > 0 then
+            local perOpts = {}
+            for k, v in pairs(opts) do perOpts[k] = v end
+            perOpts.noText = true
+            perOpts.noFlash = true
+            perOpts.noSfx = true
+            totalApplied, totalShield, totalHealth = enemies.damageEnemy(state, enemy, amt, false, 0, isCrit, perOpts)
+        end
     end
-    return dmg, isCrit
+
+    if totalApplied > 0 then
+        if not opts.noFlash then enemy.flashTimer = 0.1 end
+        if not opts.noSfx and state.playSfx then state.playSfx('hit') end
+
+        if instance.knock then
+            local a = math.atan2(enemy.y - state.player.y, enemy.x - state.player.x)
+            enemy.x = enemy.x + math.cos(a) * (instance.knockForce or 10)
+            enemy.y = enemy.y + math.sin(a) * (instance.knockForce or 10)
+        end
+
+        if not opts.noText then
+            local color = {1,1,1}
+            local scale = 1
+            if isCrit then
+                color = {1, 1, 0}
+                scale = 1.5
+            elseif totalShield > 0 and totalHealth == 0 then
+                color = {0.4, 0.7, 1}
+            end
+            local shown = math.floor(totalApplied + 0.5)
+            local textOffsetY = opts.textOffsetY or 0
+            table.insert(state.texts, {x=enemy.x, y=enemy.y-20 + textOffsetY, text=shown, color=color, life=0.5, scale=scale})
+        end
+    end
+
+    return totalApplied or 0, isCrit
 end
 
 function calculator.applyHit(state, enemy, params)

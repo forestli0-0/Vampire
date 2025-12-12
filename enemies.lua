@@ -333,8 +333,10 @@ function enemies.damageEnemy(state, e, dmg, knock, kForce, isCrit, opts)
     local incoming = dmg or 0
     if incoming <= 0 then return 0 end
 
-    e.flashTimer = 0.1
-    if state.playSfx then state.playSfx('hit') end
+    if not opts.noFlash then
+        e.flashTimer = 0.1
+    end
+    if not opts.noSfx and state.playSfx then state.playSfx('hit') end
 
     local remaining = incoming
     local shieldHit = 0
@@ -384,7 +386,7 @@ function enemies.damageEnemy(state, e, dmg, knock, kForce, isCrit, opts)
     if e.isDummy and e.health <= 0 then
         resetDummy(e)
     end
-    return appliedTotal
+    return appliedTotal, shieldHit, healthHit
 end
 
 function enemies.update(state, dt)
