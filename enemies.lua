@@ -30,6 +30,7 @@ local function ensureStatus(e)
             bleedAcc = 0,
             burnTimer = 0,
             magneticTimer = 0,
+            magneticStacks = 0,
             viralStacks = 0,
             viralTimer = 0,
             heatArmorLoss = 0,
@@ -114,15 +115,17 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
             e.status.coldStacks = math.min(10, (e.status.coldStacks or 0) + 1)
             if e.status.coldStacks >= 10 then
                 e.status.frozen = true
-                local freezeDur = (effectData and effectData.freezeDuration) or 1.2
+                local freezeDur = (effectData and effectData.freezeDuration) or (effectData and effectData.duration) or 6.0
                 e.status.frozenTimer = math.max(freezeDur, e.status.frozenTimer or 0)
                 e.speed = 0
                 e.status.coldStacks = 0
                 e.status.coldTimer = 0
                 if state.spawnEffect then state.spawnEffect('freeze', e.x, e.y) end
             else
-                local slowPct = math.min(0.9, (e.status.coldStacks or 0) * 0.1)
-                e.speed = (e.baseSpeed or e.speed) * (1 - slowPct)
+                local stacks = e.status.coldStacks or 0
+                local mult = 0.75 ^ stacks
+                if mult < 0.1 then mult = 0.1 end
+                e.speed = (e.baseSpeed or e.speed) * mult
             end
         end
     elseif effect == 'OIL' then
@@ -133,8 +136,8 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         local dur = (effectData and effectData.duration) or 6.0
         e.status.bleedTimer = math.max(e.status.bleedTimer or 0, dur)
         e.status.bleedStacks = (e.status.bleedStacks or 0) + 1
-        local base = baseDamage or ((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.05)
-        local addDps = math.max(1, base * might * 0.35)
+        local base = baseDamage or ((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.05 * might)
+        local addDps = math.max(1, base * 0.35)
         e.status.bleedDps = (e.status.bleedDps or 0) + addDps
         e.status.bleedAcc = e.status.bleedAcc or 0
         if state.spawnEffect then state.spawnEffect('bleed', e.x, e.y) end
@@ -146,8 +149,8 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         end
         local heatDur = (effectData and effectData.heatDuration) or (effectData and effectData.duration) or 6.0
         e.status.heatTimer = math.max(e.status.heatTimer or 0, heatDur)
-        local base = baseDamage or ((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.05)
-        local addDps = math.max(1, base * might * 0.35)
+        local base = baseDamage or ((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.05 * might)
+        local addDps = math.max(1, base * 0.5)
         e.status.heatDps = (e.status.heatDps or 0) + addDps
         e.status.heatAcc = e.status.heatAcc or 0
 
@@ -177,12 +180,15 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
             e.status.impactTimer = math.max(dur, remaining)
         end
     elseif effect == 'STATIC' then
+        local base = baseDamage or ((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.05 * might)
         local data = {
             duration = math.max((effectData and effectData.duration) or 2.0, 0),
             range = (effectData and effectData.range) or 160,
             remaining = (effectData and effectData.chain) or 3,
             allowRepeat = (effectData and effectData.allowRepeat) or false,
-            stunDuration = (effectData and effectData.stunDuration) or 0.6,
+            stunDuration = (effectData and effectData.stunDuration) or 3.0,
+            baseDamage = base,
+            tickDamage = math.max(1, math.floor(base * 0.5 + 0.5)),
             tick = 0.35
         }
         if not data.allowRepeat then data.visited = {} end
@@ -195,8 +201,12 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         e.status.shockTimer = math.max(e.status.shockTimer or 0, data.stunDuration or 0.6)
         if state.spawnEffect then state.spawnEffect('static', e.x, e.y) end
     elseif effect == 'MAGNETIC' then
-        e.status.magneticTimer = math.max(e.status.magneticTimer or 0, (effectData and effectData.duration) or 6.0)
-        e.status.magneticMult = (effectData and effectData.shieldMult) or 1.75
+        local dur = (effectData and effectData.duration) or 6.0
+        e.status.magneticStacks = math.min(10, (e.status.magneticStacks or 0) + 1)
+        e.status.magneticTimer = math.max(e.status.magneticTimer or 0, dur)
+        local stacks = e.status.magneticStacks
+        local bonus = math.min(2.25, 0.75 + stacks * 0.25)
+        e.status.magneticMult = 1 + bonus
         e.status.shieldLocked = true
         if state.spawnEffect then state.spawnEffect('static', e.x, e.y) end
     elseif effect == 'CORROSIVE' then
@@ -224,8 +234,8 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         e.status.gasTimer = math.max(e.status.gasTimer or 0, dur)
         local radius = (effectData and (effectData.radius or effectData.range)) or 100
         e.status.gasRadius = math.max(e.status.gasRadius or 0, radius)
-        local base = baseDamage or ((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.05)
-        local addDps = math.max(1, base * might * 0.35)
+        local base = baseDamage or ((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.05 * might)
+        local addDps = math.max(1, base * 0.5)
         e.status.gasDps = (e.status.gasDps or 0) + addDps
         e.status.gasAcc = e.status.gasAcc or 0
     elseif effect == 'RADIATION' then
@@ -235,9 +245,9 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         e.status.radiationTarget = nil
         e.status.radiationAngle = math.random() * 6.28
     elseif effect == 'TOXIN' then
-        e.status.toxinTimer = math.max((effectData and effectData.duration) or 4.0, e.status.toxinTimer or 0)
-        local base = baseDamage or ((e.maxHealth or e.health or 0) * 0.05)
-        e.status.toxinDps = math.max(1, base * might * 0.5)
+        e.status.toxinTimer = math.max((effectData and effectData.duration) or 6.0, e.status.toxinTimer or 0)
+        local base = baseDamage or ((e.maxHealth or e.health or 0) * 0.05 * might)
+        e.status.toxinDps = math.max(1, base * 0.5)
         e.status.toxinAcc = 0
     end
 end
@@ -408,8 +418,10 @@ function enemies.update(state, dt)
                 e.status.coldStacks = 0
                 e.speed = e.baseSpeed or e.speed
             else
-                local slowPct = math.min(0.9, (e.status.coldStacks or 0) * 0.1)
-                e.speed = (e.baseSpeed or e.speed) * (1 - slowPct)
+                local stacks = e.status.coldStacks or 0
+                local mult = 0.75 ^ stacks
+                if mult < 0.1 then mult = 0.1 end
+                e.speed = (e.baseSpeed or e.speed) * mult
             end
         end
 
@@ -542,7 +554,11 @@ function enemies.update(state, dt)
                 end
                 if nearest then
                     ensureStatus(nearest)
-                    local staticDmg = math.max(1, math.floor((e.maxHealth or e.maxHp or 10) * 0.05 * playerMight))
+                    local staticDmg = data.tickDamage
+                    if not staticDmg or staticDmg <= 0 then
+                        local base = data.baseDamage or ((e.maxHealth or e.maxHp or 10) * 0.05 * playerMight)
+                        staticDmg = math.max(1, math.floor(base * 0.5 + 0.5))
+                    end
                     enemies.damageEnemy(state, nearest, staticDmg, false, 0)
                     if not data.allowRepeat then visited[nearest] = true end
                     data.remaining = (data.remaining or 1) - 1
@@ -575,6 +591,7 @@ function enemies.update(state, dt)
             if e.status.magneticTimer <= 0 then
                 e.status.magneticTimer = nil
                 e.status.magneticMult = nil
+                e.status.magneticStacks = 0
                 e.status.shieldLocked = false
             end
         end

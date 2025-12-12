@@ -48,9 +48,10 @@ local function fireEffectBullet(state, effect)
             effectData.chain = 6
             effectData.allowRepeat = true
         elseif eff == 'FIRE' then
-            effectData.heatDuration = 4.0
+            effectData.heatDuration = 6.0
         elseif eff == 'FREEZE' then
             effectData.duration = 1.2
+            effectData.fullFreeze = true
         elseif eff == 'BLAST' then
             effectData.duration = 0.6
         elseif eff == 'GAS' then

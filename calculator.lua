@@ -186,7 +186,8 @@ local function buildDamageMods(enemy, instance, appliedEffects)
     end
     if status and status.viralStacks and status.viralStacks > 0 then
         local stacks = math.min(10, status.viralStacks)
-        opts.viralMultiplier = 1 + math.min(2.25, stacks * 0.25)
+        local bonus = math.min(2.25, 0.75 + stacks * 0.25)
+        opts.viralMultiplier = 1 + bonus
     end
     return opts
 end
