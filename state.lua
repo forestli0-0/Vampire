@@ -2,10 +2,83 @@ local state = {}
 
 local animation = require('animation')
 
+local PROFILE_PATH = "profile.lua"
+
+local function serializeLua(value, depth)
+    depth = depth or 0
+    local t = type(value)
+    if t == "table" then
+        local parts = {"{"}
+        for k, v in pairs(value) do
+            local keyStr
+            if type(k) == "string" then
+                keyStr = string.format("[%q]=", k)
+            else
+                keyStr = "[" .. tostring(k) .. "]="
+            end
+            table.insert(parts, string.rep(" ", depth + 2) .. keyStr .. serializeLua(v, depth + 2) .. ",")
+        end
+        table.insert(parts, string.rep(" ", depth) .. "}")
+        return table.concat(parts, "\n")
+    elseif t == "string" then
+        return string.format("%q", value)
+    else
+        return tostring(value)
+    end
+end
+
+local function defaultProfile()
+    return { modRanks = {}, equippedMods = {}, modOrder = {} }
+end
+
+function state.loadProfile()
+    local profile = defaultProfile()
+    if love and love.filesystem and love.filesystem.load then
+        local ok, chunk = pcall(love.filesystem.load, PROFILE_PATH)
+        if ok and chunk then
+            local ok2, data = pcall(chunk)
+            if ok2 and type(data) == "table" then
+                profile = data
+            end
+        end
+    end
+    profile.modRanks = profile.modRanks or {}
+    profile.equippedMods = profile.equippedMods or {}
+    profile.modOrder = profile.modOrder or {}
+    return profile
+end
+
+function state.saveProfile(profile)
+    if not (love and love.filesystem and love.filesystem.write) then return end
+    local data = "return " .. serializeLua(profile or defaultProfile())
+    pcall(function() love.filesystem.write(PROFILE_PATH, data) end)
+end
+
+function state.applyPersistentMods()
+    state.inventory.mods = {}
+    state.inventory.modOrder = {}
+    if not state.profile then return end
+    local equipped = state.profile.equippedMods or {}
+    local ranks = state.profile.modRanks or {}
+    for _, modKey in ipairs(state.profile.modOrder or {}) do
+        if equipped[modKey] then
+            local lvl = ranks[modKey] or 1
+            if lvl > 0 then
+                state.inventory.mods[modKey] = lvl
+                table.insert(state.inventory.modOrder, modKey)
+            end
+        end
+    end
+end
+
 function state.init()
     math.randomseed(os.time())
 
-    state.gameState = 'PLAYING'
+    if love and love.filesystem and love.filesystem.setIdentity then
+        pcall(function() love.filesystem.setIdentity("vampire") end)
+    end
+
+    state.gameState = 'ARSENAL'
     state.benchmarkMode = false -- true when running benchmark to suppress level-ups
     state.noLevelUps = false
     state.testArena = false
@@ -354,6 +427,9 @@ function state.init()
     }
 
     state.inventory = { weapons = {}, passives = {}, mods = {}, modOrder = {} }
+
+    state.profile = state.loadProfile()
+    state.applyPersistentMods()
     state.enemies = {}
     state.bullets = {}
     state.enemyBullets = {}

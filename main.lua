@@ -11,13 +11,17 @@ local draw = require('draw')
 local debugmenu = require('debugmenu')
 local logger = require('logger')
 local benchmark = require('benchmark')
+local arsenal = require('arsenal')
 
 -- 游戏启动时的初始化（状态、日志、默认武器等）
 function love.load()
     if state.stopMusic then state.stopMusic() end
     state.init()
     logger.init(state)
-    weapons.addWeapon(state, 'wand')
+    arsenal.init(state)
+    if state.gameState ~= 'ARSENAL' then
+        weapons.addWeapon(state, 'wand')
+    end
     if state.playMusic then state.playMusic() end
     debugmenu.init(state)
     -- 调试用武器组合：测试状态联动时取消注释
@@ -28,6 +32,10 @@ function love.load()
 end
 
 function love.update(dt)
+    if state.gameState == 'ARSENAL' then
+        arsenal.update(state, dt)
+        return
+    end
     -- 升级/死亡界面下暂停主循环
     if state.gameState == 'LEVEL_UP' then return end
     if state.gameState == 'GAME_OVER' then
@@ -71,6 +79,10 @@ function love.update(dt)
 end
 
 function love.draw()
+    if state.gameState == 'ARSENAL' then
+        arsenal.draw(state)
+        return
+    end
     -- 渲染世界并叠加调试菜单
     draw.render(state)
     benchmark.draw(state)
@@ -83,6 +95,10 @@ function love.quit()
 end
 
 function love.keypressed(key)
+    if state.gameState == 'ARSENAL' then
+        if arsenal.keypressed(state, key) then return end
+        return
+    end
     if key == 'f5' then benchmark.toggle(state) end
     -- 等级界面：按数字选择升级
     if debugmenu.keypressed(state, key) then return end
