@@ -43,9 +43,12 @@ function upgrades.generateUpgradeOptions(state)
         end
 
         if not skip then
-            -- 收紧mod池：只给已装备/已获取的mod升级
-            if item.type == 'mod' and not (state.inventory.mods and state.inventory.mods[key]) then
-                goto continue_catalog
+            -- mod池：允许局内抽到“已拥有但未装备”的mod作为新选项；未拥有的mod仍不进入池
+            if item.type == 'mod' then
+                local owned = state.profile and state.profile.ownedMods and state.profile.ownedMods[key]
+                if not owned and not (state.inventory.mods and state.inventory.mods[key]) then
+                    goto continue_catalog
+                end
             end
             local currentLevel = 0
             if item.type == 'weapon' and state.inventory.weapons[key] then currentLevel = state.inventory.weapons[key].level end
@@ -93,10 +96,14 @@ function upgrades.generateUpgradeOptions(state)
 
     for i = #state.upgradeOptions + 1, 3 do
         local choice = nil
-        -- 优先给现有装备升级，保证战力跟得上
-        if #poolExisting > 0 then
+        -- 现有/新选项混合：偏向现有，但保留一定随机新路线
+        local preferExisting = (#poolExisting > 0) and (math.random() < 0.7 or #poolNew == 0)
+        if preferExisting then
             choice = takeRandom(poolExisting)
+        else
+            choice = takeRandom(poolNew)
         end
+        if not choice then choice = takeRandom(poolExisting) end
         if not choice then choice = takeRandom(poolNew) end
         if not choice then choice = takeRandom(evolvePool) end
         if not choice then break end

@@ -196,6 +196,14 @@ function projectiles.updatePlayerBullets(state, dt)
 end
 
 function projectiles.updateEnemyBullets(state, dt)
+    -- global safety cap to avoid bullet flood in long runs
+    local maxEnemyBullets = 120
+    if state.enemyBullets and #state.enemyBullets > maxEnemyBullets then
+        local excess = #state.enemyBullets - maxEnemyBullets
+        for _ = 1, excess do
+            table.remove(state.enemyBullets, 1)
+        end
+    end
     for i = #state.enemyBullets, 1, -1 do
         local eb = state.enemyBullets[i]
         eb.x = eb.x + eb.vx * dt

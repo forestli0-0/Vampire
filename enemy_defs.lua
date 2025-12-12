@@ -27,21 +27,21 @@ local enemyDefs = {
     },
     bat = {
         hp = 5,
-        speed = 150,
+        speed = 120,
         size = 12,
         color = {0.6, 0, 1},
         healthType = 'FLESH'
     },
     plant = {
-        hp = 35,
-        speed = 30,
+        hp = 30,
+        speed = 35,
         size = 22,
         color = {0, 0.7, 0.2},
         healthType = 'INFESTED',
-        shootInterval = 3,
+        shootInterval = 4,
         bulletSpeed = 180,
         bulletDamage = 10,
-        bulletLife = 5,
+        bulletLife = 4,
         bulletSize = 10
     },
     dummy_pole = {

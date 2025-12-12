@@ -51,9 +51,18 @@ function director.update(state, dt)
         local function add(key, weight)
             for _ = 1, weight do table.insert(pool, key) end
         end
-        add('skeleton', 5)
-        if state.gameTimer > 20 then add('bat', 5) end
-        if state.gameTimer >= 40 then add('plant', 3) end
+        add('skeleton', 6)
+
+        -- soft caps to prevent fast/ranged enemies snowballing
+        local batAlive, plantAlive = 0, 0
+        for _, e in ipairs(state.enemies) do
+            if e.kind == 'bat' then batAlive = batAlive + 1 end
+            if e.kind == 'plant' then plantAlive = plantAlive + 1 end
+        end
+        local batCap = 8 + math.floor((state.gameTimer or 0) / 60) * 2
+        if state.gameTimer > 20 and batAlive < batCap then add('bat', 3) end
+        local plantCap = 4 + math.floor((state.gameTimer or 0) / 90)
+        if state.gameTimer >= 40 and plantAlive < plantCap then add('plant', 2) end
         if state.gameTimer >= 90 then add('shield_lancer', 3) end
         if state.gameTimer >= 150 then add('armored_brute', 2) end
         local type = pool[math.random(#pool)]
