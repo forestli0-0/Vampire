@@ -42,6 +42,10 @@ function love.update(dt)
         if love.keyboard.isDown('r') then love.load() end
         return
     end
+    if state.gameState == 'GAME_CLEAR' then
+        if love.keyboard.isDown('r') then love.load() end
+        return
+    end
 
     -- 逐帧衰减屏幕震动
     if state.shakeAmount > 0 then

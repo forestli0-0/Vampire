@@ -14,7 +14,8 @@ local function canEvolve(state, key)
 end
 
 function upgrades.generateUpgradeOptions(state)
-    local pool = {}
+    local poolExisting = {}
+    local poolNew = {}
     local evolvePool = {}
     local added = {}
     local function addOption(list, opt)
@@ -23,6 +24,13 @@ function upgrades.generateUpgradeOptions(state)
             table.insert(list, opt)
             added[key] = true
         end
+    end
+
+    local function isOwned(itemType, itemKey)
+        if itemType == 'weapon' then return state.inventory.weapons[itemKey] ~= nil end
+        if itemType == 'passive' then return state.inventory.passives[itemKey] ~= nil end
+        if itemType == 'mod' then return state.inventory.mods and state.inventory.mods[itemKey] ~= nil end
+        return false
     end
 
     for key, item in pairs(state.catalog) do
@@ -35,12 +43,21 @@ function upgrades.generateUpgradeOptions(state)
         end
 
         if not skip then
+            -- 收紧mod池：只给已装备/已获取的mod升级
+            if item.type == 'mod' and not (state.inventory.mods and state.inventory.mods[key]) then
+                goto continue_catalog
+            end
             local currentLevel = 0
             if item.type == 'weapon' and state.inventory.weapons[key] then currentLevel = state.inventory.weapons[key].level end
             if item.type == 'passive' and state.inventory.passives[key] then currentLevel = state.inventory.passives[key] end
             if item.type == 'mod' and state.inventory.mods and state.inventory.mods[key] then currentLevel = state.inventory.mods[key] end
             if currentLevel < item.maxLevel then
-                addOption(pool, {key=key, type=item.type, name=item.name, desc=item.desc, def=item})
+                local opt = {key=key, type=item.type, name=item.name, desc=item.desc, def=item}
+                if isOwned(item.type, key) then
+                    addOption(poolExisting, opt)
+                else
+                    addOption(poolNew, opt)
+                end
             end
         end
 
@@ -57,6 +74,7 @@ function upgrades.generateUpgradeOptions(state)
                 evolveFrom = key
             })
         end
+        ::continue_catalog::
     end
 
     state.upgradeOptions = {}
@@ -74,10 +92,13 @@ function upgrades.generateUpgradeOptions(state)
     end
 
     for i = #state.upgradeOptions + 1, 3 do
-        local choice = takeRandom(pool)
-        if not choice then
-            choice = takeRandom(evolvePool)
+        local choice = nil
+        -- 优先给现有装备升级，保证战力跟得上
+        if #poolExisting > 0 then
+            choice = takeRandom(poolExisting)
         end
+        if not choice then choice = takeRandom(poolNew) end
+        if not choice then choice = takeRandom(evolvePool) end
         if not choice then break end
         table.insert(state.upgradeOptions, choice)
     end

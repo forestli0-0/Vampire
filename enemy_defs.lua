@@ -99,6 +99,23 @@ local enemyDefs = {
         speed = 28,
         size = 24,
         color = {0.8, 0.6, 0.1}
+    },
+    boss_treant = {
+        hp = 1200,
+        shield = 600,
+        armor = 120,
+        speed = 35,
+        size = 48,
+        color = {0.9, 0.25, 0.25},
+        spawnDistance = 620,
+        shootInterval = 1.6,
+        bulletSpeed = 220,
+        bulletDamage = 16,
+        bulletLife = 6,
+        bulletSize = 14,
+        animKey = 'plant',
+        isBoss = true,
+        noDrops = true
     }
 }
 

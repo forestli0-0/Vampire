@@ -290,6 +290,7 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
         color = color,
         size = size,
         isElite = isElite,
+        isBoss = def.isBoss or false,
         kind = type,
         shootInterval = def.shootInterval,
         shootTimer = def.shootInterval,
@@ -300,7 +301,8 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
         facing = 1
     })
     if state.loadMoveAnimationFromFolder then
-        local anim = state.loadMoveAnimationFromFolder(type, 4, 8)
+        local animKey = def.animKey or def.animName or type
+        local anim = state.loadMoveAnimationFromFolder(animKey, 4, 8)
         if anim then state.enemies[#state.enemies].anim = anim end
     end
     ensureStatus(state.enemies[#state.enemies])
@@ -742,6 +744,14 @@ function enemies.update(state, dt)
         if e.health <= 0 then
             if e.isDummy then
                 resetDummy(e)
+                goto continue_enemy
+            end
+            if e.isBoss then
+                state.gameState = 'GAME_CLEAR'
+                state.directorState = state.directorState or {}
+                state.directorState.bossDefeated = true
+                logger.kill(state, e)
+                table.remove(state.enemies, i)
                 goto continue_enemy
             end
             if not e.noDrops then

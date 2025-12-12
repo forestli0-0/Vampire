@@ -33,7 +33,7 @@ local function addXp(state, amount)
     while p.xp >= p.xpToNextLevel do
         p.level = p.level + 1
         p.xp = p.xp - p.xpToNextLevel
-        p.xpToNextLevel = math.floor(p.xpToNextLevel * 1.35)
+        p.xpToNextLevel = math.floor(p.xpToNextLevel * 1.25)
         upgrades.queueLevelUp(state)
         logger.levelUp(state, p.level)
     end

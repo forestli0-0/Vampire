@@ -101,7 +101,7 @@ function state.init()
             cooldown = 1.0,
             area = 1.0,
             speed = 1.0,
-            pickupRange = 80,
+            pickupRange = 120,
             armor = 0,
             regen = 0
         }

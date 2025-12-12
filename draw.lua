@@ -592,6 +592,18 @@ function draw.render(state)
     local timeStr = string.format("%02d:%02d", minutes, seconds)
     love.graphics.printf(timeStr, 0, 20, love.graphics.getWidth(), "center")
 
+    if state.gameState == 'GAME_CLEAR' then
+        local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+        love.graphics.setColor(0,0,0,0.8)
+        love.graphics.rectangle('fill', 0, 0, w, h)
+        love.graphics.setFont(state.titleFont)
+        love.graphics.setColor(0.4, 1, 0.4)
+        love.graphics.printf("VICTORY!", 0, h/2 - 70, w, "center")
+        love.graphics.setFont(state.font)
+        love.graphics.setColor(1,1,1)
+        love.graphics.printf("Boss defeated. Press R to return to Arsenal", 0, h/2, w, "center")
+    end
+
     if state.gameState == 'GAME_OVER' then
         local w, h = love.graphics.getWidth(), love.graphics.getHeight()
         love.graphics.setColor(0,0,0,0.75)
