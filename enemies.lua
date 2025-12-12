@@ -7,6 +7,14 @@ local enemies = {}
 local SHIELD_REGEN_DELAY = 2.5
 local SHIELD_REGEN_RATE = 0.25 -- fraction of max shield per second
 
+local function getPunctureReduction(e)
+    if not e or not e.status or not e.status.punctureStacks or e.status.punctureStacks <= 0 then return 0 end
+    local stacks = math.min(10, e.status.punctureStacks)
+    local red = 0.3 + (stacks - 1) * 0.05
+    if red > 0.75 then red = 0.75 end
+    return red
+end
+
 local function ensureStatus(e)
     if not e.status then
         e.status = {
@@ -14,6 +22,9 @@ local function ensureStatus(e)
             oiled = false,
             static = false,
             bleedStacks = 0,
+            bleedTimer = 0,
+            bleedDps = 0,
+            bleedAcc = 0,
             burnTimer = 0,
             magneticTimer = 0,
             viralStacks = 0,
@@ -25,6 +36,9 @@ local function ensureStatus(e)
             toxinAcc = 0,
             corrosiveStacks = 0,
             shieldLocked = false,
+            punctureStacks = 0,
+            punctureTimer = 0,
+            impactTimer = 0,
             blastTimer = 0,
             gasTimer = 0,
             gasDps = 0,
@@ -37,6 +51,7 @@ local function ensureStatus(e)
         }
     end
     e.baseSpeed = e.baseSpeed or e.speed
+    e.baseArmor = e.baseArmor or e.armor or 0
     e.health = e.health or e.hp
     e.maxHealth = e.maxHealth or e.maxHp or e.hp
     e.maxHp = e.maxHealth
@@ -86,13 +101,14 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         e.status.oiledTimer = math.max((effectData and effectData.duration) or 6.0, 0)
         if state.spawnEffect then state.spawnEffect('oil', e.x, e.y) end
     elseif effect == 'BLEED' then
+        local dur = (effectData and effectData.duration) or 6.0
+        e.status.bleedTimer = math.max(e.status.bleedTimer or 0, dur)
         e.status.bleedStacks = (e.status.bleedStacks or 0) + 1
+        local base = baseDamage or ((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.05)
+        local addDps = math.max(1, base * might * 0.35)
+        e.status.bleedDps = (e.status.bleedDps or 0) + addDps
+        e.status.bleedAcc = e.status.bleedAcc or 0
         if state.spawnEffect then state.spawnEffect('bleed', e.x, e.y) end
-        if e.status.bleedStacks >= 10 then
-            local boom = math.floor((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.2 * might)
-            if boom > 0 then enemies.damageEnemy(state, e, boom, false, 0) end
-            e.status.bleedStacks = 0
-        end
     elseif effect == 'FIRE' then
         -- Heat proc: temporary 50% armor reduction always applies
         local lossTarget = (e.armor or 0) * 0.5
@@ -121,6 +137,10 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
             e.status.frozenTimer = nil
             e.speed = e.baseSpeed or e.speed
             if state.playSfx then state.playSfx('glass') end
+        else
+            local dur = (effectData and effectData.duration) or 0.35
+            local remaining = e.status.impactTimer or 0
+            e.status.impactTimer = math.max(dur, remaining)
         end
     elseif effect == 'STATIC' then
         local data = {
@@ -144,12 +164,21 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         e.status.shieldLocked = true
         if state.spawnEffect then state.spawnEffect('static', e.x, e.y) end
     elseif effect == 'CORROSIVE' then
-        e.status.corrosiveStacks = (e.status.corrosiveStacks or 0) + 1
-        local strip = math.max(1, math.floor((e.armor or 0) * 0.25))
-        e.armor = math.max(0, (e.armor or 0) - strip)
+        e.baseArmor = e.baseArmor or e.armor or 0
+        e.status.corrosiveStacks = math.min(10, (e.status.corrosiveStacks or 0) + 1)
+        local stacks = e.status.corrosiveStacks
+        local stripPct = 0.26 + math.max(0, stacks - 1) * 0.06
+        if stripPct > 0.8 then stripPct = 0.8 end
+        local newArmor = math.floor((e.baseArmor or 0) * (1 - stripPct) + 0.5)
+        if newArmor < 0 then newArmor = 0 end
+        e.armor = newArmor
     elseif effect == 'VIRAL' then
         e.status.viralStacks = math.min(10, (e.status.viralStacks or 0) + 1)
         e.status.viralTimer = math.max((effectData and effectData.duration) or 6.0, e.status.viralTimer or 0)
+    elseif effect == 'PUNCTURE' then
+        local dur = (effectData and effectData.duration) or 6.0
+        e.status.punctureStacks = math.min(10, (e.status.punctureStacks or 0) + 1)
+        e.status.punctureTimer = math.max(e.status.punctureTimer or 0, dur)
     elseif effect == 'BLAST' then
         local dur = (effectData and effectData.duration) or 0.6
         local remaining = e.status.blastTimer or 0
@@ -345,6 +374,21 @@ function enemies.update(state, dt)
             end
         end
 
+        if e.status.impactTimer and e.status.impactTimer > 0 then
+            e.status.impactTimer = e.status.impactTimer - dt
+            if e.status.impactTimer <= 0 then
+                e.status.impactTimer = nil
+            end
+        end
+
+        if e.status.punctureTimer and e.status.punctureTimer > 0 then
+            e.status.punctureTimer = e.status.punctureTimer - dt
+            if e.status.punctureTimer <= 0 then
+                e.status.punctureTimer = nil
+                e.status.punctureStacks = 0
+            end
+        end
+
         if e.status.radiationTimer and e.status.radiationTimer > 0 then
             e.status.radiationTimer = e.status.radiationTimer - dt
             e.status.radiationTargetTimer = (e.status.radiationTargetTimer or 0) - dt
@@ -383,6 +427,24 @@ function enemies.update(state, dt)
                 if burnDmg > 0 then enemies.damageEnemy(state, e, burnDmg, false, 0) end
             end
             if e.status.burnTimer < 0 then e.status.burnTimer = 0 end
+        end
+
+        if e.status.bleedTimer and e.status.bleedTimer > 0 then
+            e.status.bleedTimer = e.status.bleedTimer - dt
+            e.status.bleedAcc = (e.status.bleedAcc or 0) + (e.status.bleedDps or 0) * dt
+            if e.status.bleedAcc >= 1 then
+                local tick = math.floor(e.status.bleedAcc)
+                e.status.bleedAcc = e.status.bleedAcc - tick
+                if tick > 0 then
+                    enemies.damageEnemy(state, e, tick, false, 0, false, {bypassShield=true, ignoreArmor=true})
+                end
+            end
+            if e.status.bleedTimer <= 0 then
+                e.status.bleedTimer = nil
+                e.status.bleedDps = nil
+                e.status.bleedAcc = nil
+                e.status.bleedStacks = 0
+            end
         end
 
         if e.status.oiled and e.status.oiledTimer then
@@ -483,7 +545,7 @@ function enemies.update(state, dt)
             if e.status.toxinAcc >= 1 then
                 local tick = math.floor(e.status.toxinAcc)
                 e.status.toxinAcc = e.status.toxinAcc - tick
-                enemies.damageEnemy(state, e, tick, false, 0, false, {bypassShield=true, ignoreArmor=true})
+                enemies.damageEnemy(state, e, tick, false, 0, false, {bypassShield=true})
             end
             if e.status.toxinTimer <= 0 then
                 e.status.toxinTimer = nil
@@ -501,13 +563,13 @@ function enemies.update(state, dt)
                 if tick > 0 then
                     local radius = e.status.gasRadius or 100
                     local r2 = radius * radius
-                    enemies.damageEnemy(state, e, tick, false, 0, false, {bypassShield=true, ignoreArmor=true})
+                    enemies.damageEnemy(state, e, tick, false, 0, false, {bypassShield=true})
                     for _, o in ipairs(state.enemies) do
                         if o ~= e then
                             local dx = o.x - e.x
                             local dy = o.y - e.y
                             if dx*dx + dy*dy <= r2 then
-                                enemies.damageEnemy(state, o, tick, false, 0, false, {bypassShield=true, ignoreArmor=true, noText=true})
+                                enemies.damageEnemy(state, o, tick, false, 0, false, {bypassShield=true, noText=true})
                             end
                         end
                     end
@@ -552,7 +614,9 @@ function enemies.update(state, dt)
             end
         end
 
-        local stunned = e.status.frozen or (e.status.blastTimer and e.status.blastTimer > 0)
+        local stunned = e.status.frozen
+            or (e.status.blastTimer and e.status.blastTimer > 0)
+            or (e.status.impactTimer and e.status.impactTimer > 0)
         local targetX, targetY = p.x, p.y
         if e.status.radiationTimer and e.status.radiationTimer > 0 then
             local rt = e.status.radiationTarget
@@ -572,12 +636,15 @@ function enemies.update(state, dt)
                 local spd = e.bulletSpeed or 180
                 local spriteKey = nil
                 if e.kind == 'plant' then spriteKey = 'plant_bullet' end
+                local dmgMult = 1 - getPunctureReduction(e)
+                if dmgMult < 0.25 then dmgMult = 0.25 end
+                local bulletDmg = (e.bulletDamage or 10) * dmgMult
                 table.insert(state.enemyBullets, {
                     x = e.x, y = e.y,
                     vx = math.cos(ang) * spd, vy = math.sin(ang) * spd,
                     size = e.bulletSize or 10,
                     life = e.bulletLife or 5,
-                    damage = e.bulletDamage or 10,
+                    damage = bulletDmg,
                     type = e.kind,
                     rotation = ang,
                     spriteKey = spriteKey
@@ -603,7 +670,9 @@ function enemies.update(state, dt)
         local playerRadius = (p.size or 20) / 2
         local enemyRadius = (e.size or 16) / 2
         if pDist < (playerRadius + enemyRadius) and not e.noContactDamage then
-            player.hurt(state, 10)
+            local dmgMult = 1 - getPunctureReduction(e)
+            if dmgMult < 0.25 then dmgMult = 0.25 end
+            player.hurt(state, 10 * dmgMult)
         end
 
         if e.health <= 0 then

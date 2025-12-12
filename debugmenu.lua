@@ -7,7 +7,7 @@ local debugmenu = {}
 
 local modes = {'weapon', 'passive', 'xp', 'enemy', 'test', 'effect'}
 local effectOptions = {
-    'NONE','FIRE','FREEZE','STATIC','BLEED','OIL','HEAVY','MAGNETIC','CORROSIVE','VIRAL','TOXIN','BLAST','GAS','RADIATION'
+    'NONE','FIRE','FREEZE','STATIC','BLEED','OIL','HEAVY','PUNCTURE','MAGNETIC','CORROSIVE','VIRAL','TOXIN','BLAST','GAS','RADIATION'
 }
 
 local function cloneStats(base)
@@ -37,7 +37,7 @@ local function fireEffectBullet(state, effect)
     if eff ~= 'NONE' then
         effectType = eff
         effectData = {}
-        if eff == 'MAGNETIC' or eff == 'VIRAL' or eff == 'TOXIN' or eff == 'GAS' or eff == 'RADIATION' then
+        if eff == 'MAGNETIC' or eff == 'VIRAL' or eff == 'TOXIN' or eff == 'GAS' or eff == 'RADIATION' or eff == 'PUNCTURE' then
             effectData.duration = 6.0
         end
         if eff == 'MAGNETIC' then

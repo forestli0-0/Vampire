@@ -22,6 +22,7 @@ local ELEMENT_TO_EFFECT = {
     RADIATION='RADIATION',
     SLASH='BLEED',
     IMPACT='HEAVY',
+    PUNCTURE='PUNCTURE',
     OIL='OIL'
 }
 
@@ -63,6 +64,7 @@ local function normalizeElements(effectType, provided)
     if e == 'MAGNETIC' then return {'MAGNETIC'} end
     if e == 'CORROSIVE' then return {'CORROSIVE'} end
     if e == 'VIRAL' then return {'VIRAL'} end
+    if e == 'PUNCTURE' then return {'PUNCTURE'} end
     return nil
 end
 

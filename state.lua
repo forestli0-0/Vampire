@@ -117,7 +117,7 @@ function state.init()
         },
         dagger = {
             type = 'weapon', name = "Throwing Knife",
-            desc = "Stacks Bleed. Explodes at 10 stacks.",
+            desc = "Applies Slash Bleed that bypasses armor.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'physical', 'fast'},
             base = { damage=4, cd=0.18, speed=600, effectType='BLEED', critChance=0.20, critMultiplier=2.0, statusChance=0.2 },
