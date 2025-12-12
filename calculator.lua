@@ -2,6 +2,53 @@ local enemies = require('enemies')
 
 local calculator = {}
 
+local PRIMARY = {HEAT=true, COLD=true, ELECTRIC=true, TOXIN=true}
+local COMBOS = {
+    HEAT = {COLD='BLAST', ELECTRIC='RADIATION', TOXIN='GAS'},
+    COLD = {ELECTRIC='MAGNETIC', TOXIN='VIRAL'},
+    ELECTRIC = {TOXIN='CORROSIVE'}
+}
+
+local ELEMENT_TO_EFFECT = {
+    HEAT='FIRE',
+    COLD='FREEZE',
+    ELECTRIC='STATIC',
+    TOXIN='TOXIN',
+    MAGNETIC='MAGNETIC',
+    CORROSIVE='CORROSIVE',
+    VIRAL='VIRAL',
+    BLAST='BLAST',
+    GAS='GAS',
+    RADIATION='RADIATION',
+    SLASH='BLEED',
+    IMPACT='HEAVY',
+    OIL='OIL'
+}
+
+local function combineElements(elements)
+    if not elements or #elements == 0 then return elements end
+    local out = {}
+    local i = 1
+    while i <= #elements do
+        local a = string.upper(elements[i])
+        local b = elements[i + 1] and string.upper(elements[i + 1]) or nil
+        if b and PRIMARY[a] and PRIMARY[b] then
+            local combo = (COMBOS[a] and COMBOS[a][b]) or (COMBOS[b] and COMBOS[b][a])
+            if combo then
+                table.insert(out, combo)
+                i = i + 2
+            else
+                table.insert(out, a)
+                i = i + 1
+            end
+        else
+            table.insert(out, a)
+            i = i + 1
+        end
+    end
+    return out
+end
+
 local function normalizeElements(effectType, provided)
     if provided and #provided > 0 then return provided end
     if not effectType then return nil end
@@ -21,6 +68,7 @@ end
 
 function calculator.createInstance(params)
     params = params or {}
+    local elements = combineElements(normalizeElements(params.effectType, params.elements) or {})
     return {
         damage = params.damage or 0,
         critChance = params.critChance or 0,
@@ -31,20 +79,68 @@ function calculator.createInstance(params)
         weaponTags = params.weaponTags,
         knock = params.knock or false,
         knockForce = params.knockForce or params.knockback or 0,
-        elements = normalizeElements(params.effectType, params.elements)
+        elements = elements,
+        damageBreakdown = params.damageBreakdown
     }
 end
 
+local function chooseProcElement(instance)
+    local elems = instance.elements or {}
+    if #elems == 0 then return nil end
+    local breakdown = instance.damageBreakdown or {}
+    local total = 0
+    local weights = {}
+    for idx, elem in ipairs(elems) do
+        local key = string.upper(elem)
+        local w = breakdown[key]
+        if w == nil then w = 1 end
+        if w < 0 then w = 0 end
+        weights[idx] = w
+        total = total + w
+    end
+    if total <= 0 then
+        return elems[math.random(#elems)]
+    end
+    local r = math.random() * total
+    for idx, elem in ipairs(elems) do
+        r = r - (weights[idx] or 0)
+        if r <= 0 then return elem end
+    end
+    return elems[#elems]
+end
+
 function calculator.applyStatus(state, enemy, instance, overrideChance)
-    if not enemy or not instance then return false end
+    if not enemy or not instance then return {} end
     local chance = overrideChance
     if chance == nil then chance = instance.statusChance or 0 end
-    if not instance.effectType or chance <= 0 then return false end
-    if math.random() < chance then
-        enemies.applyStatus(state, enemy, instance.effectType, instance.damage, instance.weaponTags, instance.effectData)
-        return true
+    if chance <= 0 then return {} end
+
+    local elems = instance.elements or {}
+    local applied = {}
+
+    if #elems == 0 and instance.effectType then
+        if math.random() < chance then
+            enemies.applyStatus(state, enemy, instance.effectType, instance.damage, instance.weaponTags, instance.effectData)
+            table.insert(applied, string.upper(instance.effectType))
+        end
+        return applied
     end
-    return false
+
+    local procs = math.floor(chance)
+    local frac = chance - procs
+    if math.random() < frac then procs = procs + 1 end
+    if procs <= 0 then return applied end
+
+    for _ = 1, procs do
+        local elem = chooseProcElement(instance)
+        if elem then
+            local effectType = ELEMENT_TO_EFFECT[string.upper(elem)] or string.upper(elem)
+            enemies.applyStatus(state, enemy, effectType, instance.damage, instance.weaponTags, instance.effectData)
+            table.insert(applied, effectType)
+        end
+    end
+
+    return applied
 end
 
 function calculator.computeDamage(instance)
@@ -62,10 +158,14 @@ function calculator.computeDamage(instance)
     return final, isCrit
 end
 
-local function buildDamageMods(enemy, instance, statusApplied)
+local function buildDamageMods(enemy, instance, appliedEffects)
     local opts = {}
     local status = enemy and enemy.status
     local elems = instance and instance.elements or {}
+    local appliedSet = {}
+    for _, eff in ipairs(appliedEffects or {}) do
+        appliedSet[string.upper(eff)] = true
+    end
 
     local function has(elem)
         local t = string.upper(elem)
@@ -78,7 +178,7 @@ local function buildDamageMods(enemy, instance, statusApplied)
     if has('TOXIN') then opts.bypassShield = true end
 
     local magnetActive = status and status.magneticTimer and status.magneticTimer > 0
-    if magnetActive or (statusApplied and has('MAGNETIC')) then
+    if magnetActive or appliedSet['MAGNETIC'] then
         opts.shieldMult = math.max(opts.shieldMult or 1, (status and status.magneticMult) or 1.75)
         opts.lockShield = true
     end
@@ -105,10 +205,10 @@ function calculator.applyHit(state, enemy, params)
             forcedChance = 1
         end
     end
-    local statusApplied = calculator.applyStatus(state, enemy, instance, forcedChance)
-    local opts = buildDamageMods(enemy, instance, statusApplied)
+    local appliedEffects = calculator.applyStatus(state, enemy, instance, forcedChance)
+    local opts = buildDamageMods(enemy, instance, appliedEffects)
     local dmg, isCrit = calculator.applyDamage(state, enemy, instance, opts)
-    return {damage = dmg, isCrit = isCrit, statusApplied = statusApplied}
+    return {damage = dmg, isCrit = isCrit, statusApplied = (#appliedEffects > 0), appliedEffects = appliedEffects}
 end
 
 return calculator

@@ -135,6 +135,12 @@ function draw.render(state)
                 elseif e.status.burnTimer and e.status.burnTimer > 0 then
                     local pulse = love.timer.getTime() % 0.2 < 0.1
                     if pulse then col = {1, 0.2, 0.2} else col = {1, 0.4, 0.4} end
+                elseif e.status.blastTimer and e.status.blastTimer > 0 then
+                    col = {1, 0.7, 0.2}
+                elseif e.status.radiationTimer and e.status.radiationTimer > 0 then
+                    col = {1, 1, 0.3}
+                elseif e.status.gasTimer and e.status.gasTimer > 0 then
+                    col = {0.5, 1, 0.5}
                 elseif e.status.oiled then
                     col = {0.3, 0.2, 0.1}
                 end
@@ -154,6 +160,27 @@ function draw.render(state)
             love.graphics.setColor(1,1,0,0.8)
             local lx = e.x; local ly = e.y
             love.graphics.line(lx - 4, ly - 6, lx - 1, ly - 1, lx - 6, ly + 3, lx, ly + 8, lx + 5, ly + 2)
+            love.graphics.setLineWidth(1)
+        end
+        if e.status and e.status.blastTimer and e.status.blastTimer > 0 then
+            love.graphics.setColor(1, 0.6, 0.1, 0.6)
+            love.graphics.setLineWidth(2)
+            love.graphics.circle('line', e.x, e.y, (e.size or 16) * 0.9)
+            love.graphics.setLineWidth(1)
+        end
+        if e.status and e.status.gasTimer and e.status.gasTimer > 0 then
+            local r = e.status.gasRadius or 100
+            love.graphics.setColor(0.2, 1, 0.2, 0.12)
+            love.graphics.circle('fill', e.x, e.y, r)
+            love.graphics.setColor(0.3, 1, 0.3, 0.45)
+            love.graphics.setLineWidth(1.5)
+            love.graphics.circle('line', e.x, e.y, r)
+            love.graphics.setLineWidth(1)
+        end
+        if e.status and e.status.radiationTimer and e.status.radiationTimer > 0 then
+            love.graphics.setColor(1, 1, 0.2, 0.5)
+            love.graphics.setLineWidth(1.5)
+            love.graphics.circle('line', e.x, e.y, (e.size or 16) * 0.55)
             love.graphics.setLineWidth(1)
         end
         local barW = math.max(14, math.min(30, (e.size or 16) * 1.2))

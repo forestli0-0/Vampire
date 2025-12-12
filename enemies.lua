@@ -24,7 +24,16 @@ local function ensureStatus(e)
             toxinDps = 0,
             toxinAcc = 0,
             corrosiveStacks = 0,
-            shieldLocked = false
+            shieldLocked = false,
+            blastTimer = 0,
+            gasTimer = 0,
+            gasDps = 0,
+            gasRadius = 0,
+            gasAcc = 0,
+            radiationTimer = 0,
+            radiationTargetTimer = 0,
+            radiationTarget = nil,
+            radiationAngle = 0
         }
     end
     e.baseSpeed = e.baseSpeed or e.speed
@@ -141,6 +150,25 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
     elseif effect == 'VIRAL' then
         e.status.viralStacks = math.min(10, (e.status.viralStacks or 0) + 1)
         e.status.viralTimer = math.max((effectData and effectData.duration) or 6.0, e.status.viralTimer or 0)
+    elseif effect == 'BLAST' then
+        local dur = (effectData and effectData.duration) or 0.6
+        local remaining = e.status.blastTimer or 0
+        e.status.blastTimer = math.max(dur, remaining)
+    elseif effect == 'GAS' then
+        local dur = (effectData and effectData.duration) or 6.0
+        e.status.gasTimer = math.max(e.status.gasTimer or 0, dur)
+        local radius = (effectData and (effectData.radius or effectData.range)) or 100
+        e.status.gasRadius = math.max(e.status.gasRadius or 0, radius)
+        local base = baseDamage or ((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.05)
+        local addDps = math.max(1, base * might * 0.35)
+        e.status.gasDps = (e.status.gasDps or 0) + addDps
+        e.status.gasAcc = e.status.gasAcc or 0
+    elseif effect == 'RADIATION' then
+        local dur = (effectData and effectData.duration) or 6.0
+        e.status.radiationTimer = math.max(e.status.radiationTimer or 0, dur)
+        e.status.radiationTargetTimer = 0
+        e.status.radiationTarget = nil
+        e.status.radiationAngle = math.random() * 6.28
     elseif effect == 'TOXIN' then
         e.status.toxinTimer = math.max((effectData and effectData.duration) or 4.0, e.status.toxinTimer or 0)
         local base = baseDamage or ((e.maxHealth or e.health or 0) * 0.05)
@@ -310,6 +338,41 @@ function enemies.update(state, dt)
 
         if e.anim then e.anim:update(dt) end
 
+        if e.status.blastTimer and e.status.blastTimer > 0 then
+            e.status.blastTimer = e.status.blastTimer - dt
+            if e.status.blastTimer <= 0 then
+                e.status.blastTimer = nil
+            end
+        end
+
+        if e.status.radiationTimer and e.status.radiationTimer > 0 then
+            e.status.radiationTimer = e.status.radiationTimer - dt
+            e.status.radiationTargetTimer = (e.status.radiationTargetTimer or 0) - dt
+            if e.status.radiationTargetTimer <= 0 then
+                e.status.radiationTargetTimer = 0.8
+                local target = nil
+                if #state.enemies > 1 then
+                    for _ = 1, 6 do
+                        local cand = state.enemies[math.random(#state.enemies)]
+                        if cand ~= e then
+                            target = cand
+                            break
+                        end
+                    end
+                end
+                e.status.radiationTarget = target
+                if not target then
+                    e.status.radiationAngle = math.random() * 6.28
+                end
+            end
+            if e.status.radiationTimer <= 0 then
+                e.status.radiationTimer = nil
+                e.status.radiationTargetTimer = nil
+                e.status.radiationTarget = nil
+                e.status.radiationAngle = nil
+            end
+        end
+
         if e.status.burnTimer and e.status.burnTimer > 0 then
             e.status.burnTimer = e.status.burnTimer - dt
             local dps = math.max(1, e.status.burnDps or ((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.05))
@@ -429,6 +492,35 @@ function enemies.update(state, dt)
             end
         end
 
+        if e.status.gasTimer and e.status.gasTimer > 0 then
+            e.status.gasTimer = e.status.gasTimer - dt
+            e.status.gasAcc = (e.status.gasAcc or 0) + (e.status.gasDps or 0) * dt
+            if e.status.gasAcc >= 1 then
+                local tick = math.floor(e.status.gasAcc)
+                e.status.gasAcc = e.status.gasAcc - tick
+                if tick > 0 then
+                    local radius = e.status.gasRadius or 100
+                    local r2 = radius * radius
+                    enemies.damageEnemy(state, e, tick, false, 0, false, {bypassShield=true, ignoreArmor=true})
+                    for _, o in ipairs(state.enemies) do
+                        if o ~= e then
+                            local dx = o.x - e.x
+                            local dy = o.y - e.y
+                            if dx*dx + dy*dy <= r2 then
+                                enemies.damageEnemy(state, o, tick, false, 0, false, {bypassShield=true, ignoreArmor=true, noText=true})
+                            end
+                        end
+                    end
+                end
+            end
+            if e.status.gasTimer <= 0 then
+                e.status.gasTimer = nil
+                e.status.gasDps = nil
+                e.status.gasRadius = nil
+                e.status.gasAcc = nil
+            end
+        end
+
         if e.maxShield and e.maxShield > 0 and not (e.status and e.status.shieldLocked) then
             e.shieldDelayTimer = (e.shieldDelayTimer or 0) + dt
             if e.shieldDelayTimer >= SHIELD_REGEN_DELAY and e.shield < e.maxShield then
@@ -460,10 +552,23 @@ function enemies.update(state, dt)
             end
         end
 
-        if e.shootInterval then
+        local stunned = e.status.frozen or (e.status.blastTimer and e.status.blastTimer > 0)
+        local targetX, targetY = p.x, p.y
+        if e.status.radiationTimer and e.status.radiationTimer > 0 then
+            local rt = e.status.radiationTarget
+            if rt and rt.health and rt.health > 0 then
+                targetX, targetY = rt.x, rt.y
+            else
+                local ang = e.status.radiationAngle or (math.random() * 6.28)
+                targetX, targetY = e.x + math.cos(ang), e.y + math.sin(ang)
+            end
+        end
+        local angToTarget = math.atan2(targetY - e.y, targetX - e.x)
+
+        if e.shootInterval and not stunned then
             e.shootTimer = (e.shootTimer or e.shootInterval) - dt
             if e.shootTimer <= 0 then
-                local ang = math.atan2(p.y - e.y, p.x - e.x)
+                local ang = angToTarget
                 local spd = e.bulletSpeed or 180
                 local spriteKey = nil
                 if e.kind == 'plant' then spriteKey = 'plant_bullet' end
@@ -481,13 +586,18 @@ function enemies.update(state, dt)
             end
         end
 
-        local angle = math.atan2(p.y - e.y, p.x - e.x)
-        local dxToPlayer = p.x - e.x
-        if math.abs(dxToPlayer) > 1 then
-            e.facing = dxToPlayer >= 0 and 1 or -1
+        local angle = angToTarget
+        local dxToTarget = targetX - e.x
+        if math.abs(dxToTarget) > 1 then
+            e.facing = dxToTarget >= 0 and 1 or -1
         end
-        e.x = e.x + (math.cos(angle) * e.speed + pushX) * dt
-        e.y = e.y + (math.sin(angle) * e.speed + pushY) * dt
+        if stunned then
+            e.x = e.x + pushX * dt
+            e.y = e.y + pushY * dt
+        else
+            e.x = e.x + (math.cos(angle) * e.speed + pushX) * dt
+            e.y = e.y + (math.sin(angle) * e.speed + pushY) * dt
+        end
 
         local pDist = math.sqrt((p.x - e.x)^2 + (p.y - e.y)^2)
         local playerRadius = (p.size or 20) / 2
