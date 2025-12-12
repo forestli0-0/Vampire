@@ -582,26 +582,28 @@ function enemies.update(state, dt)
 
         if e.status.static and e.status.staticTimer and e.status.staticTimer > 0 then
             e.status.staticTimer = e.status.staticTimer - dt
-            e.status.staticAcc = (e.status.staticAcc or 0) + (e.status.staticDps or 0) * dt
-            if e.status.staticAcc >= 1 then
-                local tick = math.floor(e.status.staticAcc)
-                e.status.staticAcc = e.status.staticAcc - tick
-                if tick > 0 then
-                    local radius = e.status.staticRadius or 140
-                    local r2 = radius * radius
-                    applyDotTick(state, e, 'ELECTRIC', tick)
-                    local shown = 0
-                    for _, o in ipairs(state.enemies) do
-                        if o ~= e then
-                            local dx = o.x - e.x
-                            local dy = o.y - e.y
-                            if dx*dx + dy*dy <= r2 then
-                                ensureStatus(o)
-                                applyDotTick(state, o, 'ELECTRIC', tick, {noText=true})
-                                o.status.shockTimer = math.max(o.status.shockTimer or 0, 0.6)
-                                if shown < 6 then
-                                    table.insert(state.chainLinks, {x1=e.x, y1=e.y, x2=o.x, y2=o.y})
-                                    shown = shown + 1
+            if e.health > 0 then
+                e.status.staticAcc = (e.status.staticAcc or 0) + (e.status.staticDps or 0) * dt
+                if e.status.staticAcc >= 1 then
+                    local tick = math.floor(e.status.staticAcc)
+                    e.status.staticAcc = e.status.staticAcc - tick
+                    if tick > 0 then
+                        local radius = e.status.staticRadius or 140
+                        local r2 = radius * radius
+                        applyDotTick(state, e, 'ELECTRIC', tick)
+                        local shown = 0
+                        for _, o in ipairs(state.enemies) do
+                            if o ~= e and o.health > 0 then
+                                local dx = o.x - e.x
+                                local dy = o.y - e.y
+                                if dx*dx + dy*dy <= r2 then
+                                    ensureStatus(o)
+                                    applyDotTick(state, o, 'ELECTRIC', tick, {noText=true})
+                                    o.status.shockTimer = math.max(o.status.shockTimer or 0, 0.6)
+                                    if shown < 6 then
+                                        table.insert(state.chainLinks, {x1=e.x, y1=e.y, x2=o.x, y2=o.y})
+                                        shown = shown + 1
+                                    end
                                 end
                             end
                         end
