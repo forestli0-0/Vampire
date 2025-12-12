@@ -126,10 +126,10 @@ function state.init()
         },
         static_orb = {
             type = 'weapon', name = "Static Orb",
-            desc = "Applies Shock that chains between enemies.",
+            desc = "Electrocutes enemies, dealing AOE DoT and stunning.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'magic', 'electric'},
-            base = { damage=6, cd=1.25, speed=380, effectType='STATIC', duration=2.0, staticRange=160, chain=4, critChance=0.05, critMultiplier=1.5, statusChance=0.4 },
+            base = { damage=6, cd=1.25, speed=380, effectType='STATIC', duration=3.0, staticRange=160, chain=4, critChance=0.05, critMultiplier=1.5, statusChance=0.4 },
             onUpgrade = function(w) w.damage = w.damage + 3; w.cd = w.cd * 0.95 end,
             evolveInfo = { target='thunder_loop', require='duplicator' }
         },
@@ -171,7 +171,7 @@ function state.init()
         },
         thunder_loop = {
             type = 'weapon', name = "Thunder Loop",
-            desc = "Evolved Static Orb. Double shocks forming an electric web.",
+            desc = "Evolved Static Orb. Stronger, larger electric fields.",
             maxLevel = 1,
             tags = {'weapon', 'projectile', 'magic', 'electric'},
             base = { damage=10, cd=1.1, speed=420, effectType='STATIC', duration=3.0, staticRange=220, pierce=1, amount=1, chain=10, allowRepeat=true, statusChance=0.5 },

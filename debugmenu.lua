@@ -43,10 +43,8 @@ local function fireEffectBullet(state, effect)
         if eff == 'MAGNETIC' then
             effectData.shieldMult = 1.75
         elseif eff == 'STATIC' then
-            effectData.duration = 2.5
-            effectData.range = 200
-            effectData.chain = 6
-            effectData.allowRepeat = true
+            effectData.duration = 3.0
+            effectData.range = 160
         elseif eff == 'FIRE' then
             effectData.heatDuration = 6.0
         elseif eff == 'FREEZE' then

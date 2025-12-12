@@ -185,25 +185,16 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
             e.status.impactTimer = math.max(dur, remaining)
         end
     elseif effect == 'STATIC' then
-        local base = baseDamage or ((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.05 * might)
-        local data = {
-            duration = math.max((effectData and effectData.duration) or 2.0, 0),
-            range = (effectData and effectData.range) or 160,
-            remaining = (effectData and effectData.chain) or 3,
-            allowRepeat = (effectData and effectData.allowRepeat) or false,
-            stunDuration = (effectData and effectData.stunDuration) or 3.0,
-            baseDamage = base,
-            tickDamage = math.max(1, math.floor(base * 0.5 + 0.5)),
-            tick = 0.35
-        }
-        if not data.allowRepeat then data.visited = {} end
-        if data.visited then data.visited[e] = true end
+        local dur = math.max((effectData and effectData.duration) or 3.0, 0)
+        local radius = (effectData and (effectData.radius or effectData.range)) or 140
         e.status.static = true
-        e.status.staticTimer = 0
-        e.status.staticDuration = data.duration
-        e.status.staticRange = data.range
-        e.status.staticData = data
-        e.status.shockTimer = math.max(e.status.shockTimer or 0, data.stunDuration or 0.6)
+        e.status.staticTimer = math.max(e.status.staticTimer or 0, dur)
+        local base = baseDamage or ((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.05 * might)
+        local addDps = math.max(1, base * 0.5)
+        e.status.staticDps = (e.status.staticDps or 0) + addDps
+        e.status.staticRadius = math.max(e.status.staticRadius or 0, radius)
+        e.status.staticAcc = e.status.staticAcc or 0
+        e.status.shockTimer = math.max(e.status.shockTimer or 0, dur)
         if state.spawnEffect then state.spawnEffect('static', e.x, e.y) end
     elseif effect == 'MAGNETIC' then
         local dur = (effectData and effectData.duration) or 6.0
@@ -529,66 +520,40 @@ function enemies.update(state, dt)
             end
         end
 
-        if e.status.static then
-            local data = e.status.staticData or {}
-            data.duration = (data.duration or 0) - dt
-            e.status.staticTimer = (e.status.staticTimer or 0) - dt
-            if data.duration <= 0 or (data.remaining or 0) <= 0 then
-                e.status.static = false
-                e.status.staticTimer = nil
-                e.status.staticDuration = nil
-                e.status.staticRange = nil
-                e.status.staticData = nil
-            elseif e.status.staticTimer <= 0 then
-                local visited = data.visited or {}
-                if not data.allowRepeat then
-                    visited[e] = true
-                    data.visited = visited
-                end
-                local nearest, dist2 = nil, (data.range or e.status.staticRange or 160) ^ 2
-                for j, o in ipairs(state.enemies) do
-                    if i ~= j then
-                        if data.allowRepeat or not visited[o] then
+        if e.status.static and e.status.staticTimer and e.status.staticTimer > 0 then
+            e.status.staticTimer = e.status.staticTimer - dt
+            e.status.staticAcc = (e.status.staticAcc or 0) + (e.status.staticDps or 0) * dt
+            if e.status.staticAcc >= 1 then
+                local tick = math.floor(e.status.staticAcc)
+                e.status.staticAcc = e.status.staticAcc - tick
+                if tick > 0 then
+                    local radius = e.status.staticRadius or 140
+                    local r2 = radius * radius
+                    enemies.damageEnemy(state, e, tick, false, 0)
+                    local shown = 0
+                    for _, o in ipairs(state.enemies) do
+                        if o ~= e then
                             local dx = o.x - e.x
                             local dy = o.y - e.y
-                            local d2 = dx*dx + dy*dy
-                            if d2 < dist2 then
-                                dist2 = d2
-                                nearest = o
+                            if dx*dx + dy*dy <= r2 then
+                                ensureStatus(o)
+                                enemies.damageEnemy(state, o, tick, false, 0, false, {noText=true})
+                                o.status.shockTimer = math.max(o.status.shockTimer or 0, 0.6)
+                                if shown < 6 then
+                                    table.insert(state.chainLinks, {x1=e.x, y1=e.y, x2=o.x, y2=o.y})
+                                    shown = shown + 1
+                                end
                             end
                         end
                     end
                 end
-                if nearest then
-                    ensureStatus(nearest)
-                    local staticDmg = data.tickDamage
-                    if not staticDmg or staticDmg <= 0 then
-                        local base = data.baseDamage or ((e.maxHealth or e.maxHp or 10) * 0.05 * playerMight)
-                        staticDmg = math.max(1, math.floor(base * 0.5 + 0.5))
-                    end
-                    enemies.damageEnemy(state, nearest, staticDmg, false, 0)
-                    if not data.allowRepeat then visited[nearest] = true end
-                    data.remaining = (data.remaining or 1) - 1
-                    table.insert(state.chainLinks, {x1=e.x, y1=e.y, x2=nearest.x, y2=nearest.y})
-                    nearest.status.static = true
-                    nearest.status.staticTimer = data.tick or 0.35
-                    nearest.status.staticDuration = data.duration
-                    nearest.status.staticRange = data.range
-                    nearest.status.staticData = data
-                    nearest.status.shockTimer = math.max(nearest.status.shockTimer or 0, data.stunDuration or 0.6)
-                    if state.spawnEffect then state.spawnEffect('static', nearest.x, nearest.y) end
-                    e.status.static = false
-                    e.status.staticTimer = nil
-                    e.status.staticDuration = nil
-                    e.status.staticRange = nil
-                    e.status.staticData = nil
-                else
-                    e.status.static = false
-                    e.status.staticTimer = nil
-                    e.status.staticDuration = nil
-                    e.status.staticRange = nil
-                    e.status.staticData = nil
-                end
+            end
+            if e.status.staticTimer <= 0 then
+                e.status.static = false
+                e.status.staticTimer = nil
+                e.status.staticDps = nil
+                e.status.staticRadius = nil
+                e.status.staticAcc = nil
             end
         end
 
