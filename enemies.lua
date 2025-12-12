@@ -14,7 +14,17 @@ local function ensureStatus(e)
             oiled = false,
             static = false,
             bleedStacks = 0,
-            burnTimer = 0
+            burnTimer = 0,
+            magneticTimer = 0,
+            viralStacks = 0,
+            viralTimer = 0,
+            heatArmorLoss = 0,
+            heatTimer = 0,
+            toxinTimer = 0,
+            toxinDps = 0,
+            toxinAcc = 0,
+            corrosiveStacks = 0,
+            shieldLocked = false
         }
     end
     e.baseSpeed = e.baseSpeed or e.speed
@@ -26,6 +36,15 @@ local function ensureStatus(e)
     e.maxShield = e.maxShield or e.shield
     e.armor = e.armor or 0
     if e.shieldDelayTimer == nil then e.shieldDelayTimer = 0 end
+end
+
+local function getEffectiveArmor(e)
+    local armor = (e and e.armor) or 0
+    if e and e.status then
+        if e.status.heatArmorLoss then armor = armor - e.status.heatArmorLoss end
+    end
+    if armor < 0 then armor = 0 end
+    return armor
 end
 
 local function applyArmorReduction(dmg, armor)
@@ -66,6 +85,14 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
             e.status.bleedStacks = 0
         end
     elseif effect == 'FIRE' then
+        -- Heat proc: temporary 50% armor reduction always applies
+        local lossTarget = (e.armor or 0) * 0.5
+        if lossTarget > (e.status.heatArmorLoss or 0) then
+            e.status.heatArmorLoss = lossTarget
+        end
+        e.status.heatTimer = math.max(e.status.heatTimer or 0, (effectData and effectData.heatDuration) or 4.0)
+
+        -- Ignite / burn DoT remains tied to oil synergy (current balance)
         if e.status.oiled then
             e.status.burnTimer = 5
             e.status.oiled = false
@@ -76,7 +103,11 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
     elseif effect == 'HEAVY' then
         if e.status.frozen then
             local extra = math.floor((baseDamage or 0) * 2)
-            if extra > 0 then enemies.damageEnemy(state, e, extra, false, 0) end
+            -- Fallback: if base damage is 0 (e.g. debug tool), deal 10% max HP damage
+            if extra <= 0 then
+                extra = math.floor((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.1)
+            end
+            if extra > 0 then enemies.damageEnemy(state, e, extra, false, 0, false) end
             e.status.frozen = false
             e.status.frozenTimer = nil
             e.speed = e.baseSpeed or e.speed
@@ -98,6 +129,23 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         e.status.staticRange = data.range
         e.status.staticData = data
         if state.spawnEffect then state.spawnEffect('static', e.x, e.y) end
+    elseif effect == 'MAGNETIC' then
+        e.status.magneticTimer = math.max(e.status.magneticTimer or 0, (effectData and effectData.duration) or 6.0)
+        e.status.magneticMult = (effectData and effectData.shieldMult) or 1.75
+        e.status.shieldLocked = true
+        if state.spawnEffect then state.spawnEffect('static', e.x, e.y) end
+    elseif effect == 'CORROSIVE' then
+        e.status.corrosiveStacks = (e.status.corrosiveStacks or 0) + 1
+        local strip = math.max(1, math.floor((e.armor or 0) * 0.25))
+        e.armor = math.max(0, (e.armor or 0) - strip)
+    elseif effect == 'VIRAL' then
+        e.status.viralStacks = math.min(10, (e.status.viralStacks or 0) + 1)
+        e.status.viralTimer = math.max((effectData and effectData.duration) or 6.0, e.status.viralTimer or 0)
+    elseif effect == 'TOXIN' then
+        e.status.toxinTimer = math.max((effectData and effectData.duration) or 4.0, e.status.toxinTimer or 0)
+        local base = baseDamage or ((e.maxHealth or e.health or 0) * 0.05)
+        e.status.toxinDps = math.max(1, base * might * 0.5)
+        e.status.toxinAcc = 0
     end
 end
 
@@ -136,6 +184,9 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
         shield = shield,
         maxShield = shield,
         armor = armor,
+        noContactDamage = def.noContactDamage,
+        noDrops = def.noDrops,
+        isDummy = def.isDummy,
         speed = speed,
         color = color,
         size = size,
@@ -156,6 +207,16 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
     ensureStatus(state.enemies[#state.enemies])
 end
 
+local function resetDummy(e)
+    if not e or not e.isDummy then return end
+    e.health = e.maxHealth or e.health or 0
+    e.hp = e.health
+    e.shield = e.maxShield or e.shield or 0
+    e.status = nil
+    e.shieldDelayTimer = 0
+    ensureStatus(e)
+end
+
 function enemies.findNearestEnemy(state, maxDist)
     local t, m = nil, (maxDist or 999999) ^ 2
     for _, e in ipairs(state.enemies) do
@@ -165,7 +226,8 @@ function enemies.findNearestEnemy(state, maxDist)
     return t
 end
 
-function enemies.damageEnemy(state, e, dmg, knock, kForce, isCrit)
+function enemies.damageEnemy(state, e, dmg, knock, kForce, isCrit, opts)
+    opts = opts or {}
     ensureStatus(e)
     local incoming = dmg or 0
     if incoming <= 0 then return 0 end
@@ -175,21 +237,29 @@ function enemies.damageEnemy(state, e, dmg, knock, kForce, isCrit)
 
     local remaining = incoming
     local shieldHit = 0
-    if e.shield and e.shield > 0 then
-        shieldHit = math.min(remaining, e.shield)
+    if not opts.bypassShield and e.shield and e.shield > 0 then
+        local mult = opts.shieldMult or 1
+        local eff = remaining * mult
+        shieldHit = math.min(e.shield, eff)
         e.shield = e.shield - shieldHit
-        remaining = remaining - shieldHit
+        local consumed = shieldHit / mult
+        remaining = math.max(0, remaining - consumed)
     end
 
     local healthHit = 0
     if remaining > 0 then
-        local reduced = applyArmorReduction(remaining, e.armor)
-        healthHit = math.max(0, math.floor(reduced + 0.5))
+        local armor = opts.ignoreArmor and 0 or getEffectiveArmor(e)
+        local reduced = applyArmorReduction(remaining, armor)
+        local viralMult = opts.viralMultiplier or 1
+        healthHit = math.max(0, math.floor(reduced * viralMult + 0.5))
         e.health = e.health - healthHit
         e.hp = e.health
     end
     e.maxHp = e.maxHealth
     e.shieldDelayTimer = 0
+    if opts.lockShield then
+        e.status.shieldLocked = true
+    end
     local appliedTotal = shieldHit + healthHit
 
     local color = {1,1,1}
@@ -200,14 +270,18 @@ function enemies.damageEnemy(state, e, dmg, knock, kForce, isCrit)
     elseif shieldHit > 0 and healthHit == 0 then
         color = {0.4, 0.7, 1}
     end
-    if appliedTotal > 0 then
+    if appliedTotal > 0 and not opts.noText then
         local shown = math.floor(appliedTotal + 0.5)
-        table.insert(state.texts, {x=e.x, y=e.y-20, text=shown, color=color, life=0.5, scale=scale})
+        local textOffsetY = opts.textOffsetY or 0
+        table.insert(state.texts, {x=e.x, y=e.y-20 + textOffsetY, text=shown, color=color, life=0.5, scale=scale})
     end
     if knock then
         local a = math.atan2(e.y - state.player.y, e.x - state.player.x)
         e.x = e.x + math.cos(a) * (kForce or 10)
         e.y = e.y + math.sin(a) * (kForce or 10)
+    end
+    if e.isDummy and e.health <= 0 then
+        resetDummy(e)
     end
     return appliedTotal
 end
@@ -314,7 +388,48 @@ function enemies.update(state, dt)
             end
         end
 
-        if e.maxShield and e.maxShield > 0 then
+        if e.status.magneticTimer and e.status.magneticTimer > 0 then
+            e.status.magneticTimer = e.status.magneticTimer - dt
+            e.status.shieldLocked = true
+            if e.status.magneticTimer <= 0 then
+                e.status.magneticTimer = nil
+                e.status.magneticMult = nil
+                e.status.shieldLocked = false
+            end
+        end
+
+        if e.status.viralTimer and e.status.viralTimer > 0 then
+            e.status.viralTimer = e.status.viralTimer - dt
+            if e.status.viralTimer <= 0 then
+                e.status.viralTimer = nil
+                e.status.viralStacks = 0
+            end
+        end
+
+        if e.status.heatTimer and e.status.heatTimer > 0 then
+            e.status.heatTimer = e.status.heatTimer - dt
+            if e.status.heatTimer <= 0 then
+                e.status.heatTimer = nil
+                e.status.heatArmorLoss = 0
+            end
+        end
+
+        if e.status.toxinTimer and e.status.toxinTimer > 0 then
+            e.status.toxinTimer = e.status.toxinTimer - dt
+            e.status.toxinAcc = (e.status.toxinAcc or 0) + (e.status.toxinDps or 0) * dt
+            if e.status.toxinAcc >= 1 then
+                local tick = math.floor(e.status.toxinAcc)
+                e.status.toxinAcc = e.status.toxinAcc - tick
+                enemies.damageEnemy(state, e, tick, false, 0, false, {bypassShield=true, ignoreArmor=true})
+            end
+            if e.status.toxinTimer <= 0 then
+                e.status.toxinTimer = nil
+                e.status.toxinDps = nil
+                e.status.toxinAcc = nil
+            end
+        end
+
+        if e.maxShield and e.maxShield > 0 and not (e.status and e.status.shieldLocked) then
             e.shieldDelayTimer = (e.shieldDelayTimer or 0) + dt
             if e.shieldDelayTimer >= SHIELD_REGEN_DELAY and e.shield < e.maxShield then
                 local regen = e.maxShield * SHIELD_REGEN_RATE * dt
@@ -377,25 +492,32 @@ function enemies.update(state, dt)
         local pDist = math.sqrt((p.x - e.x)^2 + (p.y - e.y)^2)
         local playerRadius = (p.size or 20) / 2
         local enemyRadius = (e.size or 16) / 2
-        if pDist < (playerRadius + enemyRadius) then
+        if pDist < (playerRadius + enemyRadius) and not e.noContactDamage then
             player.hurt(state, 10)
         end
 
         if e.health <= 0 then
-            if e.isElite then
-                table.insert(state.chests, {x=e.x, y=e.y, w=20, h=20})
-            else
-                if math.random() < 0.01 then
-                    local kinds = {'chicken','magnet','bomb'}
-                    local kind = kinds[math.random(#kinds)]
-                    table.insert(state.floorPickups, {x=e.x, y=e.y, size=14, kind=kind})
+            if e.isDummy then
+                resetDummy(e)
+                goto continue_enemy
+            end
+            if not e.noDrops then
+                if e.isElite then
+                    table.insert(state.chests, {x=e.x, y=e.y, w=20, h=20})
                 else
-                    table.insert(state.gems, {x=e.x, y=e.y, value=1})
+                    if math.random() < 0.01 then
+                        local kinds = {'chicken','magnet','bomb'}
+                        local kind = kinds[math.random(#kinds)]
+                        table.insert(state.floorPickups, {x=e.x, y=e.y, size=14, kind=kind})
+                    else
+                        table.insert(state.gems, {x=e.x, y=e.y, value=1})
+                    end
                 end
             end
             logger.kill(state, e)
             table.remove(state.enemies, i)
         end
+        ::continue_enemy::
     end
 end
 

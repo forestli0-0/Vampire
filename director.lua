@@ -15,6 +15,14 @@ function director.update(state, dt)
         table.insert(state.texts, {x=state.player.x, y=state.player.y-100, text="ELITE BAT!", color={1,0,0}, life=3})
     end
 
+    if state.testArena then
+        if #state.enemies == 0 then
+            local dummyKey = (state.debug and state.debug.selectedDummy) or 'dummy_pole'
+            enemies.spawnEnemy(state, dummyKey, false, state.player.x + 140, state.player.y)
+        end
+        return
+    end
+
     state.spawnTimer = state.spawnTimer - dt
     if state.spawnTimer <= 0 then
         local pool = {}

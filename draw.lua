@@ -171,8 +171,10 @@ function draw.render(state)
         local hr = math.max(0, math.min(1, (e.health or e.hp or 0) / (e.maxHealth or e.maxHp or 1)))
         love.graphics.setColor(1, 0.2, 0.2)
         love.graphics.rectangle('fill', barX, barY, barW * hr, 4)
-        if e.armor and e.armor > 0 then
-            local dr = e.armor / (e.armor + 300)
+        local armorVal = e.armor or 0
+        if e.status and e.status.heatArmorLoss then armorVal = armorVal - e.status.heatArmorLoss end
+        if armorVal and armorVal > 0 then
+            local dr = armorVal / (armorVal + 300)
             if dr > 0.9 then dr = 0.9 end
             love.graphics.setColor(1, 0.9, 0.2)
             love.graphics.rectangle('fill', barX, barY + 5, barW * dr, 2)

@@ -112,10 +112,12 @@ function pickups.updateFloorPickups(state, dt)
                 local halfW, halfH = w/2 + 50, h/2 + 50
                 for ei = #state.enemies, 1, -1 do
                     local e = state.enemies[ei]
+                    if e.isDummy then goto continue_enemy end
                     if math.abs(e.x - p.x) <= halfW and math.abs(e.y - p.y) <= halfH then
                         e.health = 0
                         e.hp = 0
                     end
+                    ::continue_enemy::
                 end
                 state.shakeAmount = 5
                 if state.playSfx then state.playSfx('hit') end

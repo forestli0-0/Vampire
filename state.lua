@@ -8,6 +8,7 @@ function state.init()
     state.gameState = 'PLAYING'
     state.benchmarkMode = false -- true when running benchmark to suppress level-ups
     state.noLevelUps = false
+    state.testArena = false
     state.pendingLevelUps = 0
     state.gameTimer = 0
     state.font = love.graphics.newFont(14)

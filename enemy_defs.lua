@@ -41,6 +41,50 @@ local enemyDefs = {
         bulletLife = 5,
         bulletSize = 10
     },
+    dummy_pole = {
+        hp = 800,
+        shield = 0,
+        armor = 0,
+        speed = 0,
+        size = 24,
+        color = {0.8, 0.8, 0.8},
+        noContactDamage = true,
+        noDrops = true,
+        isDummy = true
+    },
+    dummy_shield = {
+        hp = 600,
+        shield = 300,
+        armor = 0,
+        speed = 0,
+        size = 24,
+        color = {0.6, 0.8, 1.0},
+        noContactDamage = true,
+        noDrops = true,
+        isDummy = true
+    },
+    dummy_armor = {
+        hp = 600,
+        shield = 0,
+        armor = 250,
+        speed = 0,
+        size = 24,
+        color = {1.0, 0.9, 0.4},
+        noContactDamage = true,
+        noDrops = true,
+        isDummy = true
+    },
+    dummy_full = {
+        hp = 600,
+        shield = 220,
+        armor = 150,
+        speed = 0,
+        size = 24,
+        color = {0.7, 0.9, 0.9},
+        noContactDamage = true,
+        noDrops = true,
+        isDummy = true
+    },
     shield_lancer = {
         hp = 22,
         shield = 24,

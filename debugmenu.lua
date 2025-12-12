@@ -5,7 +5,10 @@ local enemyDefs = require('enemy_defs')
 
 local debugmenu = {}
 
-local modes = {'weapon', 'passive', 'xp', 'enemy'}
+local modes = {'weapon', 'passive', 'xp', 'enemy', 'test', 'effect'}
+local effectOptions = {
+    'NONE','FIRE','FREEZE','STATIC','BLEED','OIL','HEAVY','MAGNETIC','CORROSIVE','VIRAL','TOXIN'
+}
 
 local function cloneStats(base)
     local copy = {}
@@ -14,6 +17,59 @@ local function cloneStats(base)
     if copy.pierce == nil then copy.pierce = 1 end
     if copy.amount == nil then copy.amount = 0 end
     return copy
+end
+
+local function fireEffectBullet(state, effect)
+    local target = enemies.findNearestEnemy(state, 1200)
+    local px, py = state.player.x, state.player.y
+    local tx, ty
+    if target then
+        tx, ty = target.x, target.y
+    else
+        tx, ty = px + 300, py
+    end
+    local ang = math.atan2((ty or py) - py, (tx or px) - px)
+    local speed = 520
+    local dmg = state.debug.effectDamage or 0
+    local eff = effect or 'NONE'
+    local effectData = nil
+    local effectType = nil
+    if eff ~= 'NONE' then
+        effectType = eff
+        effectData = {}
+        if eff == 'MAGNETIC' or eff == 'VIRAL' or eff == 'TOXIN' then
+            effectData.duration = 6.0
+        end
+        if eff == 'MAGNETIC' then
+            effectData.shieldMult = 1.75
+        elseif eff == 'STATIC' then
+            effectData.duration = 2.5
+            effectData.range = 200
+            effectData.chain = 6
+            effectData.allowRepeat = true
+        elseif eff == 'FIRE' then
+            effectData.heatDuration = 4.0
+        elseif eff == 'FREEZE' then
+            effectData.duration = 1.2
+        end
+    end
+    table.insert(state.bullets, {
+        type = 'debug_effect',
+        x = px, y = py,
+        vx = math.cos(ang) * speed, vy = math.sin(ang) * speed,
+        life = 2.0,
+        size = 16,
+        damage = dmg,
+        effectType = effectType,
+        effectDuration = effectData and effectData.duration,
+        effectRange = effectData and effectData.range,
+        chain = effectData and effectData.chain,
+        allowRepeat = effectData and effectData.allowRepeat,
+        weaponTags = {'debug'},
+        statusChance = 1.0,
+        critChance = 0,
+        critMultiplier = 1.5
+    })
 end
 
 local function rebuildWeapon(state, key, level)
@@ -69,12 +125,16 @@ local function buildLists(state)
     state.debug.weaponList = weaponsList
     state.debug.passiveList = passivesList
 
-    local enemyList = {}
+    local enemyList, dummyList = {}, {}
     for key, _ in pairs(enemyDefs or {}) do
         table.insert(enemyList, key)
+        if key:match("^dummy_") then table.insert(dummyList, key) end
     end
     table.sort(enemyList)
+    table.sort(dummyList)
     state.debug.enemyList = enemyList
+    state.debug.dummyList = dummyList
+    state.debug.effectList = effectOptions
 end
 
 local function grantXp(state, amount)
@@ -97,6 +157,10 @@ function debugmenu.init(state)
     state.debug.passiveIdx = 1
     state.debug.enemyIdx = 1
     state.debug.xpStep = 50
+    state.debug.dummyIdx = 1
+    state.debug.effectIdx = 1
+    state.debug.effectDamage = 50
+    state.debug.fireEffect = fireEffectBullet
     buildLists(state)
 end
 
@@ -183,6 +247,43 @@ function debugmenu.keypressed(state, key)
             end
             return true
         end
+    elseif mode == 'test' then
+        if key == 'up' then
+            state.debug.dummyIdx = clampIndex(state.debug.dummyIdx - 1, state.debug.dummyList)
+            return true
+        elseif key == 'down' then
+            state.debug.dummyIdx = clampIndex(state.debug.dummyIdx + 1, state.debug.dummyList)
+            return true
+        elseif key == 'left' or key == 'backspace' then
+            state.testArena = not state.testArena
+            if not state.testArena then state.debug.selectedDummy = nil end
+            return true
+        elseif key == 'right' or key == 'return' then
+            local keyName = state.debug.dummyList[state.debug.dummyIdx] or 'dummy_pole'
+            state.debug.selectedDummy = keyName
+            for i = #state.enemies, 1, -1 do table.remove(state.enemies, i) end
+            enemies.spawnEnemy(state, keyName, false, state.player.x + 140, state.player.y)
+            state.testArena = true
+            return true
+        end
+    elseif mode == 'effect' then
+        if key == 'up' then
+            state.debug.effectIdx = clampIndex(state.debug.effectIdx - 1, state.debug.effectList)
+            return true
+        elseif key == 'down' then
+            state.debug.effectIdx = clampIndex(state.debug.effectIdx + 1, state.debug.effectList)
+            return true
+        elseif key == 'left' or key == 'backspace' then
+            state.debug.effectDamage = math.max(0, (state.debug.effectDamage or 0) - 10)
+            return true
+        elseif key == 'right' then
+            state.debug.effectDamage = (state.debug.effectDamage or 0) + 10
+            return true
+        elseif key == 'return' then
+            local effect = state.debug.effectList[state.debug.effectIdx] or 'NONE'
+            if state.debug.fireEffect then state.debug.fireEffect(state, effect) end
+            return true
+        end
     end
 
     return false
@@ -225,6 +326,20 @@ function debugmenu.draw(state)
         local list = state.debug.enemyList
         local keyName = list[state.debug.enemyIdx] or "N/A"
         love.graphics.print(string.format("Enemy: [%s] | Up/Down to pick, Right/Enter to spawn near player", keyName), 20, y)
+    elseif mode == 'test' then
+        local list = state.debug.dummyList
+        local keyName = list[state.debug.dummyIdx] or "N/A"
+        love.graphics.print(string.format("Test Arena: %s | Dummy: [%s]", state.testArena and "ON" or "OFF", keyName), 20, y)
+        y = y + 20
+        love.graphics.print("Right/Enter: clear & spawn dummy near player (enables test arena)", 20, y)
+        y = y + 20
+        love.graphics.print("Left/Backspace: toggle test arena on/off (spawns only selected dummy when on)", 20, y)
+    elseif mode == 'effect' then
+        local list = state.debug.effectList
+        local keyName = list[state.debug.effectIdx] or "N/A"
+        love.graphics.print(string.format("Effect Shot: [%s] | Damage: %d", keyName, state.debug.effectDamage or 0), 20, y)
+        y = y + 20
+        love.graphics.print("Up/Down select effect | Left/Backspace -10 dmg | Right +10 dmg | Enter: fire test bullet", 20, y)
     end
 end
 
