@@ -74,6 +74,13 @@ local function ensureStatus(e)
     e.shield = e.shield or 0
     e.maxShield = e.maxShield or e.shield
     e.armor = e.armor or 0
+    e.healthType = e.healthType or 'FLESH'
+    if e.maxShield and e.maxShield > 0 then
+        e.shieldType = e.shieldType or 'SHIELD'
+    end
+    if e.armor and e.armor > 0 then
+        e.armorType = e.armorType or 'FERRITE_ARMOR'
+    end
     if e.shieldDelayTimer == nil then e.shieldDelayTimer = 0 end
 end
 
@@ -283,6 +290,9 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
         shield = shield,
         maxShield = shield,
         armor = armor,
+        healthType = def.healthType or 'FLESH',
+        shieldType = def.shieldType or (shield > 0 and 'SHIELD' or nil),
+        armorType = def.armorType or (armor > 0 and 'FERRITE_ARMOR' or nil),
         noContactDamage = def.noContactDamage,
         noDrops = def.noDrops,
         isDummy = def.isDummy,

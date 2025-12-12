@@ -26,6 +26,34 @@ local ELEMENT_TO_EFFECT = {
     OIL='OIL'
 }
 
+-- Warframe Damage 2.0 style type modifiers (percentages converted to multipliers).
+-- Keys use our internal damage names (ELECTRIC not ELECTRICITY) and defense names.
+local DEFENSE_MODIFIERS = {
+    FLESH = {IMPACT=0.75, SLASH=1.25, TOXIN=1.5, GAS=0.75, VIRAL=1.5},
+    CLONED_FLESH = {IMPACT=0.75, SLASH=1.25, HEAT=1.25, GAS=0.5, VIRAL=1.75},
+    FOSSILIZED = {SLASH=1.15, COLD=0.75, TOXIN=0.5, BLAST=1.5, CORROSIVE=1.75, RADIATION=0.25},
+    INFESTED = {SLASH=1.25, HEAT=1.25, GAS=1.75, RADIATION=0.5, VIRAL=0.5},
+    INFESTED_FLESH = {SLASH=1.5, COLD=0.5, HEAT=1.5, GAS=1.5},
+    INFESTED_SINEW = {PUNCTURE=1.25, COLD=1.25, BLAST=0.5, RADIATION=1.5},
+    MACHINERY = {IMPACT=1.25, ELECTRIC=1.5, BLAST=1.75, TOXIN=0.75, VIRAL=0.75},
+    ROBOTIC = {PUNCTURE=1.25, SLASH=0.75, ELECTRIC=1.5, TOXIN=0.75, RADIATION=1.25},
+    OBJECT = {},
+    SHIELD = {IMPACT=1.5, PUNCTURE=0.8, COLD=1.5, MAGNETIC=1.75, RADIATION=0.75},
+    PROTO_SHIELD = {IMPACT=1.15, PUNCTURE=0.5, HEAT=0.5, CORROSIVE=0.5, MAGNETIC=1.75},
+    FERRITE_ARMOR = {PUNCTURE=1.5, SLASH=0.85, BLAST=0.75, CORROSIVE=1.75},
+    ALLOY_ARMOR = {PUNCTURE=1.15, SLASH=0.5, COLD=1.25, ELECTRIC=0.5, MAGNETIC=0.5, RADIATION=1.75},
+    INDIFFERENT_FACADE = {PUNCTURE=1.25, SLASH=0.5, ELECTRIC=1.25, RADIATION=1.75, VIRAL=0.5, VOID=1.25}
+}
+
+local function getTypeModifier(dmgType, defenseType)
+    local d = string.upper(dmgType or '')
+    if d == 'ELECTRICITY' then d = 'ELECTRIC' end
+    local t = string.upper(defenseType or '')
+    local row = DEFENSE_MODIFIERS[t]
+    if row and row[d] then return row[d] end
+    return 1
+end
+
 local function combineElements(elements, damageByType)
     if not elements or #elements == 0 then return elements, damageByType end
     local out = {}
@@ -259,22 +287,62 @@ function calculator.applyDamage(state, enemy, instance, opts)
     local dmgByType = instance.damageByType or {}
     local hasTypes = next(dmgByType) ~= nil
     if hasTypes then
-        for elem, baseAmt in pairs(dmgByType) do
-            local amt = math.floor((baseAmt or 0) * mult + 0.5)
-            if amt > 0 then
-                local perOpts = {}
-                for k, v in pairs(opts) do perOpts[k] = v end
-                if string.upper(elem) == 'TOXIN' then
-                    perOpts.bypassShield = true
-                end
-                perOpts.noText = true
-                perOpts.noFlash = true
-                perOpts.noSfx = true
-                local applied, sh, hp = enemies.damageEnemy(state, enemy, amt, false, 0, isCrit, perOpts)
-                totalApplied = totalApplied + (applied or 0)
-                totalShield = totalShield + (sh or 0)
-                totalHealth = totalHealth + (hp or 0)
+        local function applySegment(elemKey, baseAmt)
+            local perOpts = {}
+            for k, v in pairs(opts) do perOpts[k] = v end
+
+            local key = string.upper(elemKey or '')
+            if key == 'ELECTRICITY' then key = 'ELECTRIC' end
+            if key == 'TOXIN' then
+                perOpts.bypassShield = true
             end
+
+            local amt = (baseAmt or 0) * mult
+            if amt <= 0 then return end
+
+            local remain = amt
+            local shieldHit = 0
+            if not perOpts.bypassShield and enemy.shield and enemy.shield > 0 then
+                local mShield = getTypeModifier(key, enemy.shieldType or 'SHIELD') * (perOpts.shieldMult or 1)
+                if mShield < 0 then mShield = 0 end
+                local effShield = remain * mShield
+                shieldHit = math.min(enemy.shield, effShield)
+                enemy.shield = enemy.shield - shieldHit
+                local consumed = mShield > 0 and (shieldHit / mShield) or 0
+                remain = math.max(0, remain - consumed)
+                enemy.shieldDelayTimer = 0
+                if perOpts.lockShield and enemy.status then
+                    enemy.status.shieldLocked = true
+                end
+            end
+
+            if shieldHit > 0 then
+                totalShield = totalShield + shieldHit
+                totalApplied = totalApplied + shieldHit
+            end
+
+            if remain > 0 then
+                local mHealth = getTypeModifier(key, enemy.healthType or 'FLESH')
+                local mArmor = 1
+                if (enemy.armor or 0) > 0 then
+                    mArmor = getTypeModifier(key, enemy.armorType or 'FERRITE_ARMOR')
+                end
+                local effRemain = remain * mHealth * mArmor
+                local finalAmt = math.floor(effRemain + 0.5)
+                if finalAmt > 0 then
+                    perOpts.bypassShield = true
+                    perOpts.noText = true
+                    perOpts.noFlash = true
+                    perOpts.noSfx = true
+                    local applied, _, hp = enemies.damageEnemy(state, enemy, finalAmt, false, 0, isCrit, perOpts)
+                    totalApplied = totalApplied + (applied or 0)
+                    totalHealth = totalHealth + (hp or 0)
+                end
+            end
+        end
+
+        for elem, baseAmt in pairs(dmgByType) do
+            applySegment(elem, baseAmt)
         end
     else
         local base = instance.damage or 0

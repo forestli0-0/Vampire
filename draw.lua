@@ -99,6 +99,11 @@ local function drawStatsPanel(state)
         local baseArmor = math.floor(target.baseArmor or armor or 0)
         local header = string.format("%s  HP %d/%d  SH %d/%d  ARM %d/%d", kind, hp, maxHp, sh, maxSh, armor, baseArmor)
         table.insert(lines, header)
+        local hType = target.healthType or 'FLESH'
+        local sType = target.shieldType or (maxSh > 0 and 'SHIELD' or nil)
+        local aType = target.armorType or (baseArmor > 0 and 'FERRITE_ARMOR' or nil)
+        local typeStr = string.format("Types: H=%s  S=%s  A=%s", hType, sType or '-', aType or '-')
+        table.insert(lines, typeStr)
 
         if st.frozen and (st.frozenTimer or 0) > 0 then
             table.insert(lines, string.format("Frozen: %.1fs", st.frozenTimer or 0))
