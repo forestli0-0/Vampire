@@ -601,7 +601,19 @@ function draw.render(state)
         love.graphics.printf("VICTORY!", 0, h/2 - 70, w, "center")
         love.graphics.setFont(state.font)
         love.graphics.setColor(1,1,1)
-        love.graphics.printf("Boss defeated. Press R to return to Arsenal", 0, h/2, w, "center")
+        local rewards = state.victoryRewards or {}
+        local rewardStr = ""
+        if rewards.currency and rewards.currency > 0 then
+            rewardStr = rewardStr .. string.format("+%d Credits", rewards.currency)
+        end
+        if rewards.newModName then
+            if rewardStr ~= "" then rewardStr = rewardStr .. "  |  " end
+            rewardStr = rewardStr .. "New Mod: " .. rewards.newModName
+        end
+        if rewardStr ~= "" then
+            love.graphics.printf(rewardStr, 0, h/2 - 10, w, "center")
+        end
+        love.graphics.printf("Boss defeated. Press R to return to Arsenal", 0, h/2 + 20, w, "center")
     end
 
     if state.gameState == 'GAME_OVER' then

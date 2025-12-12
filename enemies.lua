@@ -747,6 +747,28 @@ function enemies.update(state, dt)
                 goto continue_enemy
             end
             if e.isBoss then
+                local rewardCurrency = 100
+                local newModKey = nil
+                if state.profile and state.catalog then
+                    state.profile.ownedMods = state.profile.ownedMods or {}
+                    local locked = {}
+                    for key, def in pairs(state.catalog) do
+                        if def.type == 'mod' and not state.profile.ownedMods[key] then
+                            table.insert(locked, key)
+                        end
+                    end
+                    if #locked > 0 then
+                        newModKey = locked[math.random(#locked)]
+                        state.profile.ownedMods[newModKey] = true
+                    end
+                    state.profile.currency = (state.profile.currency or 0) + rewardCurrency
+                    if state.saveProfile then state.saveProfile(state.profile) end
+                end
+                state.victoryRewards = {
+                    currency = rewardCurrency,
+                    newModKey = newModKey,
+                    newModName = (newModKey and state.catalog and state.catalog[newModKey] and state.catalog[newModKey].name) or nil
+                }
                 state.gameState = 'GAME_CLEAR'
                 state.directorState = state.directorState or {}
                 state.directorState.bossDefeated = true

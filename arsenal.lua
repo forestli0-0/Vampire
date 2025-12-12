@@ -33,6 +33,10 @@ local function isEquipped(profile, key)
     return profile and profile.equippedMods and profile.equippedMods[key]
 end
 
+local function isOwned(profile, key)
+    return profile and profile.ownedMods and profile.ownedMods[key]
+end
+
 local function ensureOrder(profile, key)
     profile.modOrder = profile.modOrder or {}
     for _, k in ipairs(profile.modOrder) do
@@ -81,6 +85,10 @@ end
 function arsenal.toggleEquip(state, modKey)
     local profile = state.profile
     if not profile then return end
+    if not isOwned(profile, modKey) then
+        setMessage(state, "Locked mod")
+        return
+    end
 
     profile.equippedMods = profile.equippedMods or {}
     profile.modRanks = profile.modRanks or {}
@@ -179,11 +187,13 @@ function arsenal.draw(state)
     local list = a.modList or {}
 
     love.graphics.setColor(1, 1, 1)
-    love.graphics.print("Available Mods", leftX, topY - 30)
+    local credits = (state.profile and state.profile.currency) or 0
+    love.graphics.print("Available Mods   Credits: " .. tostring(credits), leftX, topY - 30)
 
     for i, key in ipairs(list) do
         local def = state.catalog[key]
         local name = (def and def.name) or key
+        local owned = isOwned(state.profile, key)
         local equipped = isEquipped(state.profile, key)
         local rank = (state.profile and state.profile.modRanks and state.profile.modRanks[key]) or 1
         local maxLv = (def and def.maxLevel) or 1
@@ -194,9 +204,14 @@ function arsenal.draw(state)
             love.graphics.rectangle('fill', leftX - 10, y - 2, 320, lineH)
         end
 
-        love.graphics.setColor(1, 1, 1)
-        local tag = equipped and string.format("[E] R%d/%d ", rank, maxLv) or "    "
-        love.graphics.print(tag .. name, leftX, y)
+        if owned then
+            love.graphics.setColor(1, 1, 1)
+            local tag = equipped and string.format("[E] R%d/%d ", rank, maxLv) or "    "
+            love.graphics.print(tag .. name, leftX, y)
+        else
+            love.graphics.setColor(0.5, 0.5, 0.5, 0.9)
+            love.graphics.print("[LOCK] " .. name, leftX, y)
+        end
     end
 
     local rightX = w * 0.55
@@ -239,4 +254,3 @@ function arsenal.draw(state)
 end
 
 return arsenal
-

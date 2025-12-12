@@ -28,7 +28,19 @@ local function serializeLua(value, depth)
 end
 
 local function defaultProfile()
-    return { modRanks = {}, equippedMods = {}, modOrder = {} }
+    return {
+        modRanks = {},
+        equippedMods = {},
+        modOrder = {},
+        ownedMods = {
+            mod_serration = true,
+            mod_split_chamber = true,
+            mod_point_strike = true,
+            mod_vital_sense = true,
+            mod_status_matrix = true
+        },
+        currency = 0
+    }
 end
 
 function state.loadProfile()
@@ -45,6 +57,15 @@ function state.loadProfile()
     profile.modRanks = profile.modRanks or {}
     profile.equippedMods = profile.equippedMods or {}
     profile.modOrder = profile.modOrder or {}
+    profile.ownedMods = profile.ownedMods or {}
+    if next(profile.ownedMods) == nil then
+        for k, v in pairs(defaultProfile().ownedMods) do
+            profile.ownedMods[k] = v
+        end
+    end
+    for k, _ in pairs(profile.modRanks) do profile.ownedMods[k] = true end
+    for k, _ in pairs(profile.equippedMods) do profile.ownedMods[k] = true end
+    profile.currency = profile.currency or 0
     return profile
 end
 
