@@ -7,6 +7,52 @@ local enemies = {}
 local SHIELD_REGEN_DELAY = 2.5
 local SHIELD_REGEN_RATE = 0.25 -- fraction of max shield per second
 
+local _calculator = nil
+local function getCalculator()
+    if not _calculator then
+        local ok, calc = pcall(require, 'calculator')
+        if ok then _calculator = calc end
+    end
+    return _calculator
+end
+
+local function buildDamageModsForTicks(e)
+    local opts = {}
+    local st = e and e.status
+    if st and st.magneticTimer and st.magneticTimer > 0 then
+        opts.shieldMult = st.magneticMult or 1.75
+        opts.lockShield = true
+    end
+    if st and st.viralStacks and st.viralStacks > 0 then
+        local stacks = math.min(10, st.viralStacks)
+        local bonus = math.min(2.25, 0.75 + stacks * 0.25)
+        opts.viralMultiplier = 1 + bonus
+    end
+    return opts
+end
+
+local function applyDotTick(state, e, dmgType, amount, extraOpts)
+    if not e or not state or not amount or amount <= 0 then return end
+    local calc = getCalculator()
+    if not calc then
+        enemies.damageEnemy(state, e, amount, false, 0, false, extraOpts)
+        return
+    end
+    local opts = buildDamageModsForTicks(e)
+    for k, v in pairs(extraOpts or {}) do opts[k] = v end
+    local key = string.upper(dmgType or '')
+    local instance = calc.createInstance({
+        damage = amount,
+        elements = {key},
+        damageBreakdown = {[key] = 1},
+        critChance = 0,
+        critMultiplier = 1.0,
+        statusChance = 0,
+        weaponTags = {'dot'}
+    })
+    calc.applyDamage(state, e, instance, opts)
+end
+
 local function getPunctureReduction(e)
     if not e or not e.status or not e.status.punctureStacks or e.status.punctureStacks <= 0 then return 0 end
     local stacks = math.min(10, e.status.punctureStacks)
@@ -503,7 +549,7 @@ function enemies.update(state, dt)
             if e.status._burnAcc >= 1 then
                 local burnDmg = math.floor(e.status._burnAcc)
                 e.status._burnAcc = e.status._burnAcc - burnDmg
-                if burnDmg > 0 then enemies.damageEnemy(state, e, burnDmg, false, 0) end
+                if burnDmg > 0 then applyDotTick(state, e, 'HEAT', burnDmg) end
             end
             if e.status.burnTimer < 0 then e.status.burnTimer = 0 end
         end
@@ -515,7 +561,7 @@ function enemies.update(state, dt)
                 local tick = math.floor(e.status.bleedAcc)
                 e.status.bleedAcc = e.status.bleedAcc - tick
                 if tick > 0 then
-                    enemies.damageEnemy(state, e, tick, false, 0, false, {bypassShield=true, ignoreArmor=true})
+                    applyDotTick(state, e, 'SLASH', tick, {bypassShield=true, ignoreArmor=true})
                 end
             end
             if e.status.bleedTimer <= 0 then
@@ -543,7 +589,7 @@ function enemies.update(state, dt)
                 if tick > 0 then
                     local radius = e.status.staticRadius or 140
                     local r2 = radius * radius
-                    enemies.damageEnemy(state, e, tick, false, 0)
+                    applyDotTick(state, e, 'ELECTRIC', tick)
                     local shown = 0
                     for _, o in ipairs(state.enemies) do
                         if o ~= e then
@@ -551,7 +597,7 @@ function enemies.update(state, dt)
                             local dy = o.y - e.y
                             if dx*dx + dy*dy <= r2 then
                                 ensureStatus(o)
-                                enemies.damageEnemy(state, o, tick, false, 0, false, {noText=true})
+                                applyDotTick(state, o, 'ELECTRIC', tick, {noText=true})
                                 o.status.shockTimer = math.max(o.status.shockTimer or 0, 0.6)
                                 if shown < 6 then
                                     table.insert(state.chainLinks, {x1=e.x, y1=e.y, x2=o.x, y2=o.y})
@@ -596,7 +642,7 @@ function enemies.update(state, dt)
             if e.status.heatAcc >= 1 then
                 local tick = math.floor(e.status.heatAcc)
                 e.status.heatAcc = e.status.heatAcc - tick
-                if tick > 0 then enemies.damageEnemy(state, e, tick, false, 0) end
+                if tick > 0 then applyDotTick(state, e, 'HEAT', tick) end
             end
             if e.status.heatTimer <= 0 then
                 e.status.heatTimer = nil
@@ -611,7 +657,7 @@ function enemies.update(state, dt)
             if e.status.toxinAcc >= 1 then
                 local tick = math.floor(e.status.toxinAcc)
                 e.status.toxinAcc = e.status.toxinAcc - tick
-                enemies.damageEnemy(state, e, tick, false, 0, false, {bypassShield=true})
+                applyDotTick(state, e, 'TOXIN', tick, {bypassShield=true})
             end
             if e.status.toxinTimer <= 0 then
                 e.status.toxinTimer = nil
@@ -629,13 +675,13 @@ function enemies.update(state, dt)
                 if tick > 0 then
                     local radius = e.status.gasRadius or 100
                     local r2 = radius * radius
-                    enemies.damageEnemy(state, e, tick, false, 0, false, {bypassShield=true})
+                    applyDotTick(state, e, 'GAS', tick, {bypassShield=true})
                     for _, o in ipairs(state.enemies) do
                         if o ~= e then
                             local dx = o.x - e.x
                             local dy = o.y - e.y
                             if dx*dx + dy*dy <= r2 then
-                                enemies.damageEnemy(state, o, tick, false, 0, false, {bypassShield=true, noText=true})
+                                applyDotTick(state, o, 'GAS', tick, {bypassShield=true, noText=true})
                             end
                         end
                     end

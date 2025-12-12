@@ -324,7 +324,7 @@ function calculator.applyDamage(state, enemy, instance, opts)
             if remain > 0 then
                 local mHealth = getTypeModifier(key, enemy.healthType or 'FLESH')
                 local mArmor = 1
-                if (enemy.armor or 0) > 0 then
+                if not perOpts.ignoreArmor and (enemy.armor or 0) > 0 then
                     mArmor = getTypeModifier(key, enemy.armorType or 'FERRITE_ARMOR')
                 end
                 local effRemain = remain * mHealth * mArmor
