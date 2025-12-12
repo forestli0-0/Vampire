@@ -1,5 +1,6 @@
 local enemies = require('enemies')
 local calculator = require('calculator')
+local statsRules = require('stats_rules')
 
 local weapons = {}
 
@@ -31,17 +32,7 @@ local function tagsMatch(weaponTags, targetTags)
 end
 
 local function applyPassiveEffects(stats, effect, level)
-    for statKey, mod in pairs(effect) do
-        if stats[statKey] ~= nil then
-            if statKey == 'amount' or statKey == 'critChance' or statKey == 'statusChance' or statKey == 'critMultiplier' then
-                stats[statKey] = stats[statKey] + mod * level
-            else
-                local factor = 1 + (mod * level)
-                if factor < 0.1 then factor = 0.1 end
-                stats[statKey] = stats[statKey] * factor
-            end
-        end
-    end
+    statsRules.applyEffect(stats, effect, level)
 end
 
 local function applyElementAdds(stats, addElements, level)
