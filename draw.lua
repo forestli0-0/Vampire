@@ -135,6 +135,9 @@ function draw.render(state)
                 elseif e.status.burnTimer and e.status.burnTimer > 0 then
                     local pulse = love.timer.getTime() % 0.2 < 0.1
                     if pulse then col = {1, 0.2, 0.2} else col = {1, 0.4, 0.4} end
+                elseif e.status.heatTimer and e.status.heatTimer > 0 then
+                    local pulse = love.timer.getTime() % 0.3 < 0.15
+                    if pulse then col = {1, 0.35, 0.2} else col = {1, 0.55, 0.35} end
                 elseif e.status.blastTimer and e.status.blastTimer > 0 then
                     col = {1, 0.7, 0.2}
                 elseif e.status.radiationTimer and e.status.radiationTimer > 0 then

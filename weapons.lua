@@ -65,7 +65,7 @@ local function updateQuakes(state, dt)
             critMultiplier = q.critMultiplier,
             statusChance = q.statusChance,
             effectType = 'FREEZE',
-            effectData = {duration = q.stun or 0.6},
+            effectData = {duration = q.stun or 0.6, fullFreeze = true},
             weaponTags = q.tags,
             knock = false,
             knockForce = q.knock

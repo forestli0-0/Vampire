@@ -19,8 +19,11 @@ local function ensureStatus(e)
     if not e.status then
         e.status = {
             frozen = false,
+            coldStacks = 0,
+            coldTimer = 0,
             oiled = false,
             static = false,
+            shockTimer = 0,
             bleedStacks = 0,
             bleedTimer = 0,
             bleedDps = 0,
@@ -31,6 +34,8 @@ local function ensureStatus(e)
             viralTimer = 0,
             heatArmorLoss = 0,
             heatTimer = 0,
+            heatDps = 0,
+            heatAcc = 0,
             toxinTimer = 0,
             toxinDps = 0,
             toxinAcc = 0,
@@ -90,12 +95,36 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
 
     local effect = string.upper(effectType)
     if effect == 'FREEZE' then
-        e.status.frozen = true
-        local dur = (effectData and effectData.duration) or 0.5
-        local remaining = e.status.frozenTimer or 0
-        e.status.frozenTimer = math.max(dur, remaining)
-        e.speed = 0
-        if state.spawnEffect then state.spawnEffect('freeze', e.x, e.y) end
+        if effectData and (effectData.fullFreeze or effectData.forceFreeze) then
+            e.status.frozen = true
+            local dur = effectData.freezeDuration or effectData.duration or 1.2
+            local remaining = e.status.frozenTimer or 0
+            e.status.frozenTimer = math.max(dur, remaining)
+            e.speed = 0
+            if state.spawnEffect then state.spawnEffect('freeze', e.x, e.y) end
+        elseif e.status.frozen then
+            local freezeDur = (effectData and effectData.freezeDuration) or (effectData and effectData.duration) or 1.2
+            local remaining = e.status.frozenTimer or 0
+            e.status.frozenTimer = math.max(freezeDur, remaining)
+            e.speed = 0
+            if state.spawnEffect then state.spawnEffect('freeze', e.x, e.y) end
+        else
+            local dur = (effectData and effectData.duration) or 6.0
+            e.status.coldTimer = math.max(e.status.coldTimer or 0, dur)
+            e.status.coldStacks = math.min(10, (e.status.coldStacks or 0) + 1)
+            if e.status.coldStacks >= 10 then
+                e.status.frozen = true
+                local freezeDur = (effectData and effectData.freezeDuration) or 1.2
+                e.status.frozenTimer = math.max(freezeDur, e.status.frozenTimer or 0)
+                e.speed = 0
+                e.status.coldStacks = 0
+                e.status.coldTimer = 0
+                if state.spawnEffect then state.spawnEffect('freeze', e.x, e.y) end
+            else
+                local slowPct = math.min(0.9, (e.status.coldStacks or 0) * 0.1)
+                e.speed = (e.baseSpeed or e.speed) * (1 - slowPct)
+            end
+        end
     elseif effect == 'OIL' then
         e.status.oiled = true
         e.status.oiledTimer = math.max((effectData and effectData.duration) or 6.0, 0)
@@ -115,7 +144,12 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         if lossTarget > (e.status.heatArmorLoss or 0) then
             e.status.heatArmorLoss = lossTarget
         end
-        e.status.heatTimer = math.max(e.status.heatTimer or 0, (effectData and effectData.heatDuration) or 4.0)
+        local heatDur = (effectData and effectData.heatDuration) or (effectData and effectData.duration) or 6.0
+        e.status.heatTimer = math.max(e.status.heatTimer or 0, heatDur)
+        local base = baseDamage or ((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.05)
+        local addDps = math.max(1, base * might * 0.35)
+        e.status.heatDps = (e.status.heatDps or 0) + addDps
+        e.status.heatAcc = e.status.heatAcc or 0
 
         -- Ignite / burn DoT remains tied to oil synergy (current balance)
         if e.status.oiled then
@@ -148,6 +182,7 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
             range = (effectData and effectData.range) or 160,
             remaining = (effectData and effectData.chain) or 3,
             allowRepeat = (effectData and effectData.allowRepeat) or false,
+            stunDuration = (effectData and effectData.stunDuration) or 0.6,
             tick = 0.35
         }
         if not data.allowRepeat then data.visited = {} end
@@ -157,6 +192,7 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         e.status.staticDuration = data.duration
         e.status.staticRange = data.range
         e.status.staticData = data
+        e.status.shockTimer = math.max(e.status.shockTimer or 0, data.stunDuration or 0.6)
         if state.spawnEffect then state.spawnEffect('static', e.x, e.y) end
     elseif effect == 'MAGNETIC' then
         e.status.magneticTimer = math.max(e.status.magneticTimer or 0, (effectData and effectData.duration) or 6.0)
@@ -365,6 +401,18 @@ function enemies.update(state, dt)
             end
         end
 
+        if not e.status.frozen and e.status.coldTimer and e.status.coldTimer > 0 then
+            e.status.coldTimer = e.status.coldTimer - dt
+            if e.status.coldTimer <= 0 then
+                e.status.coldTimer = nil
+                e.status.coldStacks = 0
+                e.speed = e.baseSpeed or e.speed
+            else
+                local slowPct = math.min(0.9, (e.status.coldStacks or 0) * 0.1)
+                e.speed = (e.baseSpeed or e.speed) * (1 - slowPct)
+            end
+        end
+
         if e.anim then e.anim:update(dt) end
 
         if e.status.blastTimer and e.status.blastTimer > 0 then
@@ -378,6 +426,13 @@ function enemies.update(state, dt)
             e.status.impactTimer = e.status.impactTimer - dt
             if e.status.impactTimer <= 0 then
                 e.status.impactTimer = nil
+            end
+        end
+
+        if e.status.shockTimer and e.status.shockTimer > 0 then
+            e.status.shockTimer = e.status.shockTimer - dt
+            if e.status.shockTimer <= 0 then
+                e.status.shockTimer = nil
             end
         end
 
@@ -497,6 +552,7 @@ function enemies.update(state, dt)
                     nearest.status.staticDuration = data.duration
                     nearest.status.staticRange = data.range
                     nearest.status.staticData = data
+                    nearest.status.shockTimer = math.max(nearest.status.shockTimer or 0, data.stunDuration or 0.6)
                     if state.spawnEffect then state.spawnEffect('static', nearest.x, nearest.y) end
                     e.status.static = false
                     e.status.staticTimer = nil
@@ -533,9 +589,17 @@ function enemies.update(state, dt)
 
         if e.status.heatTimer and e.status.heatTimer > 0 then
             e.status.heatTimer = e.status.heatTimer - dt
+            e.status.heatAcc = (e.status.heatAcc or 0) + (e.status.heatDps or 0) * dt
+            if e.status.heatAcc >= 1 then
+                local tick = math.floor(e.status.heatAcc)
+                e.status.heatAcc = e.status.heatAcc - tick
+                if tick > 0 then enemies.damageEnemy(state, e, tick, false, 0) end
+            end
             if e.status.heatTimer <= 0 then
                 e.status.heatTimer = nil
                 e.status.heatArmorLoss = 0
+                e.status.heatDps = nil
+                e.status.heatAcc = nil
             end
         end
 
@@ -617,6 +681,7 @@ function enemies.update(state, dt)
         local stunned = e.status.frozen
             or (e.status.blastTimer and e.status.blastTimer > 0)
             or (e.status.impactTimer and e.status.impactTimer > 0)
+            or (e.status.shockTimer and e.status.shockTimer > 0)
         local targetX, targetY = p.x, p.y
         if e.status.radiationTimer and e.status.radiationTimer > 0 then
             local rt = e.status.radiationTarget

@@ -99,10 +99,10 @@ function state.init()
         },
         ice_ring = {
             type = 'weapon', name = "Ice Ring",
-            desc = "Freezes nearby enemies.",
+            desc = "Chills nearby enemies, stacking to Freeze.",
             maxLevel = 5,
             tags = {'weapon', 'area', 'magic', 'ice'},
-            base = { damage=2, cd=2.5, radius=100, duration=0.5, effectType='FREEZE', critChance=0.05, critMultiplier=1.5, statusChance=0.3 },
+            base = { damage=2, cd=2.5, radius=100, duration=6.0, effectType='FREEZE', critChance=0.05, critMultiplier=1.5, statusChance=0.3 },
             onUpgrade = function(w) w.radius = w.radius + 10; w.cd = w.cd * 0.95 end,
             evolveInfo = { target='absolute_zero', require='spellbinder' }
         },
@@ -162,7 +162,7 @@ function state.init()
         },
         absolute_zero = {
             type = 'weapon', name = "Absolute Zero",
-            desc = "Evolved Ice Ring. Persistent blizzard that freezes foes.",
+            desc = "Evolved Ice Ring. Persistent blizzard that chills and freezes foes.",
             maxLevel = 1,
             tags = {'weapon', 'area', 'magic', 'ice'},
             base = { damage=5, cd=2.2, radius=160, duration=2.5, effectType='FREEZE', area=1.2, statusChance=0.6 },
