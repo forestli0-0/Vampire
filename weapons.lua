@@ -166,7 +166,13 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
     if not wStats then return end
 
     if state and state.augments and state.augments.dispatch then
-        state.augments.dispatch(state, 'onShoot', {weaponKey = type, weaponStats = wStats, target = target, x = x, y = y})
+        local ctx = {weaponKey = type, weaponStats = wStats, target = target, x = x, y = y}
+        state.augments.dispatch(state, 'onShoot', ctx)
+        if ctx.cancel then return end
+        wStats = ctx.weaponStats or wStats
+        target = ctx.target or target
+        x = ctx.x or x
+        y = ctx.y or y
     end
 
     local weaponDef = state.catalog[type] or {}

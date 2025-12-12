@@ -32,11 +32,42 @@ function player.hurt(state, dmg)
     if state.benchmarkMode then return end -- invincible during benchmark/debug runs
     if p.invincibleTimer > 0 then return end
     local armor = (p.stats and p.stats.armor) or 0
-    local applied = math.max(1, math.floor((dmg or 0) - armor))
     local hpBefore = p.hp
-    p.hp = math.max(0, p.hp - applied)
+    local applied = math.max(1, math.floor((dmg or 0) - armor))
+    local ctx = {
+        amount = applied,
+        dmg = dmg or 0,
+        armor = armor,
+        hpBefore = hpBefore,
+        hpAfter = hpBefore,
+        player = p,
+        isMoving = p.isMoving or false,
+        movedDist = p.movedDist or 0
+    }
     if state and state.augments and state.augments.dispatch then
-        state.augments.dispatch(state, 'onHurt', {amount = applied, dmg = dmg, hpBefore = hpBefore, hpAfter = p.hp, player = p})
+        state.augments.dispatch(state, 'preHurt', ctx)
+    end
+    applied = math.max(0, math.floor(ctx.amount or applied))
+    if ctx.cancel or applied <= 0 then
+        local inv = ctx.invincibleTimer or 0
+        if inv > 0 then
+            p.invincibleTimer = math.max(p.invincibleTimer or 0, inv)
+        end
+        ctx.amount = 0
+        ctx.hpAfter = p.hp
+        if state and state.augments and state.augments.dispatch then
+            state.augments.dispatch(state, 'hurtCancelled', ctx)
+        end
+        return
+    end
+    if applied > 0 then
+        p.hp = math.max(0, p.hp - applied)
+        ctx.amount = applied
+        ctx.hpAfter = p.hp
+        if state and state.augments and state.augments.dispatch then
+            state.augments.dispatch(state, 'onHurt', ctx)
+            state.augments.dispatch(state, 'postHurt', ctx)
+        end
     end
     logger.damageTaken(state, applied, p.hp)
     if p.hp <= 0 then

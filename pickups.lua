@@ -34,7 +34,10 @@ local function addXp(state, amount)
         p.level = p.level + 1
         p.xp = p.xp - p.xpToNextLevel
         p.xpToNextLevel = math.floor(p.xpToNextLevel * 1.25)
-        upgrades.queueLevelUp(state)
+        if state and state.augments and state.augments.dispatch then
+            state.augments.dispatch(state, 'onLevelUp', {level = p.level, player = p})
+        end
+        upgrades.queueLevelUp(state, 'xp')
         logger.levelUp(state, p.level)
     end
 end
@@ -65,10 +68,20 @@ function pickups.updateGems(state, dt)
             if state and state.augments and state.augments.dispatch then
                 state.augments.dispatch(state, 'onPickup', ctx)
             end
-            amt = ctx.amount or amt
-            addXp(state, amt)
-            table.remove(state.gems, i)
-            if state.playSfx then state.playSfx('gem') end
+            if ctx.cancel then
+                if state and state.augments and state.augments.dispatch then
+                    state.augments.dispatch(state, 'pickupCancelled', ctx)
+                end
+            else
+                amt = ctx.amount or amt
+                ctx.amount = amt
+                addXp(state, amt)
+                if state and state.augments and state.augments.dispatch then
+                    state.augments.dispatch(state, 'postPickup', ctx)
+                end
+                table.remove(state.gems, i)
+                if state.playSfx then state.playSfx('gem') end
+            end
         end
     end
 end
@@ -79,20 +92,35 @@ function pickups.updateChests(state, dt)
         local c = state.chests[i]
         local dist = math.sqrt((p.x - c.x)^2 + (p.y - c.y)^2)
         if dist < 30 then
+            local ctx = nil
+            local cancel = false
             if state and state.augments and state.augments.dispatch then
-                state.augments.dispatch(state, 'onPickup', {kind = 'chest', amount = 1, player = p})
+                ctx = {kind = 'chest', amount = 1, player = p, chest = c}
+                state.augments.dispatch(state, 'onPickup', ctx)
+                if ctx.cancel then
+                    state.augments.dispatch(state, 'pickupCancelled', ctx)
+                    cancel = true
+                end
             end
-            local evolvedWeapon = upgrades.tryEvolveWeapon(state)
-            if evolvedWeapon then
-                table.insert(state.texts, {x=p.x, y=p.y-50, text="EVOLVED! " .. evolvedWeapon, color={1, 0.84, 0}, life=2})
-                logger.pickup(state, 'chest_evolve')
-            else
-                -- 触发一次升级选项（模拟 VS 宝箱随机加成）
-                upgrades.queueLevelUp(state)
-                table.insert(state.texts, {x=p.x, y=p.y-50, text="CHEST!", color={1, 1, 0}, life=1.5})
-                logger.pickup(state, 'chest_reward')
+
+            if not cancel then
+                local evolvedWeapon = upgrades.tryEvolveWeapon(state)
+                if evolvedWeapon then
+                    table.insert(state.texts, {x=p.x, y=p.y-50, text="EVOLVED! " .. evolvedWeapon, color={1, 0.84, 0}, life=2})
+                    logger.pickup(state, 'chest_evolve')
+                else
+                    -- 触发一次升级选项（模拟 VS 宝箱随机加成）
+                    upgrades.queueLevelUp(state, 'chest')
+                    table.insert(state.texts, {x=p.x, y=p.y-50, text="CHEST!", color={1, 1, 0}, life=1.5})
+                    logger.pickup(state, 'chest_reward')
+                end
+                if state and state.augments and state.augments.dispatch then
+                    ctx = ctx or {kind = 'chest', amount = 1, player = p, chest = c}
+                    ctx.evolvedWeapon = evolvedWeapon
+                    state.augments.dispatch(state, 'postPickup', ctx)
+                end
+                table.remove(state.chests, i)
             end
-            table.remove(state.chests, i)
         end
     end
 end
@@ -103,49 +131,87 @@ function pickups.updateFloorPickups(state, dt)
     for i = #state.floorPickups, 1, -1 do
         local item = state.floorPickups[i]
         if util.checkCollision({x=p.x, y=p.y, size=p.size}, item) then
+            local consume = true
             if item.kind == 'chicken' then
                 local amt = 30
                 local ctx = {kind = 'chicken', amount = amt, player = p, item = item}
                 if state and state.augments and state.augments.dispatch then
                     state.augments.dispatch(state, 'onPickup', ctx)
                 end
-                amt = ctx.amount or amt
-                p.hp = math.min(p.maxHp, p.hp + amt)
-                table.insert(state.texts, {x=p.x, y=p.y-30, text="+" .. math.floor(amt) .. " HP", color={1,0.7,0}, life=1})
-                logger.pickup(state, 'chicken')
-            elseif item.kind == 'magnet' then
-                if state and state.augments and state.augments.dispatch then
-                    state.augments.dispatch(state, 'onPickup', {kind = 'magnet', amount = 1, player = p, item = item})
-                end
-                -- 吸取全地图宝石
-                for _, g in ipairs(state.gems) do
-                    g.magnetized = true
-                end
-                if #state.gems > 0 and state.playSfx then state.playSfx('gem') end
-                table.insert(state.texts, {x=p.x, y=p.y-30, text="MAGNET!", color={0,0.8,1}, life=1})
-                logger.pickup(state, 'magnet')
-            elseif item.kind == 'bomb' then
-                if state and state.augments and state.augments.dispatch then
-                    state.augments.dispatch(state, 'onPickup', {kind = 'bomb', amount = 1, player = p, item = item})
-                end
-                -- 只杀屏幕内的敌人
-                local w, h = love.graphics.getWidth(), love.graphics.getHeight()
-                local halfW, halfH = w/2 + 50, h/2 + 50
-                for ei = #state.enemies, 1, -1 do
-                    local e = state.enemies[ei]
-                    if e.isDummy then goto continue_enemy end
-                    if math.abs(e.x - p.x) <= halfW and math.abs(e.y - p.y) <= halfH then
-                        e.health = 0
-                        e.hp = 0
+                if ctx.cancel then
+                    if state and state.augments and state.augments.dispatch then
+                        state.augments.dispatch(state, 'pickupCancelled', ctx)
                     end
-                    ::continue_enemy::
+                    consume = false
+                else
+                    amt = ctx.amount or amt
+                    ctx.amount = amt
+                    p.hp = math.min(p.maxHp, p.hp + amt)
+                    table.insert(state.texts, {x=p.x, y=p.y-30, text="+" .. math.floor(amt) .. " HP", color={1,0.7,0}, life=1})
+                    logger.pickup(state, 'chicken')
+                    if state and state.augments and state.augments.dispatch then
+                        state.augments.dispatch(state, 'postPickup', ctx)
+                    end
                 end
-                state.shakeAmount = 5
-                if state.playSfx then state.playSfx('hit') end
-                table.insert(state.texts, {x=p.x, y=p.y-30, text="BOMB!", color={1,0,0}, life=1})
-                logger.pickup(state, 'bomb')
+            elseif item.kind == 'magnet' then
+                local ctx = {kind = 'magnet', amount = 1, player = p, item = item}
+                if state and state.augments and state.augments.dispatch then
+                    state.augments.dispatch(state, 'onPickup', ctx)
+                end
+                if ctx.cancel then
+                    if state and state.augments and state.augments.dispatch then
+                        state.augments.dispatch(state, 'pickupCancelled', ctx)
+                    end
+                    consume = false
+                end
+                if consume then
+                    -- 吸取全地图宝石
+                    for _, g in ipairs(state.gems) do
+                        g.magnetized = true
+                    end
+                    if #state.gems > 0 and state.playSfx then state.playSfx('gem') end
+                    table.insert(state.texts, {x=p.x, y=p.y-30, text="MAGNET!", color={0,0.8,1}, life=1})
+                    logger.pickup(state, 'magnet')
+                    if state and state.augments and state.augments.dispatch then
+                        state.augments.dispatch(state, 'postPickup', ctx)
+                    end
+                end
+            elseif item.kind == 'bomb' then
+                local ctx = {kind = 'bomb', amount = 1, player = p, item = item}
+                if state and state.augments and state.augments.dispatch then
+                    state.augments.dispatch(state, 'onPickup', ctx)
+                end
+                if ctx.cancel then
+                    if state and state.augments and state.augments.dispatch then
+                        state.augments.dispatch(state, 'pickupCancelled', ctx)
+                    end
+                    consume = false
+                end
+                if consume then
+                    -- 只杀屏幕内的敌人
+                    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+                    local halfW, halfH = w/2 + 50, h/2 + 50
+                    for ei = #state.enemies, 1, -1 do
+                        local e = state.enemies[ei]
+                        if e.isDummy then goto continue_enemy end
+                        if math.abs(e.x - p.x) <= halfW and math.abs(e.y - p.y) <= halfH then
+                            e.health = 0
+                            e.hp = 0
+                        end
+                        ::continue_enemy::
+                    end
+                    state.shakeAmount = 5
+                    if state.playSfx then state.playSfx('hit') end
+                    table.insert(state.texts, {x=p.x, y=p.y-30, text="BOMB!", color={1,0,0}, life=1})
+                    logger.pickup(state, 'bomb')
+                    if state and state.augments and state.augments.dispatch then
+                        state.augments.dispatch(state, 'postPickup', ctx)
+                    end
+                end
             end
-            table.remove(state.floorPickups, i)
+            if consume then
+                table.remove(state.floorPickups, i)
+            end
         end
     end
 end

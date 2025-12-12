@@ -29,11 +29,29 @@
 - `tick`：每帧（ctx: dt, t, player, movedDist, isMoving）
 - `onShoot`：一次开火（ctx: weaponKey, weaponStats, target, x,y）
 - `onProjectileSpawned`：生成投射物（ctx: bullet）
+- `preHit`：命中结算前（可改 instance / 可 cancel）
 - `onHit`：命中结算后（ctx: enemy, result{damage,isCrit,appliedEffects}, instance）
 - `onProc`：触发异常后（ctx: enemy, effectType）
+- `postHit`：命中+异常分发完毕后
+- `onDamageDealt`：一次伤害结算后（ctx: damage, shieldDamage, healthDamage）
+- `onShieldDamaged`：本次伤害有护盾伤害时
+- `onShieldBroken`：本次伤害击破护盾时
+- `onHealthDamaged`：本次伤害有生命伤害时
 - `onKill`：击杀（ctx: enemy, sourceInstance）
 - `onPickup`：拾取（ctx: kind, amount）
+- `postPickup`：拾取生效后（用于“拾取后触发”）
+- `pickupCancelled`：拾取被取消（ctx.cancel=true）
+- `preHurt`：玩家受伤前（可改 amount / 可 cancel）
 - `onHurt`：玩家受伤（ctx: amount）
+- `postHurt`：玩家受伤后
+- `hurtCancelled`：受伤被取消（ctx.cancel=true）
+- `onEnemySpawned`：敌人生成
+- `onLevelUp`：玩家升级
+- `onUpgradeQueued`：升级界面入队（宝箱/升级）
+- `onUpgradeOptions`：三选一生成后（可改 options）
+- `onUpgradeChosen`：选择升级后
+
+> 事件 ctx 是可变表：`preHurt/preHit/onShoot/onPickup` 这类“前置事件”里可以通过修改 ctx 来影响后续流程；设置 `ctx.cancel=true` 可取消本次动作。
 
 ## 触发条件系统（关键：支持“移动充能”等乱七八糟被动）
 不建议把所有逻辑都写成“事件里塞 if-else”，而是让 Augment 用可组合的触发条件描述自己：
@@ -48,6 +66,31 @@
 - `requires`：条件集合（例如 `isMoving=true`、`enemyHasShield=true`、`isCrit=true`、`proc='ELECTRIC'`）
 - `counter`：累计器（例如移动距离、站立时间、击杀数、命中数）
   - 示例：`counter='moveDist'`, `threshold=300` 表示“累计移动 300 距离触发一次并扣除阈值”
+
+当前 `requires` 已支持（可继续扩展）：
+- `isMoving / minMovedDist`
+- `isCrit / proc`
+- `playerHpPctBelow / playerHpPctAbove`
+- `enemyHasShield / enemyShieldPctBelow / enemyShieldPctAbove`
+- `enemyHasArmor / enemyHpPctBelow / enemyHpPctAbove`
+- `enemyIsElite / enemyIsBoss / enemyKind / enemyFrozen`
+- `weaponTag / weaponKey`
+- `pickupKind`
+- `minDamage / maxDamage`
+
+当前 `counter` 已支持（按事件累计）：
+- `tick`: `moveDist / moveTime / idleTime / time`
+- `onHit`: `hits / damageDealt / crits`
+- `onDamageDealt`: `damageDealt / shieldDamageDealt / healthDamageDealt`
+- `onShoot`: `shots`
+- `onProjectileSpawned`: `projectiles`
+- `onProc`: `procs`
+- `onKill`: `kills`
+- `onPickup`: `pickups / pickupAmount`
+- `onHurt`: `hitsTaken / damageTaken`
+- `onLevelUp`: `levelUps`
+- `onUpgradeChosen`: `upgrades`
+- `onEnemySpawned`: `spawns`
 
 > 这样“移动充能/站桩蓄力/每 N 秒一次/每 N 次命中一次/连杀触发”等都可以用同一套机制表达。
 

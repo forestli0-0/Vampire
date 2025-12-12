@@ -361,7 +361,17 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
         local anim = state.loadMoveAnimationFromFolder(animKey, 4, 8)
         if anim then state.enemies[#state.enemies].anim = anim end
     end
-    ensureStatus(state.enemies[#state.enemies])
+    local spawned = state.enemies[#state.enemies]
+    ensureStatus(spawned)
+    if state and state.augments and state.augments.dispatch then
+        state.augments.dispatch(state, 'onEnemySpawned', {
+            enemy = spawned,
+            kind = type,
+            isElite = isElite or false,
+            isBoss = spawned.isBoss or false,
+            player = state.player
+        })
+    end
 end
 
 local function resetDummy(e)
@@ -369,6 +379,7 @@ local function resetDummy(e)
     e.health = e.maxHealth or e.health or 0
     e.hp = e.health
     e.shield = e.maxShield or e.shield or 0
+    e.lastDamage = nil
     e.status = nil
     e.shieldDelayTimer = 0
     ensureStatus(e)
@@ -807,7 +818,7 @@ function enemies.update(state, dt)
                 goto continue_enemy
             end
             if state and state.augments and state.augments.dispatch then
-                state.augments.dispatch(state, 'onKill', {enemy = e, player = state.player})
+                state.augments.dispatch(state, 'onKill', {enemy = e, player = state.player, lastDamage = e.lastDamage})
             end
             if e.isBoss then
                 local rewardCurrency = 100

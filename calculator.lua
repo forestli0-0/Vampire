@@ -281,6 +281,7 @@ end
 
 function calculator.applyDamage(state, enemy, instance, opts)
     opts = opts or {}
+    local shieldBefore = enemy and (enemy.shield or 0) or 0
     local mult, isCrit = calculator.computeDamage(instance)
     local totalApplied, totalShield, totalHealth = 0, 0, 0
 
@@ -367,6 +368,41 @@ function calculator.applyDamage(state, enemy, instance, opts)
             enemy.y = enemy.y + math.sin(a) * (instance.knockForce or 10)
         end
 
+        if enemy then
+            enemy.lastDamage = {
+                t = state and state.gameTimer or 0,
+                damage = totalApplied,
+                shield = totalShield,
+                health = totalHealth,
+                isCrit = isCrit,
+                instance = instance
+            }
+        end
+        if state and state.augments and state.augments.dispatch then
+            local ctx = {
+                enemy = enemy,
+                player = state.player,
+                instance = instance,
+                damage = totalApplied,
+                shieldDamage = totalShield,
+                healthDamage = totalHealth,
+                isCrit = isCrit
+            }
+            state.augments.dispatch(state, 'onDamageDealt', ctx)
+            if totalShield > 0 then
+                state.augments.dispatch(state, 'onShieldDamaged', ctx)
+                local shieldAfter = enemy and (enemy.shield or 0) or 0
+                if shieldBefore > 0 and shieldAfter <= 0 then
+                    ctx.shieldBefore = shieldBefore
+                    ctx.shieldAfter = shieldAfter
+                    state.augments.dispatch(state, 'onShieldBroken', ctx)
+                end
+            end
+            if totalHealth > 0 then
+                state.augments.dispatch(state, 'onHealthDamaged', ctx)
+            end
+        end
+
         if not opts.noText then
             local color = {1,1,1}
             local scale = 1
@@ -388,6 +424,23 @@ end
 function calculator.applyHit(state, enemy, params)
     local instance = calculator.createInstance(params or {})
     local forcedChance = params and params.forceStatusChance
+
+    if state and state.augments and state.augments.dispatch then
+        local preCtx = {
+            enemy = enemy,
+            player = state.player,
+            instance = instance,
+            params = params,
+            forceStatusChance = forcedChance
+        }
+        state.augments.dispatch(state, 'preHit', preCtx)
+        if preCtx.cancel then
+            return {damage = 0, isCrit = false, statusApplied = false, appliedEffects = {}}
+        end
+        instance = preCtx.instance or instance
+        forcedChance = preCtx.forceStatusChance
+    end
+
     if instance.effectType and enemy and enemy.status and enemy.status.frozen then
         if string.upper(instance.effectType) == 'HEAVY' then
             forcedChance = 1
@@ -418,6 +471,14 @@ function calculator.applyHit(state, enemy, params)
                 isCrit = isCrit
             })
         end
+        state.augments.dispatch(state, 'postHit', {
+            enemy = enemy,
+            player = state.player,
+            instance = instance,
+            result = result,
+            damage = dmg,
+            isCrit = isCrit
+        })
     end
 
     return result

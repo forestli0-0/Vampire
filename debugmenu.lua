@@ -161,7 +161,10 @@ local function grantXp(state, amount)
         p.level = p.level + 1
         p.xp = p.xp - p.xpToNextLevel
         p.xpToNextLevel = math.floor(p.xpToNextLevel * 1.5)
-        upgrades.queueLevelUp(state)
+        if state and state.augments and state.augments.dispatch then
+            state.augments.dispatch(state, 'onLevelUp', {level = p.level, player = p})
+        end
+        upgrades.queueLevelUp(state, 'debug')
     end
 end
 

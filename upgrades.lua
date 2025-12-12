@@ -3,6 +3,12 @@ local logger = require('logger')
 
 local upgrades = {}
 
+local function dispatch(state, eventName, ctx)
+    if state and state.augments and state.augments.dispatch then
+        state.augments.dispatch(state, eventName, ctx or {})
+    end
+end
+
 local function canEvolve(state, key)
     local def = state.catalog[key]
     if not def or not def.evolveInfo then return false end
@@ -125,10 +131,17 @@ function upgrades.generateUpgradeOptions(state)
         if not choice then break end
         table.insert(state.upgradeOptions, choice)
     end
+
+    local ctx = {options = state.upgradeOptions, player = state.player}
+    dispatch(state, 'onUpgradeOptions', ctx)
+    if ctx.options and ctx.options ~= state.upgradeOptions then
+        state.upgradeOptions = ctx.options
+    end
 end
 
-function upgrades.queueLevelUp(state)
+function upgrades.queueLevelUp(state, reason)
     if state.noLevelUps or state.benchmarkMode then return end
+    dispatch(state, 'onUpgradeQueued', {reason = reason or 'unknown', player = state.player})
     state.pendingLevelUps = state.pendingLevelUps + 1
     if state.gameState ~= 'LEVEL_UP' then
         state.pendingLevelUps = state.pendingLevelUps - 1
@@ -143,22 +156,26 @@ function upgrades.applyUpgrade(state, opt)
         state.inventory.weapons[opt.evolveFrom] = nil
         weapons.addWeapon(state, opt.key)
         logger.upgrade(state, opt, 1)
+        dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = 1})
         return
     elseif opt.type == 'weapon' then
         if not state.inventory.weapons[opt.key] then
             weapons.addWeapon(state, opt.key)
             logger.upgrade(state, opt, 1)
+            dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = 1})
         else
             local w = state.inventory.weapons[opt.key]
             w.level = w.level + 1
             if opt.def.onUpgrade then opt.def.onUpgrade(w.stats) end
             logger.upgrade(state, opt, w.level)
+            dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = w.level})
         end
     elseif opt.type == 'passive' then
         if not state.inventory.passives[opt.key] then state.inventory.passives[opt.key] = 0 end
         state.inventory.passives[opt.key] = state.inventory.passives[opt.key] + 1
         logger.upgrade(state, opt, state.inventory.passives[opt.key])
         if opt.def.onUpgrade then opt.def.onUpgrade() end
+        dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = state.inventory.passives[opt.key]})
     elseif opt.type == 'mod' then
         state.inventory.mods = state.inventory.mods or {}
         state.inventory.modOrder = state.inventory.modOrder or {}
@@ -169,6 +186,7 @@ function upgrades.applyUpgrade(state, opt)
         state.inventory.mods[opt.key] = state.inventory.mods[opt.key] + 1
         logger.upgrade(state, opt, state.inventory.mods[opt.key])
         if opt.def.onUpgrade then opt.def.onUpgrade() end
+        dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = state.inventory.mods[opt.key]})
     elseif opt.type == 'augment' then
         state.inventory.augments = state.inventory.augments or {}
         state.inventory.augmentOrder = state.inventory.augmentOrder or {}
@@ -179,6 +197,7 @@ function upgrades.applyUpgrade(state, opt)
         state.inventory.augments[opt.key] = state.inventory.augments[opt.key] + 1
         logger.upgrade(state, opt, state.inventory.augments[opt.key])
         if opt.def.onUpgrade then opt.def.onUpgrade() end
+        dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = state.inventory.augments[opt.key]})
     end
 end
 

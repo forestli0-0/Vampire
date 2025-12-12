@@ -582,6 +582,25 @@ function state.init()
                     end
                 }
             }
+        },
+        aug_evasive_momentum = {
+            type = 'augment', name = "Evasive Momentum",
+            desc = "While moving, evade one hit periodically.",
+            maxLevel = 1,
+            triggers = {
+                {
+                    event = 'preHurt',
+                    cooldown = 2.0,
+                    requires = {isMoving = true},
+                    action = function(state, ctx)
+                        ctx.cancel = true
+                        ctx.invincibleTimer = 0.25
+                        local p = (ctx and ctx.player) or state.player
+                        if not p then return end
+                        table.insert(state.texts, {x=p.x, y=p.y-30, text="DODGE!", color={0.6,1,0.6}, life=0.6})
+                    end
+                }
+            }
         }
     }
 
