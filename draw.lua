@@ -1,6 +1,176 @@
 local weapons = require('weapons')
+local enemies = require('enemies')
 
 local draw = {}
+
+local function drawStatsPanel(state)
+    if not state or state.gameState ~= 'PLAYING' then return end
+
+    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+    local panelW = 260
+    local x = 10
+    local y = 60
+    local lineH = 16
+    local padding = 8
+
+    local lines = {}
+    local p = state.player or {}
+    local ps = p.stats or {}
+
+    table.insert(lines, "PLAYER")
+    table.insert(lines, string.format("HP: %d / %d", math.floor(p.hp or 0), math.floor(p.maxHp or 0)))
+    table.insert(lines, string.format("Move: %.0f", ps.moveSpeed or 0))
+    table.insert(lines, string.format("Might: x%.2f", ps.might or 1))
+    table.insert(lines, string.format("Cooldown: x%.2f", ps.cooldown or 1))
+    table.insert(lines, string.format("Area: x%.2f", ps.area or 1))
+    table.insert(lines, string.format("Proj Speed: x%.2f", ps.speed or 1))
+    table.insert(lines, string.format("Pickup: %.0f", ps.pickupRange or 0))
+    table.insert(lines, string.format("Armor: %.0f", ps.armor or 0))
+    table.insert(lines, string.format("Regen: %.2f/s", ps.regen or 0))
+
+    table.insert(lines, "")
+    table.insert(lines, "WEAPONS")
+    local weaponKeys = {}
+    for k, _ in pairs(state.inventory.weapons or {}) do table.insert(weaponKeys, k) end
+    table.sort(weaponKeys)
+    for _, key in ipairs(weaponKeys) do
+        local invW = state.inventory.weapons[key]
+        local def = state.catalog[key] or {}
+        local name = def.name or key
+        local lv = invW.level or 1
+        local stats = weapons.calculateStats(state, key) or invW.stats or {}
+        local elems = stats.elements or {}
+        local elemStr = (#elems > 0) and (" [" .. table.concat(elems, "+") .. "]") or ""
+        local crit = stats.critChance or 0
+        local critMult = stats.critMultiplier or 1.5
+        local statusChance = stats.statusChance or 0
+        local extra = ""
+        if crit > 0 or statusChance > 0 then
+            extra = string.format(" C%.0f%% x%.1f S%.0f%%", crit * 100, critMult, statusChance * 100)
+        end
+        table.insert(lines, string.format("%s Lv%d%s%s", name, lv, elemStr, extra))
+    end
+    if #weaponKeys == 0 then table.insert(lines, "None") end
+
+    table.insert(lines, "")
+    table.insert(lines, "PASSIVES")
+    local passiveKeys = {}
+    for k, _ in pairs(state.inventory.passives or {}) do table.insert(passiveKeys, k) end
+    table.sort(passiveKeys)
+    for _, key in ipairs(passiveKeys) do
+        local lv = state.inventory.passives[key] or 0
+        local def = state.catalog[key] or {}
+        local name = def.name or key
+        table.insert(lines, string.format("%s Lv%d", name, lv))
+    end
+    if #passiveKeys == 0 then table.insert(lines, "None") end
+
+    table.insert(lines, "")
+    table.insert(lines, "MODS")
+    local modKeys = {}
+    local order = state.inventory.modOrder or {}
+    if #order > 0 then
+        for _, k in ipairs(order) do if state.inventory.mods and state.inventory.mods[k] then table.insert(modKeys, k) end end
+    else
+        for k, _ in pairs(state.inventory.mods or {}) do table.insert(modKeys, k) end
+        table.sort(modKeys)
+    end
+    for _, key in ipairs(modKeys) do
+        local lv = (state.inventory.mods and state.inventory.mods[key]) or 0
+        if lv > 0 then
+            local def = state.catalog[key] or {}
+            local name = def.name or key
+            table.insert(lines, string.format("%s R%d", name, lv))
+        end
+    end
+    if #modKeys == 0 then table.insert(lines, "None") end
+
+    local target = enemies and enemies.findNearestEnemy and enemies.findNearestEnemy(state, 999999) or nil
+    if target and target.status then
+        local st = target.status
+        table.insert(lines, "")
+        table.insert(lines, "TARGET")
+        local kind = target.kind or "enemy"
+        local hp = math.floor(target.health or target.hp or 0)
+        local maxHp = math.floor(target.maxHealth or target.maxHp or 0)
+        local sh = math.floor(target.shield or 0)
+        local maxSh = math.floor(target.maxShield or 0)
+        local armor = math.floor(target.armor or 0)
+        local baseArmor = math.floor(target.baseArmor or armor or 0)
+        local header = string.format("%s  HP %d/%d  SH %d/%d  ARM %d/%d", kind, hp, maxHp, sh, maxSh, armor, baseArmor)
+        table.insert(lines, header)
+
+        if st.frozen and (st.frozenTimer or 0) > 0 then
+            table.insert(lines, string.format("Frozen: %.1fs", st.frozenTimer or 0))
+        end
+        if (st.coldStacks or 0) > 0 or (st.coldTimer or 0) > 0 then
+            table.insert(lines, string.format("Cold: stacks %d  %.1fs", st.coldStacks or 0, st.coldTimer or 0))
+        end
+        if (st.heatTimer or 0) > 0 then
+            table.insert(lines, string.format("Heat: %.1fs  DPS %.1f", st.heatTimer or 0, st.heatDps or 0))
+        end
+        if (st.burnTimer or 0) > 0 then
+            table.insert(lines, string.format("Burn(Oil): %.1fs  DPS %.1f", st.burnTimer or 0, st.burnDps or 0))
+        end
+        if (st.toxinTimer or 0) > 0 then
+            table.insert(lines, string.format("Toxin: %.1fs  DPS %.1f", st.toxinTimer or 0, st.toxinDps or 0))
+        end
+        if st.static and (st.staticTimer or 0) > 0 then
+            table.insert(lines, string.format("Electric: %.1fs  DPS %.1f  R %.0f", st.staticTimer or 0, st.staticDps or 0, st.staticRadius or 0))
+        end
+        if (st.bleedStacks or 0) > 0 or (st.bleedTimer or 0) > 0 then
+            table.insert(lines, string.format("Bleed: stacks %d  %.1fs  DPS %.1f", st.bleedStacks or 0, st.bleedTimer or 0, st.bleedDps or 0))
+        end
+        if (st.magneticStacks or 0) > 0 or (st.magneticTimer or 0) > 0 then
+            table.insert(lines, string.format("Magnetic: stacks %d  %.1fs  x%.2f", st.magneticStacks or 0, st.magneticTimer or 0, st.magneticMult or 1))
+        end
+        if (st.viralStacks or 0) > 0 or (st.viralTimer or 0) > 0 then
+            local stacks = math.min(10, st.viralStacks or 0)
+            local bonus = math.min(2.25, 0.75 + stacks * 0.25)
+            local mult = 1 + bonus
+            table.insert(lines, string.format("Viral: stacks %d  %.1fs  x%.2f", st.viralStacks or 0, st.viralTimer or 0, mult))
+        end
+        if (st.corrosiveStacks or 0) > 0 then
+            table.insert(lines, string.format("Corrosive: stacks %d", st.corrosiveStacks or 0))
+        end
+        if (st.punctureStacks or 0) > 0 or (st.punctureTimer or 0) > 0 then
+            table.insert(lines, string.format("Puncture: stacks %d  %.1fs", st.punctureStacks or 0, st.punctureTimer or 0))
+        end
+        if (st.blastStacks or 0) > 0 or (st.blastTimer or 0) > 0 then
+            table.insert(lines, string.format("Blast: stacks %d  %.1fs", st.blastStacks or 0, st.blastTimer or 0))
+        end
+        if (st.gasTimer or 0) > 0 then
+            table.insert(lines, string.format("Gas: %.1fs  DPS %.1f  R %.0f", st.gasTimer or 0, st.gasDps or 0, st.gasRadius or 0))
+        end
+        if (st.radiationTimer or 0) > 0 then
+            table.insert(lines, string.format("Radiation: %.1fs", st.radiationTimer or 0))
+        end
+        if st.oiled and (st.oiledTimer or 0) > 0 then
+            table.insert(lines, string.format("Oiled: %.1fs", st.oiledTimer or 0))
+        end
+        if (st.impactTimer or 0) > 0 then
+            table.insert(lines, string.format("Impact Stun: %.1fs", st.impactTimer or 0))
+        end
+    end
+
+    local panelH = padding * 2 + (#lines * lineH)
+    panelH = math.min(panelH, h - y - 10)
+
+    love.graphics.setColor(0, 0, 0, 0.6)
+    love.graphics.rectangle('fill', x, y, panelW, panelH, 6, 6)
+    love.graphics.setColor(1, 1, 1)
+
+    local ty = y + padding
+    for _, line in ipairs(lines) do
+        if line == "" then
+            ty = ty + lineH * 0.5
+        else
+            love.graphics.print(line, x + padding, ty)
+            ty = ty + lineH
+        end
+        if ty > y + panelH - lineH then break end
+    end
+end
 
 function draw.render(state)
     love.graphics.setFont(state.font)
@@ -401,6 +571,8 @@ function draw.render(state)
             end
         end
     end
+
+    drawStatsPanel(state)
 
       -- HUD
       love.graphics.setColor(0,0,1)
