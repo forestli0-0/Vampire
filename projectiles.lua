@@ -5,6 +5,90 @@ local calculator = require('calculator')
 
 local projectiles = {}
 
+local function findNearestEnemyAt(state, x, y, maxDist, exclude)
+    local best = nil
+    local bestD2 = (maxDist or 999999) ^ 2
+    for _, e in ipairs(state.enemies or {}) do
+        if e and (e.health or e.hp or 0) > 0 then
+            if not (exclude and exclude[e]) then
+                local dx = (e.x or 0) - x
+                local dy = (e.y or 0) - y
+                local d2 = dx * dx + dy * dy
+                if d2 < bestD2 then
+                    bestD2 = d2
+                    best = e
+                end
+            end
+        end
+    end
+    return best
+end
+
+local function steerBullet(b, tx, ty, turnRate, dt)
+    if not b or not b.vx or not b.vy then return end
+    local spd = math.sqrt(b.vx * b.vx + b.vy * b.vy)
+    if spd <= 0 then return end
+    local curr = math.atan2(b.vy, b.vx)
+    local desired = math.atan2((ty or b.y) - b.y, (tx or b.x) - b.x)
+    local diff = (desired - curr + math.pi) % (math.pi * 2) - math.pi
+    local maxTurn = (turnRate or 0) * (dt or 0)
+    if maxTurn <= 0 then return end
+    if diff > maxTurn then diff = maxTurn end
+    if diff < -maxTurn then diff = -maxTurn end
+    local ang = curr + diff
+    b.vx = math.cos(ang) * spd
+    b.vy = math.sin(ang) * spd
+end
+
+local function updateBulletGuidance(state, b, dt)
+    if not b or not b.vx or not b.vy then return end
+    if b.type == 'absolute_zero' or b.type == 'death_spiral' or b.type == 'axe' then return end
+
+    if b.boomerangTimer ~= nil then
+        b.boomerangTimer = (b.boomerangTimer or 0) - dt
+        if b.boomerangTimer <= 0 and not b.returnToPlayer then
+            b.returnToPlayer = true
+            b.hitTargets = nil -- allow a second pass to hit again
+            b._homeTarget = nil
+        end
+    end
+
+    if b.returnToPlayer then
+        steerBullet(b, state.player.x, state.player.y, b.returnHoming or 12, dt)
+        return
+    end
+
+    if b.homing and b.homing > 0 then
+        b._homeTimer = (b._homeTimer or 0) - dt
+        local target = b._homeTarget
+        if b._homeTimer <= 0 or not (target and (target.health or target.hp or 0) > 0) then
+            b._homeTimer = 0.12
+            target = findNearestEnemyAt(state, b.x, b.y, b.homingRange or 650, b.hitTargets)
+            b._homeTarget = target
+        end
+        if target then
+            steerBullet(b, target.x, target.y, b.homing, dt)
+        end
+    end
+end
+
+local function tryRicochet(state, b, fromX, fromY)
+    if not b or not b.vx or not b.vy then return false end
+    local remaining = b.ricochetRemaining or 0
+    if remaining <= 0 then return false end
+    local target = findNearestEnemyAt(state, fromX or b.x, fromY or b.y, b.ricochetRange or 420, b.hitTargets)
+    if not target then return false end
+
+    b.ricochetRemaining = remaining - 1
+    local spd = math.sqrt(b.vx * b.vx + b.vy * b.vy)
+    if spd <= 0 then return true end
+    local ang = math.atan2(target.y - (fromY or b.y), target.x - (fromX or b.x))
+    b.vx = math.cos(ang) * spd
+    b.vy = math.sin(ang) * spd
+    b.rotation = ang
+    return true
+end
+
 local function buildInstanceFromBullet(bullet, effectData, knock, knockForce)
     return calculator.createInstance({
         damage = bullet.damage or 0,
@@ -55,7 +139,8 @@ function projectiles.updatePlayerBullets(state, dt)
         end
 
         if not handled then
-            if b.type == 'wand' or b.type == 'holy_wand' or b.type == 'fire_wand' or b.type == 'hellfire' or b.type == 'oil_bottle' or b.type == 'heavy_hammer' or b.type == 'dagger' or b.type == 'thousand_edge' or b.type == 'static_orb' or b.type == 'thunder_loop' or b.type == 'debug_effect' then
+            updateBulletGuidance(state, b, dt)
+            if b.type == 'wand' or b.type == 'holy_wand' or b.type == 'fire_wand' or b.type == 'hellfire' or b.type == 'oil_bottle' or b.type == 'heavy_hammer' or b.type == 'dagger' or b.type == 'thousand_edge' or b.type == 'static_orb' or b.type == 'thunder_loop' or b.type == 'debug_effect' or b.type == 'augment_shard' then
                 b.x = b.x + b.vx * dt
                 b.y = b.y + b.vy * dt
                 b.rotation = math.atan2(b.vy, b.vx)
@@ -114,7 +199,11 @@ function projectiles.updatePlayerBullets(state, dt)
                                     effectData = {duration = b.effectDuration, range = b.effectRange, chain = b.chain, allowRepeat = b.allowRepeat}
                                 end
                                 local instance = buildInstanceFromBullet(b, effectData)
-                                calculator.applyHit(state, e, instance)
+                                local result = calculator.applyHit(state, e, instance)
+                                if state and state.augments and state.augments.dispatch then
+                                    state.augments.dispatch(state, 'onProjectileHit', {bullet = b, enemy = e, result = result, player = state.player, weaponKey = b.parentWeaponKey or b.type})
+                                end
+                                tryRicochet(state, b, e.x, e.y)
                                 -- Ignite nearby oiled enemies in splash radius
                                 local splash = b.splashRadius or 0
                                 if splash > 0 then
@@ -138,7 +227,7 @@ function projectiles.updatePlayerBullets(state, dt)
                                     break
                                 end
                             end
-                        elseif b.type == 'wand' or b.type == 'holy_wand' or b.type == 'heavy_hammer' or b.type == 'dagger' or b.type == 'thousand_edge' or b.type == 'static_orb' or b.type == 'thunder_loop' or b.type == 'debug_effect' then
+                        elseif b.type == 'wand' or b.type == 'holy_wand' or b.type == 'heavy_hammer' or b.type == 'dagger' or b.type == 'thousand_edge' or b.type == 'static_orb' or b.type == 'thunder_loop' or b.type == 'debug_effect' or b.type == 'augment_shard' then
                             b.hitTargets = b.hitTargets or {}
                             if not b.hitTargets[e] then
                                 b.hitTargets[e] = true
@@ -147,7 +236,11 @@ function projectiles.updatePlayerBullets(state, dt)
                                     effectData = {duration = b.effectDuration, range = b.effectRange, chain = b.chain, allowRepeat = b.allowRepeat}
                                 end
                                 local instance = buildInstanceFromBullet(b, effectData)
-                                calculator.applyHit(state, e, instance)
+                                local result = calculator.applyHit(state, e, instance)
+                                if state and state.augments and state.augments.dispatch then
+                                    state.augments.dispatch(state, 'onProjectileHit', {bullet = b, enemy = e, result = result, player = state.player, weaponKey = b.parentWeaponKey or b.type})
+                                end
+                                tryRicochet(state, b, e.x, e.y)
                                 b.pierce = (b.pierce or 1) - 1
                                 if b.pierce <= 0 then
                                     table.remove(state.bullets, i)
@@ -160,14 +253,20 @@ function projectiles.updatePlayerBullets(state, dt)
                             if not b.hitTargets[e] then
                                 b.hitTargets[e] = true
                                 local instance = buildInstanceFromBullet(b)
-                                calculator.applyHit(state, e, instance)
+                                local result = calculator.applyHit(state, e, instance)
+                                if state and state.augments and state.augments.dispatch then
+                                    state.augments.dispatch(state, 'onProjectileHit', {bullet = b, enemy = e, result = result, player = state.player, weaponKey = b.parentWeaponKey or b.type})
+                                end
                             end
                         elseif b.type == 'death_spiral' then
                             b.hitTargets = b.hitTargets or {}
                             if not b.hitTargets[e] then
                                 b.hitTargets[e] = true
                                 local instance = buildInstanceFromBullet(b)
-                                calculator.applyHit(state, e, instance)
+                                local result = calculator.applyHit(state, e, instance)
+                                if state and state.augments and state.augments.dispatch then
+                                    state.augments.dispatch(state, 'onProjectileHit', {bullet = b, enemy = e, result = result, player = state.player, weaponKey = b.parentWeaponKey or b.type})
+                                end
                             end
                         end
                     end

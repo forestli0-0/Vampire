@@ -29,6 +29,7 @@
 - `tick`：每帧（ctx: dt, t, player, movedDist, isMoving）
 - `onShoot`：一次开火（ctx: weaponKey, weaponStats, target, x,y）
 - `onProjectileSpawned`：生成投射物（ctx: bullet）
+- `onProjectileHit`：投射物命中（ctx: bullet, enemy, result）
 - `preHit`：命中结算前（可改 instance / 可 cancel）
 - `onHit`：命中结算后（ctx: enemy, result{damage,isCrit,appliedEffects}, instance）
 - `onProc`：触发异常后（ctx: enemy, effectType）
@@ -125,6 +126,25 @@
 1) **脚手架**：`augments.lua` + 事件接入点打通 + 2 个示例 Augment
 2) **内容扩充**：达到 8–12 个可用 Augment，形成明显分支流派
 3) **进阶**（可选）：决定 Augment 的“局外收集/解锁池”还是“纯局内随机”
+
+## 当前实现（已落地）
+- **事件系统**：已接入 `preHit/preHurt/onProjectileHit/onShieldBroken/onUpgradeOptions...` 等（见上方事件列表）。
+- **机制型 Augment（现有）**
+  - `aug_kinetic_discharge`：移动距离充能放电。
+  - `aug_blood_burst`：击杀爆炸。
+  - `aug_combo_arc`：连击阈值触发链电。
+  - `aug_evasive_momentum`：移动中周期闪避一次受击（带短暂无敌帧）。
+  - **弹道变化包（最有感）**
+    - `aug_forked_trajectory`：投射物分叉。
+    - `aug_homing_protocol`：投射物追踪。
+    - `aug_ricochet_matrix`：投射物弹射找下一个目标。
+    - `aug_boomerang_return`：投射物回旋返回（当前：回程未命中会在玩家附近转圈直至寿命结束）。
+    - `aug_shatter_shards`：命中后碎裂成小弹片。
+
+## 下一步（计划）
+- **平衡与约束**：处理“分叉×碎裂×弹射”等组合上限、触发频率、性能压力。
+- **机制保底**：升级三选一增加“机制选项保底/出现节奏”，让局内路线更开放。
+- **反馈增强**：给弹道变化做更清晰的视觉反馈（例如弹片颜色/特效/轨迹）。
 
 ## 开放问题（等你拍板）
 - Augment 的定位：纯局内随机？还是局外解锁后进入局内池？
