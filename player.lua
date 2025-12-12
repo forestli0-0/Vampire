@@ -4,6 +4,7 @@ local player = {}
 
 function player.updateMovement(state, dt)
     local p = state.player
+    local ox, oy = p.x, p.y
     local dx, dy = 0, 0
     if love.keyboard.isDown('w') then dy = -1 end
     if love.keyboard.isDown('s') then dy = 1 end
@@ -19,6 +20,8 @@ function player.updateMovement(state, dt)
     if dx > 0 then p.facing = 1
     elseif dx < 0 then p.facing = -1 end
     p.isMoving = moving
+    local mdx, mdy = p.x - ox, p.y - oy
+    p.movedDist = math.sqrt(mdx * mdx + mdy * mdy)
 
     state.camera.x = p.x - love.graphics.getWidth() / 2
     state.camera.y = p.y - love.graphics.getHeight() / 2
@@ -30,7 +33,11 @@ function player.hurt(state, dmg)
     if p.invincibleTimer > 0 then return end
     local armor = (p.stats and p.stats.armor) or 0
     local applied = math.max(1, math.floor((dmg or 0) - armor))
+    local hpBefore = p.hp
     p.hp = math.max(0, p.hp - applied)
+    if state and state.augments and state.augments.dispatch then
+        state.augments.dispatch(state, 'onHurt', {amount = applied, dmg = dmg, hpBefore = hpBefore, hpAfter = p.hp, player = p})
+    end
     logger.damageTaken(state, applied, p.hp)
     if p.hp <= 0 then
         p.invincibleTimer = 0

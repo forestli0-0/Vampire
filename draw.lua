@@ -85,6 +85,21 @@ local function drawStatsPanel(state)
     end
     if #modKeys == 0 then table.insert(lines, "None") end
 
+    table.insert(lines, "")
+    table.insert(lines, "AUGMENTS")
+    local augmentKeys = {}
+    for k, lv in pairs(state.inventory.augments or {}) do
+        if (lv or 0) > 0 then table.insert(augmentKeys, k) end
+    end
+    table.sort(augmentKeys)
+    for _, key in ipairs(augmentKeys) do
+        local lv = (state.inventory.augments and state.inventory.augments[key]) or 0
+        local def = state.catalog[key] or {}
+        local name = def.name or key
+        table.insert(lines, string.format("%s Lv%d", name, lv))
+    end
+    if #augmentKeys == 0 then table.insert(lines, "None") end
+
     local target = enemies and enemies.findNearestEnemy and enemies.findNearestEnemy(state, 999999) or nil
     if target and target.status then
         local st = target.status
@@ -669,6 +684,7 @@ function draw.render(state)
             if opt.type == 'weapon' and state.inventory.weapons[opt.key] then curLv = state.inventory.weapons[opt.key].level end
             if opt.type == 'passive' and state.inventory.passives[opt.key] then curLv = state.inventory.passives[opt.key] end
             if opt.type == 'mod' and state.inventory.mods and state.inventory.mods[opt.key] then curLv = state.inventory.mods[opt.key] end
+            if opt.type == 'augment' and state.inventory.augments and state.inventory.augments[opt.key] then curLv = state.inventory.augments[opt.key] end
             love.graphics.print("Current Lv: " .. curLv, 500, y+10)
         end
         love.graphics.setColor(1,1,1)

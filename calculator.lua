@@ -396,7 +396,31 @@ function calculator.applyHit(state, enemy, params)
     local appliedEffects = calculator.applyStatus(state, enemy, instance, forcedChance)
     local opts = buildDamageMods(enemy, instance, appliedEffects)
     local dmg, isCrit = calculator.applyDamage(state, enemy, instance, opts)
-    return {damage = dmg, isCrit = isCrit, statusApplied = (#appliedEffects > 0), appliedEffects = appliedEffects}
+    local result = {damage = dmg, isCrit = isCrit, statusApplied = (#appliedEffects > 0), appliedEffects = appliedEffects}
+
+    if state and state.augments and state.augments.dispatch then
+        state.augments.dispatch(state, 'onHit', {
+            enemy = enemy,
+            player = state.player,
+            instance = instance,
+            result = result,
+            damage = dmg,
+            isCrit = isCrit
+        })
+        for _, eff in ipairs(appliedEffects or {}) do
+            state.augments.dispatch(state, 'onProc', {
+                enemy = enemy,
+                player = state.player,
+                instance = instance,
+                result = result,
+                effectType = eff,
+                damage = dmg,
+                isCrit = isCrit
+            })
+        end
+    end
+
+    return result
 end
 
 return calculator

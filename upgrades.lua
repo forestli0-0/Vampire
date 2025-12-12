@@ -30,7 +30,17 @@ function upgrades.generateUpgradeOptions(state)
         if itemType == 'weapon' then return state.inventory.weapons[itemKey] ~= nil end
         if itemType == 'passive' then return state.inventory.passives[itemKey] ~= nil end
         if itemType == 'mod' then return state.inventory.mods and state.inventory.mods[itemKey] ~= nil end
+        if itemType == 'augment' then return state.inventory.augments and state.inventory.augments[itemKey] ~= nil end
         return false
+    end
+
+    local augmentCap = state.maxAugmentsPerRun or 4
+    local function countAugments()
+        local n = 0
+        for _, lvl in pairs(state.inventory.augments or {}) do
+            if (lvl or 0) > 0 then n = n + 1 end
+        end
+        return n
     end
 
     for key, item in pairs(state.catalog) do
@@ -50,10 +60,16 @@ function upgrades.generateUpgradeOptions(state)
                     goto continue_catalog
                 end
             end
+            if item.type == 'augment' and not (state.inventory.augments and state.inventory.augments[key]) then
+                if countAugments() >= augmentCap then
+                    goto continue_catalog
+                end
+            end
             local currentLevel = 0
             if item.type == 'weapon' and state.inventory.weapons[key] then currentLevel = state.inventory.weapons[key].level end
             if item.type == 'passive' and state.inventory.passives[key] then currentLevel = state.inventory.passives[key] end
             if item.type == 'mod' and state.inventory.mods and state.inventory.mods[key] then currentLevel = state.inventory.mods[key] end
+            if item.type == 'augment' and state.inventory.augments and state.inventory.augments[key] then currentLevel = state.inventory.augments[key] end
             if currentLevel < item.maxLevel then
                 local opt = {key=key, type=item.type, name=item.name, desc=item.desc, def=item}
                 if isOwned(item.type, key) then
@@ -152,6 +168,16 @@ function upgrades.applyUpgrade(state, opt)
         end
         state.inventory.mods[opt.key] = state.inventory.mods[opt.key] + 1
         logger.upgrade(state, opt, state.inventory.mods[opt.key])
+        if opt.def.onUpgrade then opt.def.onUpgrade() end
+    elseif opt.type == 'augment' then
+        state.inventory.augments = state.inventory.augments or {}
+        state.inventory.augmentOrder = state.inventory.augmentOrder or {}
+        if not state.inventory.augments[opt.key] then
+            state.inventory.augments[opt.key] = 0
+            table.insert(state.inventory.augmentOrder, opt.key)
+        end
+        state.inventory.augments[opt.key] = state.inventory.augments[opt.key] + 1
+        logger.upgrade(state, opt, state.inventory.augments[opt.key])
         if opt.def.onUpgrade then opt.def.onUpgrade() end
     end
 end

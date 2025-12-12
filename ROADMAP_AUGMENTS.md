@@ -9,6 +9,7 @@
 - **低耦合**：通过事件钩子接入（onShoot/onHit/onKill…），避免到处写 if-else。
 - **易加新内容**：新增一个 Augment 只需“填数据 + 写一段 handler”，不需要改核心结算逻辑。
 - **可控复杂度**：每局可获得 Augment 数量有限（例如 3–6 个），减少信息过载。
+- **支持离散 + 持续触发**：既能处理“命中/击杀/拾取”等离散事件，也能支持“移动充能/站桩蓄力/每秒触发”等持续类被动。
 
 ## 数据结构（建议）
 - `state.catalog` 新增条目：`type='augment'`
@@ -16,12 +17,16 @@
   - `tags`/`targetTags`：可选（全局或指定武器标签生效）。
   - `handler`：可选（或者在 `augments.lua` 内按 key 分发）。
 - `state.inventory.augments = { [augmentKey] = level }`
+- `state.augmentState = { [augmentKey] = {cooldowns={}, counters={}, stacks={}, charge=0, data={}} }`
+  - 用于：移动距离累计、站立计时、充能条、内部冷却、临时层数等“技能自身状态”。
 
 ## 事件钩子层（核心）
-新增 `augments.lua`（建议），提供：
-- `augments.dispatch(state, eventName, ctx)`
+新增 `augments.lua`（建议），提供两层能力：
+- **事件分发**：`augments.dispatch(state, eventName, ctx)`（命中/击杀/拾取/受伤等离散事件）
+- **持续更新**：`augments.update(state, dt)`（用于移动充能、周期触发、内部冷却衰减等）
 
 建议的事件列表（先实现最常用的几类）：
+- `tick`：每帧（ctx: dt, t, player, movedDist, isMoving）
 - `onShoot`：一次开火（ctx: weaponKey, weaponStats, target, x,y）
 - `onProjectileSpawned`：生成投射物（ctx: bullet）
 - `onHit`：命中结算后（ctx: enemy, result{damage,isCrit,appliedEffects}, instance）
@@ -30,12 +35,29 @@
 - `onPickup`：拾取（ctx: kind, amount）
 - `onHurt`：玩家受伤（ctx: amount）
 
+## 触发条件系统（关键：支持“移动充能”等乱七八糟被动）
+不建议把所有逻辑都写成“事件里塞 if-else”，而是让 Augment 用可组合的触发条件描述自己：
+- **触发器（Trigger）**：绑定一个事件名 + 条件 + 冷却/计数器 + 动作
+- **条件（Condition）**：可选过滤器，用于表达“移动中/站立中/血量阈值/元素命中/暴击/击杀类型”等
+- **动作（Action）**：执行效果（生成投射物、附加状态、改变下一次攻击、掉落资源、临时buff…）
+
+建议第一版就支持这些通用字段（足够覆盖多数 Build 游戏套路）：
+- `cooldown`：触发后进入冷却（每个 Augment 独立）
+- `chance`：概率触发
+- `maxPerSecond`：限频（防止 tick 类技能爆炸）
+- `requires`：条件集合（例如 `isMoving=true`、`enemyHasShield=true`、`isCrit=true`、`proc='ELECTRIC'`）
+- `counter`：累计器（例如移动距离、站立时间、击杀数、命中数）
+  - 示例：`counter='moveDist'`, `threshold=300` 表示“累计移动 300 距离触发一次并扣除阈值”
+
+> 这样“移动充能/站桩蓄力/每 N 秒一次/每 N 次命中一次/连杀触发”等都可以用同一套机制表达。
+
 ## 接入点（改动位置）
 - `weapons.spawnProjectile`：触发 `onShoot` / `onProjectileSpawned`
 - `calculator.applyHit`：在命中结算后触发 `onHit` / `onProc`
 - `enemies.damageEnemy`：在死亡判定处触发 `onKill`
 - `pickups.lua`：拾取处触发 `onPickup`
 - `player.hurt`：受伤处触发 `onHurt`
+- `player.updateMovement` 或主循环：在更新移动后，触发 `tick` 并提供 `movedDist/isMoving`
 
 ## 升级系统接入（Augment 如何出现在三选一里）
 - `upgrades.generateUpgradeOptions`：把 `type='augment'` 加入 pool
@@ -54,7 +76,7 @@
 
 ## UI / 调试支持
 - 左侧面板展示“本局已获得 Augment 列表”（可只显示名字+1行描述）。
-- Debug 菜单支持：直接添加/移除某个 Augment，快速验证机制手感。
+- Debug 菜单支持：直接添加/移除某个 Augment，快速验证机制手感（F3 打开 → Tab 切到 `augment` 模式 → Right/Enter 添加 → Left/Backspace 移除）。
 
 ## 里程碑
 1) **脚手架**：`augments.lua` + 事件接入点打通 + 2 个示例 Augment
@@ -65,4 +87,3 @@
 - Augment 的定位：纯局内随机？还是局外解锁后进入局内池？
 - Augment 是全局生效还是按武器生效（或两套并存）？
 - 每局 Augment 上限、出现频率、是否保底给机制选项？
-

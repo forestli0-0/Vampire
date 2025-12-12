@@ -551,7 +551,7 @@ function enemies.update(state, dt)
                 e.status._burnAcc = e.status._burnAcc - burnDmg
                 if burnDmg > 0 then applyDotTick(state, e, 'HEAT', burnDmg) end
             end
-            if e.status.burnTimer < 0 then e.status.burnTimer = 0 end
+            if e.status.burnTimer and e.status.burnTimer < 0 then e.status.burnTimer = 0 end
         end
 
         if e.status.bleedTimer and e.status.bleedTimer > 0 then
@@ -564,7 +564,7 @@ function enemies.update(state, dt)
                     applyDotTick(state, e, 'SLASH', tick, {bypassShield=true, ignoreArmor=true})
                 end
             end
-            if e.status.bleedTimer <= 0 then
+            if e.status.bleedTimer and e.status.bleedTimer <= 0 then
                 e.status.bleedTimer = nil
                 e.status.bleedDps = nil
                 e.status.bleedAcc = nil
@@ -610,7 +610,7 @@ function enemies.update(state, dt)
                     end
                 end
             end
-            if e.status.staticTimer <= 0 then
+            if e.status.staticTimer and e.status.staticTimer <= 0 then
                 e.status.static = false
                 e.status.staticTimer = nil
                 e.status.staticDps = nil
@@ -646,7 +646,7 @@ function enemies.update(state, dt)
                 e.status.heatAcc = e.status.heatAcc - tick
                 if tick > 0 then applyDotTick(state, e, 'HEAT', tick) end
             end
-            if e.status.heatTimer <= 0 then
+            if e.status.heatTimer and e.status.heatTimer <= 0 then
                 e.status.heatTimer = nil
                 e.status.heatDps = nil
                 e.status.heatAcc = nil
@@ -661,7 +661,7 @@ function enemies.update(state, dt)
                 e.status.toxinAcc = e.status.toxinAcc - tick
                 applyDotTick(state, e, 'TOXIN', tick, {bypassShield=true})
             end
-            if e.status.toxinTimer <= 0 then
+            if e.status.toxinTimer and e.status.toxinTimer <= 0 then
                 e.status.toxinTimer = nil
                 e.status.toxinDps = nil
                 e.status.toxinAcc = nil
@@ -689,7 +689,7 @@ function enemies.update(state, dt)
                     end
                 end
             end
-            if e.status.gasTimer <= 0 then
+            if e.status.gasTimer and e.status.gasTimer <= 0 then
                 e.status.gasTimer = nil
                 e.status.gasDps = nil
                 e.status.gasRadius = nil
@@ -805,6 +805,9 @@ function enemies.update(state, dt)
             if e.isDummy then
                 resetDummy(e)
                 goto continue_enemy
+            end
+            if state and state.augments and state.augments.dispatch then
+                state.augments.dispatch(state, 'onKill', {enemy = e, player = state.player})
             end
             if e.isBoss then
                 local rewardCurrency = 100

@@ -165,6 +165,10 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
     local wStats = statsOverride or weapons.calculateStats(state, type)
     if not wStats then return end
 
+    if state and state.augments and state.augments.dispatch then
+        state.augments.dispatch(state, 'onShoot', {weaponKey = type, weaponStats = wStats, target = target, x = x, y = y})
+    end
+
     local weaponDef = state.catalog[type] or {}
     local weaponTags = weaponDef.tags
     local effectType = weaponDef.effectType or wStats.effectType
@@ -175,36 +179,48 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
         local angle = math.atan2(target.y - y, target.x - x)
         local spd = (wStats.speed or 0) * (state.player.stats.speed or 1)
         local size = (wStats.size or 6) * area
-        table.insert(state.bullets, {
+        local bullet = {
             type=type, x=x, y=y, vx=math.cos(angle)*spd, vy=math.sin(angle)*spd,
             life=wStats.life or 2, size=size, damage=finalDmg, effectType=effectType, weaponTags=weaponTags,
             pierce=wStats.pierce or 1, rotation=angle,
             effectDuration=wStats.duration, splashRadius=wStats.splashRadius, effectRange=wStats.staticRange, chain=wStats.chain, allowRepeat=wStats.allowRepeat,
             elements=wStats.elements, damageBreakdown=wStats.damageBreakdown,
             critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance
-        })
+        }
+        table.insert(state.bullets, bullet)
+        if state and state.augments and state.augments.dispatch then
+            state.augments.dispatch(state, 'onProjectileSpawned', {weaponKey = type, bullet = bullet})
+        end
     elseif type == 'axe' then
         local spd = (wStats.speed or 0) * (state.player.stats.speed or 1)
         local vx = (math.random() - 0.5) * 200
         local vy = -spd
         local angle = math.atan2(vy, vx)
-        table.insert(state.bullets, {type='axe', x=x, y=y, vx=vx, vy=vy, life=3, size=12 * area, damage=finalDmg, rotation=angle, hitTargets={}, effectType=effectType, weaponTags=weaponTags, elements=wStats.elements, damageBreakdown=wStats.damageBreakdown, critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance})
+        local bullet = {type='axe', x=x, y=y, vx=vx, vy=vy, life=3, size=12 * area, damage=finalDmg, rotation=angle, hitTargets={}, effectType=effectType, weaponTags=weaponTags, elements=wStats.elements, damageBreakdown=wStats.damageBreakdown, critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance}
+        table.insert(state.bullets, bullet)
+        if state and state.augments and state.augments.dispatch then
+            state.augments.dispatch(state, 'onProjectileSpawned', {weaponKey = type, bullet = bullet})
+        end
     elseif type == 'death_spiral' then
         local count = 8 + (wStats.amount or 0)
         local spd = (wStats.speed or 300) * (state.player.stats.speed or 1)
         for i = 1, count do
             local angle = (i - 1) / count * math.pi * 2
-            table.insert(state.bullets, {
+            local bullet = {
                 type='death_spiral', x=x, y=y,
                 vx=math.cos(angle)*spd, vy=math.sin(angle)*spd,
                 life=3, size=14 * area, damage=finalDmg,
                 rotation=angle, angularVel=1.5, hitTargets={}, effectType=effectType, weaponTags=weaponTags, elements=wStats.elements, damageBreakdown=wStats.damageBreakdown,
                 critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance
-            })
+            }
+            table.insert(state.bullets, bullet)
+            if state and state.augments and state.augments.dispatch then
+                state.augments.dispatch(state, 'onProjectileSpawned', {weaponKey = type, bullet = bullet})
+            end
         end
     elseif type == 'absolute_zero' then
         local radius = (wStats.radius or 0) * area
-        table.insert(state.bullets, {
+        local bullet = {
             type='absolute_zero', x=x, y=y, vx=0, vy=0,
             life=wStats.duration or 2.5, size=radius, radius=radius,
             damage=finalDmg, effectType=effectType, weaponTags=weaponTags,
@@ -212,7 +228,11 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
             tick=0,
             elements=wStats.elements, damageBreakdown=wStats.damageBreakdown,
             critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance
-        })
+        }
+        table.insert(state.bullets, bullet)
+        if state and state.augments and state.augments.dispatch then
+            state.augments.dispatch(state, 'onProjectileSpawned', {weaponKey = type, bullet = bullet})
+        end
     end
 end
 

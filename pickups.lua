@@ -60,7 +60,13 @@ function pickups.updateGems(state, dt)
 
         local pickupRadius = (p.size or 20) / 2
         if distSq < pickupRadius * pickupRadius then
-            addXp(state, g.value)
+            local amt = g.value
+            local ctx = {kind = 'gem', amount = amt, player = p}
+            if state and state.augments and state.augments.dispatch then
+                state.augments.dispatch(state, 'onPickup', ctx)
+            end
+            amt = ctx.amount or amt
+            addXp(state, amt)
             table.remove(state.gems, i)
             if state.playSfx then state.playSfx('gem') end
         end
@@ -73,6 +79,9 @@ function pickups.updateChests(state, dt)
         local c = state.chests[i]
         local dist = math.sqrt((p.x - c.x)^2 + (p.y - c.y)^2)
         if dist < 30 then
+            if state and state.augments and state.augments.dispatch then
+                state.augments.dispatch(state, 'onPickup', {kind = 'chest', amount = 1, player = p})
+            end
             local evolvedWeapon = upgrades.tryEvolveWeapon(state)
             if evolvedWeapon then
                 table.insert(state.texts, {x=p.x, y=p.y-50, text="EVOLVED! " .. evolvedWeapon, color={1, 0.84, 0}, life=2})
@@ -95,10 +104,19 @@ function pickups.updateFloorPickups(state, dt)
         local item = state.floorPickups[i]
         if util.checkCollision({x=p.x, y=p.y, size=p.size}, item) then
             if item.kind == 'chicken' then
-                p.hp = math.min(p.maxHp, p.hp + 30)
-                table.insert(state.texts, {x=p.x, y=p.y-30, text="+30 HP", color={1,0.7,0}, life=1})
+                local amt = 30
+                local ctx = {kind = 'chicken', amount = amt, player = p, item = item}
+                if state and state.augments and state.augments.dispatch then
+                    state.augments.dispatch(state, 'onPickup', ctx)
+                end
+                amt = ctx.amount or amt
+                p.hp = math.min(p.maxHp, p.hp + amt)
+                table.insert(state.texts, {x=p.x, y=p.y-30, text="+" .. math.floor(amt) .. " HP", color={1,0.7,0}, life=1})
                 logger.pickup(state, 'chicken')
             elseif item.kind == 'magnet' then
+                if state and state.augments and state.augments.dispatch then
+                    state.augments.dispatch(state, 'onPickup', {kind = 'magnet', amount = 1, player = p, item = item})
+                end
                 -- 吸取全地图宝石
                 for _, g in ipairs(state.gems) do
                     g.magnetized = true
@@ -107,6 +125,9 @@ function pickups.updateFloorPickups(state, dt)
                 table.insert(state.texts, {x=p.x, y=p.y-30, text="MAGNET!", color={0,0.8,1}, life=1})
                 logger.pickup(state, 'magnet')
             elseif item.kind == 'bomb' then
+                if state and state.augments and state.augments.dispatch then
+                    state.augments.dispatch(state, 'onPickup', {kind = 'bomb', amount = 1, player = p, item = item})
+                end
                 -- 只杀屏幕内的敌人
                 local w, h = love.graphics.getWidth(), love.graphics.getHeight()
                 local halfW, halfH = w/2 + 50, h/2 + 50

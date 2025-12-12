@@ -9,6 +9,7 @@ local upgrades = require('upgrades')
 local director = require('director')
 local draw = require('draw')
 local debugmenu = require('debugmenu')
+local augments = require('augments')
 local logger = require('logger')
 local benchmark = require('benchmark')
 local arsenal = require('arsenal')
@@ -17,6 +18,7 @@ local arsenal = require('arsenal')
 function love.load()
     if state.stopMusic then state.stopMusic() end
     state.init()
+    state.augments = augments
     logger.init(state)
     arsenal.init(state)
     if state.gameState ~= 'ARSENAL' then
@@ -59,6 +61,9 @@ function love.update(dt)
 
     -- 核心更新顺序：玩家 → 武器 → 子弹 → 刷怪
     player.updateMovement(state, dt)
+    if state.augments and state.augments.update then
+        state.augments.update(state, dt)
+    end
     weapons.update(state, dt)
     projectiles.updatePlayerBullets(state, dt)
     projectiles.updateEnemyBullets(state, dt)

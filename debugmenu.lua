@@ -5,7 +5,7 @@ local enemyDefs = require('enemy_defs')
 
 local debugmenu = {}
 
-local modes = {'weapon', 'passive', 'xp', 'enemy', 'test', 'effect'}
+local modes = {'weapon', 'passive', 'augment', 'xp', 'enemy', 'test', 'effect'}
 local effectOptions = {
     'NONE','FIRE','FREEZE','STATIC','BLEED','OIL','HEAVY','PUNCTURE','MAGNETIC','CORROSIVE','VIRAL','TOXIN','BLAST','GAS','RADIATION'
 }
@@ -128,15 +128,18 @@ local function clampIndex(idx, list)
 end
 
 local function buildLists(state)
-    local weaponsList, passivesList = {}, {}
+    local weaponsList, passivesList, augmentList = {}, {}, {}
     for key, item in pairs(state.catalog or {}) do
         if item.type == 'weapon' then table.insert(weaponsList, key) end
         if item.type == 'passive' then table.insert(passivesList, key) end
+        if item.type == 'augment' then table.insert(augmentList, key) end
     end
     table.sort(weaponsList)
     table.sort(passivesList)
+    table.sort(augmentList)
     state.debug.weaponList = weaponsList
     state.debug.passiveList = passivesList
+    state.debug.augmentList = augmentList
 
     local enemyList, dummyList = {}, {}
     for key, _ in pairs(enemyDefs or {}) do
@@ -168,6 +171,7 @@ function debugmenu.init(state)
     state.debug.modeIdx = 1
     state.debug.weaponIdx = 1
     state.debug.passiveIdx = 1
+    state.debug.augmentIdx = 1
     state.debug.enemyIdx = 1
     state.debug.xpStep = 50
     state.debug.dummyIdx = 1
@@ -227,6 +231,32 @@ function debugmenu.keypressed(state, key)
             local keyName = state.debug.passiveList[state.debug.passiveIdx]
             local def = state.catalog[keyName]
             if def then upgrades.applyUpgrade(state, {key=keyName, type=def.type, def=def}) end
+            return true
+        end
+    elseif mode == 'augment' then
+        if key == 'up' then
+            state.debug.augmentIdx = clampIndex(state.debug.augmentIdx - 1, state.debug.augmentList)
+            return true
+        elseif key == 'down' then
+            state.debug.augmentIdx = clampIndex(state.debug.augmentIdx + 1, state.debug.augmentList)
+            return true
+        elseif key == 'left' or key == 'backspace' then
+            local keyName = state.debug.augmentList[state.debug.augmentIdx]
+            if keyName and state.inventory and state.inventory.augments and state.inventory.augments[keyName] then
+                state.inventory.augments[keyName] = nil
+                local order = state.inventory.augmentOrder or {}
+                for i = #order, 1, -1 do
+                    if order[i] == keyName then
+                        table.remove(order, i)
+                    end
+                end
+                if state.augmentState then state.augmentState[keyName] = nil end
+            end
+            return true
+        elseif key == 'right' or key == 'return' then
+            local keyName = state.debug.augmentList[state.debug.augmentIdx]
+            local def = keyName and state.catalog[keyName]
+            if def then upgrades.applyUpgrade(state, {key=keyName, type=def.type, def=def, name=def.name, desc=def.desc}) end
             return true
         end
     elseif mode == 'xp' then
@@ -331,6 +361,14 @@ function debugmenu.draw(state)
         love.graphics.print(string.format("Passive: [%s]  Lv %d / %s  (%s)", keyName, curLv, def.maxLevel or "?", def.desc or ""), 20, y)
         y = y + 20
         love.graphics.print("Up/Down to pick, Right/Enter to add or level up", 20, y)
+    elseif mode == 'augment' then
+        local list = state.debug.augmentList or {}
+        local keyName = list[state.debug.augmentIdx] or "N/A"
+        local def = state.catalog[keyName] or {}
+        local curLv = (state.inventory.augments and state.inventory.augments[keyName]) or 0
+        love.graphics.print(string.format("Augment: [%s]  Lv %d / %s  (%s)", keyName, curLv, def.maxLevel or "?", def.desc or ""), 20, y)
+        y = y + 20
+        love.graphics.print("Up/Down pick | Right/Enter add | Left/Backspace remove", 20, y)
     elseif mode == 'xp' then
         love.graphics.print(string.format("XP Step: %d  | Player Lv: %d  XP: %d / %d", state.debug.xpStep, state.player.level, state.player.xp, state.player.xpToNextLevel), 20, y)
         y = y + 20
