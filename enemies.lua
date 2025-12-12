@@ -15,6 +15,14 @@ local function getPunctureReduction(e)
     return red
 end
 
+local function getBlastReduction(e)
+    if not e or not e.status or not e.status.blastStacks or e.status.blastStacks <= 0 then return 0 end
+    local stacks = math.min(10, e.status.blastStacks)
+    local red = 0.3 + (stacks - 1) * 0.05
+    if red > 0.75 then red = 0.75 end
+    return red
+end
+
 local function ensureStatus(e)
     if not e.status then
         e.status = {
@@ -45,6 +53,7 @@ local function ensureStatus(e)
             punctureStacks = 0,
             punctureTimer = 0,
             impactTimer = 0,
+            blastStacks = 0,
             blastTimer = 0,
             gasTimer = 0,
             gasDps = 0,
@@ -71,7 +80,7 @@ end
 local function getEffectiveArmor(e)
     local armor = (e and e.armor) or 0
     if e and e.status then
-        if e.status.heatArmorLoss then armor = armor - e.status.heatArmorLoss end
+        if e.status.heatTimer and e.status.heatTimer > 0 then armor = armor * 0.5 end
     end
     if armor < 0 then armor = 0 end
     return armor
@@ -80,7 +89,6 @@ end
 local function applyArmorReduction(dmg, armor)
     if not armor or armor <= 0 then return dmg end
     local dr = armor / (armor + 300)
-    if dr > 0.9 then dr = 0.9 end
     return dmg * (1 - dr)
 end
 
@@ -115,7 +123,7 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
             e.status.coldStacks = math.min(10, (e.status.coldStacks or 0) + 1)
             if e.status.coldStacks >= 10 then
                 e.status.frozen = true
-                local freezeDur = (effectData and effectData.freezeDuration) or (effectData and effectData.duration) or 6.0
+                local freezeDur = (effectData and effectData.freezeDuration) or 2.0
                 e.status.frozenTimer = math.max(freezeDur, e.status.frozenTimer or 0)
                 e.speed = 0
                 e.status.coldStacks = 0
@@ -123,8 +131,9 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
                 if state.spawnEffect then state.spawnEffect('freeze', e.x, e.y) end
             else
                 local stacks = e.status.coldStacks or 0
-                local mult = 0.75 ^ stacks
-                if mult < 0.1 then mult = 0.1 end
+                local slowPct = 0.25 + math.max(0, stacks - 1) * 0.05
+                if slowPct > 0.7 then slowPct = 0.7 end
+                local mult = 1 - slowPct
                 e.speed = (e.baseSpeed or e.speed) * mult
             end
         end
@@ -142,11 +151,7 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         e.status.bleedAcc = e.status.bleedAcc or 0
         if state.spawnEffect then state.spawnEffect('bleed', e.x, e.y) end
     elseif effect == 'FIRE' then
-        -- Heat proc: temporary 50% armor reduction always applies
-        local lossTarget = (e.armor or 0) * 0.5
-        if lossTarget > (e.status.heatArmorLoss or 0) then
-            e.status.heatArmorLoss = lossTarget
-        end
+        -- Heat proc: 50% armor reduction during heatTimer
         local heatDur = (effectData and effectData.heatDuration) or (effectData and effectData.duration) or 6.0
         e.status.heatTimer = math.max(e.status.heatTimer or 0, heatDur)
         local base = baseDamage or ((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.05 * might)
@@ -226,9 +231,9 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         e.status.punctureStacks = math.min(10, (e.status.punctureStacks or 0) + 1)
         e.status.punctureTimer = math.max(e.status.punctureTimer or 0, dur)
     elseif effect == 'BLAST' then
-        local dur = (effectData and effectData.duration) or 0.6
-        local remaining = e.status.blastTimer or 0
-        e.status.blastTimer = math.max(dur, remaining)
+        local dur = (effectData and effectData.duration) or 6.0
+        e.status.blastStacks = math.min(10, (e.status.blastStacks or 0) + 1)
+        e.status.blastTimer = math.max(e.status.blastTimer or 0, dur)
     elseif effect == 'GAS' then
         local dur = (effectData and effectData.duration) or 6.0
         e.status.gasTimer = math.max(e.status.gasTimer or 0, dur)
@@ -239,7 +244,7 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         e.status.gasDps = (e.status.gasDps or 0) + addDps
         e.status.gasAcc = e.status.gasAcc or 0
     elseif effect == 'RADIATION' then
-        local dur = (effectData and effectData.duration) or 6.0
+        local dur = (effectData and effectData.duration) or 12.0
         e.status.radiationTimer = math.max(e.status.radiationTimer or 0, dur)
         e.status.radiationTargetTimer = 0
         e.status.radiationTarget = nil
@@ -419,8 +424,9 @@ function enemies.update(state, dt)
                 e.speed = e.baseSpeed or e.speed
             else
                 local stacks = e.status.coldStacks or 0
-                local mult = 0.75 ^ stacks
-                if mult < 0.1 then mult = 0.1 end
+                local slowPct = 0.25 + math.max(0, stacks - 1) * 0.05
+                if slowPct > 0.7 then slowPct = 0.7 end
+                local mult = 1 - slowPct
                 e.speed = (e.baseSpeed or e.speed) * mult
             end
         end
@@ -431,6 +437,7 @@ function enemies.update(state, dt)
             e.status.blastTimer = e.status.blastTimer - dt
             if e.status.blastTimer <= 0 then
                 e.status.blastTimer = nil
+                e.status.blastStacks = 0
             end
         end
 
@@ -614,7 +621,6 @@ function enemies.update(state, dt)
             end
             if e.status.heatTimer <= 0 then
                 e.status.heatTimer = nil
-                e.status.heatArmorLoss = 0
                 e.status.heatDps = nil
                 e.status.heatAcc = nil
             end
@@ -696,9 +702,15 @@ function enemies.update(state, dt)
         end
 
         local stunned = e.status.frozen
-            or (e.status.blastTimer and e.status.blastTimer > 0)
             or (e.status.impactTimer and e.status.impactTimer > 0)
             or (e.status.shockTimer and e.status.shockTimer > 0)
+        local coldMult = 1
+        if not e.status.frozen and e.status.coldTimer and e.status.coldTimer > 0 and (e.status.coldStacks or 0) > 0 then
+            local stacks = e.status.coldStacks or 0
+            local slowPct = 0.25 + math.max(0, stacks - 1) * 0.05
+            if slowPct > 0.7 then slowPct = 0.7 end
+            coldMult = 1 - slowPct
+        end
         local targetX, targetY = p.x, p.y
         if e.status.radiationTimer and e.status.radiationTimer > 0 then
             local rt = e.status.radiationTarget
@@ -712,9 +724,14 @@ function enemies.update(state, dt)
         local angToTarget = math.atan2(targetY - e.y, targetX - e.x)
 
         if e.shootInterval and not stunned then
-            e.shootTimer = (e.shootTimer or e.shootInterval) - dt
+            e.shootTimer = (e.shootTimer or e.shootInterval) - dt * coldMult
             if e.shootTimer <= 0 then
                 local ang = angToTarget
+                local blastRed = getBlastReduction(e)
+                if blastRed > 0 then
+                    local spread = blastRed * 0.7
+                    ang = ang + (math.random() - 0.5) * spread * 2
+                end
                 local spd = e.bulletSpeed or 180
                 local spriteKey = nil
                 if e.kind == 'plant' then spriteKey = 'plant_bullet' end

@@ -37,7 +37,7 @@ local function fireEffectBullet(state, effect)
     if eff ~= 'NONE' then
         effectType = eff
         effectData = {}
-        if eff == 'MAGNETIC' or eff == 'VIRAL' or eff == 'TOXIN' or eff == 'GAS' or eff == 'RADIATION' or eff == 'PUNCTURE' then
+        if eff == 'MAGNETIC' or eff == 'VIRAL' or eff == 'TOXIN' or eff == 'GAS' or eff == 'PUNCTURE' then
             effectData.duration = 6.0
         end
         if eff == 'MAGNETIC' then
@@ -53,9 +53,11 @@ local function fireEffectBullet(state, effect)
             effectData.duration = 1.2
             effectData.fullFreeze = true
         elseif eff == 'BLAST' then
-            effectData.duration = 0.6
+            effectData.duration = 6.0
         elseif eff == 'GAS' then
             effectData.range = 120
+        elseif eff == 'RADIATION' then
+            effectData.duration = 12.0
         end
     end
     table.insert(state.bullets, {

@@ -202,10 +202,9 @@ function draw.render(state)
         love.graphics.setColor(1, 0.2, 0.2)
         love.graphics.rectangle('fill', barX, barY, barW * hr, 4)
         local armorVal = e.armor or 0
-        if e.status and e.status.heatArmorLoss then armorVal = armorVal - e.status.heatArmorLoss end
+        if e.status and e.status.heatTimer and e.status.heatTimer > 0 then armorVal = armorVal * 0.5 end
         if armorVal and armorVal > 0 then
             local dr = armorVal / (armorVal + 300)
-            if dr > 0.9 then dr = 0.9 end
             love.graphics.setColor(1, 0.9, 0.2)
             love.graphics.rectangle('fill', barX, barY + 5, barW * dr, 2)
         end
