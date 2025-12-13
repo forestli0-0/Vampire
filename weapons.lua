@@ -95,8 +95,8 @@ local function updateQuakes(state, dt)
             critChance = q.critChance,
             critMultiplier = q.critMultiplier,
             statusChance = q.statusChance,
-            effectType = 'FREEZE',
-            effectData = {duration = q.stun or 0.6, fullFreeze = true},
+            effectType = q.effectType or 'HEAVY',
+            effectData = {duration = q.stun or 0.6},
             weaponTags = q.tags,
             knock = false,
             knockForce = q.knock
@@ -426,6 +426,7 @@ function weapons.update(state, dt)
                         damage = math.floor(dmg * factor),
                         stun = stunDuration,
                         knock = knock,
+                        effectType = weaponDef.effectType or computedStats.effectType or 'HEAVY',
                         tags = weaponDef.tags,
                         critChance = computedStats.critChance,
                         critMultiplier = computedStats.critMultiplier,
