@@ -1131,14 +1131,6 @@ function state.init()
             end
         end
 
-        for i = #state.quakeEffects, 1, -1 do
-            local q = state.quakeEffects[i]
-            q.t = q.t + dt
-            if q.t >= (q.duration or 0.5) then
-                table.remove(state.quakeEffects, i)
-            end
-        end
-
         for i = #state.lightningLinks, 1, -1 do
             local l = state.lightningLinks[i]
             l.t = (l.t or 0) + dt

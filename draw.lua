@@ -550,29 +550,43 @@ function draw.renderWorld(state)
     if state.quakeEffects then
         for _, q in ipairs(state.quakeEffects) do
             if (q.t or 0) < 0 then goto continue_quake end
-            local dur = q.duration or 0.6
-            local p = math.max(0, math.min(1, (q.t or 0) / dur))
+            local dur = q.duration or 1.2
+            local t = (q.t or 0)
+            local p = math.max(0, math.min(1, t / dur))
             local cx, cy = q.x or state.player.x, q.y or state.player.y
-            local baseR = q.radius or 420
+            local baseR = q.radius or 220
+            local frontR = baseR * p
 
-            vfx.drawExplosion(cx, cy, baseR * 0.7, p, 0.9 * (1 - p))
-
-            -- subtle center flash
-            local flashAlpha = 0.12 * (1 - p)
-            if flashAlpha > 0.01 then
-                love.graphics.setColor(0.8, 0.65, 0.45, flashAlpha)
-                love.graphics.circle('fill', cx, cy, baseR * 0.35 * (1 - p * 0.6))
+            -- 起震中心闪光（只在前段）
+            local flashK = math.max(0, 1 - p * 6)
+            if flashK > 0.01 then
+                love.graphics.setColor(0.75, 0.55, 0.35, 0.10 * flashK)
+                love.graphics.circle('fill', cx, cy, baseR * 0.18 * flashK)
             end
-            -- expanding ripples
-            local rings = 3
-            for i = 1, rings do
-                local phase = (p + (i - 1) * 0.12) % 1
-                local r = baseR * (0.25 + phase * 0.9)
-                local alpha = 0.5 * (1 - phase) * (1 - p * 0.8)
-                if alpha > 0.01 then
-                    love.graphics.setColor(0.75, 0.5, 0.25, alpha)
-                    love.graphics.setLineWidth(4 * (1 - phase) + 1.2)
-                    love.graphics.circle('line', cx, cy, r)
+
+            -- 冲击前沿：半径与伤害判定一致（updateQuakes: currR = radius * progress）
+            local alpha = 0.65 * (1 - p)
+            if alpha > 0.01 then
+                love.graphics.setColor(0.78, 0.52, 0.26, alpha)
+                love.graphics.setLineWidth(10 * (1 - p) + 2)
+                love.graphics.circle('line', cx, cy, frontR)
+            end
+
+            -- 前沿碎屑/尘土（贴着前沿走，增强“扫到即命中”的可读性）
+            local dustAlpha = 0.22 * (1 - p)
+            if dustAlpha > 0.01 then
+                love.graphics.setColor(0.52, 0.36, 0.20, dustAlpha)
+                local count = 14
+                local twoPi = math.pi * 2
+                for i = 1, count do
+                    local a = (i / count) * twoPi
+                    a = a + math.sin(t * 3.4 + i * 1.7) * 0.25
+                    local wobble = math.sin(t * 8.2 + i) * (8 + 10 * (1 - p))
+                    local rr = frontR + wobble
+                    local px = cx + math.cos(a) * rr
+                    local py = cy + math.sin(a) * rr
+                    local s = 4 + 7 * (1 - p)
+                    love.graphics.circle('fill', px, py, s)
                 end
             end
             love.graphics.setLineWidth(1)
