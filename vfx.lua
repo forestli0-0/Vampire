@@ -127,6 +127,7 @@ function vfx.init()
         extern vec3 colB;
         extern number spikes;
         extern number seed;
+        extern number style;
 
         number hash(vec2 p) {
             return fract(sin(dot(p, vec2(127.1, 311.7)) + seed * 19.19) * 43758.5453);
@@ -154,16 +155,38 @@ function vfx.init()
             number ring = smoothstep(t * 0.95 + 0.18, t * 0.95, r) * smoothstep(t * 0.95 - 0.08, t * 0.95, r);
             number core = smoothstep(0.22 + 0.12 * t, 0.0, r);
 
-            number spoke = abs(sin(ang * spikes + seed * 6.283 + time * 8.0));
-            spoke = smoothstep(0.72, 0.98, spoke);
+            number spokeRaw = abs(sin(ang * spikes + seed * 6.283 + time * 8.0));
+            number spoke = smoothstep(0.72, 0.98, spokeRaw);
             spoke *= smoothstep(0.85 + 0.15 * t, 0.15 + 0.25 * t, r);
 
             number n = noise(uv * 10.0 + vec2(time * 0.9, -time * 0.7));
             number grit = smoothstep(0.55, 1.0, n) * smoothstep(0.95, 0.25, r);
 
             number fade = (1.0 - t);
-            number intensity = (core * 0.9 + ring * 0.7 + spoke * 0.9 + grit * 0.35) * baseEdge;
-            intensity *= (0.35 + 0.65 * fade);
+            // style: 0=default burst, 1=electric sparks, 2=embers, 3=ice crack/shatter
+            number intensity0 = (core * 0.9 + ring * 0.7 + spoke * 0.9 + grit * 0.35) * baseEdge;
+            intensity0 *= (0.35 + 0.65 * fade);
+
+            number sparkThin = pow(spokeRaw, 10.0);
+            number spark = smoothstep(0.35, 1.0, sparkThin) * smoothstep(0.95, 0.10 + 0.25 * t, r);
+            number sparkDots = smoothstep(0.80, 1.0, n) * smoothstep(0.85, 0.20, r);
+            number intensity1 = (spark * 1.10 + sparkDots * 0.55 + core * 0.25) * baseEdge;
+            intensity1 *= (0.35 + 0.65 * fade);
+
+            number emberFlick = 0.80 + 0.20 * sin(time * 12.0 + seed * 17.0 + r * 5.0);
+            number intensity2 = (core * 0.55 + grit * 0.85 + spoke * 0.20) * baseEdge;
+            intensity2 *= emberFlick * (0.35 + 0.65 * fade);
+
+            number shard = smoothstep(0.78, 0.98, abs(sin(ang * (spikes * 0.65) + seed * 11.7)));
+            shard *= smoothstep(0.92, 0.18 + 0.25 * t, r);
+            number intensity3 = (shard * 1.05 + grit * 0.35 + ring * 0.25) * baseEdge;
+            intensity3 *= (0.35 + 0.65 * fade);
+
+            number w0 = 1.0 - step(0.5, style);
+            number w1 = step(0.5, style) * (1.0 - step(1.5, style));
+            number w2 = step(1.5, style) * (1.0 - step(2.5, style));
+            number w3 = step(2.5, style);
+            number intensity = intensity0 * w0 + intensity1 * w1 + intensity2 * w2 + intensity3 * w3;
             intensity = clamp(intensity, 0.0, 1.25);
 
             vec3 col = mix(colA, colB, clamp(r + n * 0.35, 0.0, 1.0));
@@ -455,10 +478,12 @@ function vfx.drawHitEffect(key, x, y, progress, scale, alpha)
     local colA = {1.0, 0.85, 0.30}
     local colB = {1.0, 1.0, 1.0}
     local spikeCount = 10
+    local style = 0
     if key == 'static_hit' or key == 'shock' or key == 'magnetic_hit' then
         colA = {0.65, 0.90, 1.00}
         colB = {1.00, 1.00, 1.00}
-        spikeCount = 12
+        spikeCount = 16
+        style = 1
     elseif key == 'impact_hit' then
         colA = {0.85, 0.62, 0.28}
         colB = {1.00, 0.95, 0.80}
@@ -466,11 +491,13 @@ function vfx.drawHitEffect(key, x, y, progress, scale, alpha)
     elseif key == 'ice_shatter' then
         colA = {0.35, 0.75, 1.00}
         colB = {0.85, 0.95, 1.00}
-        spikeCount = 11
+        spikeCount = 14
+        style = 3
     elseif key == 'ember' then
         colA = {1.00, 0.45, 0.12}
         colB = {1.00, 0.95, 0.55}
         spikeCount = 9
+        style = 2
     elseif key == 'toxin_hit' then
         colA = {0.20, 1.00, 0.35}
         colB = {0.80, 1.00, 0.60}
@@ -508,7 +535,17 @@ function vfx.drawHitEffect(key, x, y, progress, scale, alpha)
     progress = progress or 0
     scale = scale or 1
     alpha = alpha or 1
-    local size = 28 * scale
+    local baseSize = 28
+    if style == 1 then baseSize = 22
+    elseif style == 2 then baseSize = 24
+    elseif style == 3 then baseSize = 26
+    end
+    local size = baseSize * scale
+
+    local alphaMul = 0.95
+    if style == 1 then alphaMul = 0.85
+    elseif style == 3 then alphaMul = 0.82
+    end
 
     local t = timeNow()
     local seed = ((x * 0.013) + (y * 0.017)) % 1
@@ -518,11 +555,12 @@ function vfx.drawHitEffect(key, x, y, progress, scale, alpha)
         love.graphics.setShader(_shHitBurst)
         _shHitBurst:send('time', t)
         _shHitBurst:send('progress', progress)
-        _shHitBurst:send('alpha', isBloom and (0.80 * 0.95 * alpha) or (0.95 * alpha))
+        _shHitBurst:send('alpha', isBloom and (0.80 * alphaMul * alpha) or (alphaMul * alpha))
         _shHitBurst:send('colA', colA)
         _shHitBurst:send('colB', colB)
         _shHitBurst:send('spikes', spikeCount)
         _shHitBurst:send('seed', seed)
+        _shHitBurst:send('style', style)
 
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.draw(_pixel, x - size * 0.5, y - size * 0.5, 0, size, size)

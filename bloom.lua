@@ -23,9 +23,9 @@ local vignette_strength = 0.0
 local vignette_power = 1.7
 
 -- Filmic polish (all default off): grain + subtle chromatic aberration
-local film_grain_amount = 0.1
+local film_grain_amount = 0.0
 local film_grain_size = 2.0 -- pixels per noise cell
-local chroma_amount = 0.1
+local chroma_amount = 0.0
 local chroma_pixels = 0.85 -- max pixel offset at edge when chroma_amount=1
 local chroma_edge_power = 2.2
 
