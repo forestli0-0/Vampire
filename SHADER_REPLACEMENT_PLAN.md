@@ -89,6 +89,6 @@
 - Benchmark 场景下帧率不出现明显劣化；必要时降低噪声频率/层数。
 
 ## 复现与调试
-- `B`：切换 Bloom
+- Bloom：自动高亮提取 + 模糊叠加（常驻，无开关）
 - `V`：切换 VFX
 - 静电触发：使用 `static_orb` / `thunder_loop`，命中敌人概率触发 `STATIC` 状态。

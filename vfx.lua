@@ -2,9 +2,6 @@ local vfx = {
     enabled = true
 }
 
-local _bloomEnabledFn
-local _bloomGetCanvasFn
-
 local _inited = false
 local _pixel = nil
 
@@ -328,27 +325,6 @@ function vfx.toggle()
     vfx.enabled = not vfx.enabled
 end
 
-function vfx.setBloomEmitter(enabledFn, getCanvasFn)
-    _bloomEnabledFn = enabledFn
-    _bloomGetCanvasFn = getCanvasFn
-end
-
-local function drawToBloomAlso(drawFn)
-    if not _bloomEnabledFn or not _bloomGetCanvasFn then return end
-    if not _bloomEnabledFn() then return end
-    local c = _bloomGetCanvasFn()
-    if not c then return end
-
-    local prevCanvas = love.graphics.getCanvas()
-    local bm, am = love.graphics.getBlendMode()
-
-    love.graphics.setCanvas(c)
-    drawFn(true)
-
-    love.graphics.setCanvas(prevCanvas)
-    love.graphics.setBlendMode(bm, am)
-end
-
 local function timeNow()
     if love and love.timer and love.timer.getTime then
         return love.timer.getTime()
@@ -398,7 +374,6 @@ function vfx.drawExplosion(x, y, radius, progress, alpha)
     end
 
     doDraw(false)
-    drawToBloomAlso(doDraw)
 end
 
 function vfx.drawGas(x, y, radius, alpha)
@@ -441,7 +416,6 @@ function vfx.drawElectricAura(x, y, radius, alpha)
     end
 
     doDraw(false)
-    drawToBloomAlso(doDraw)
 end
 
 function vfx.drawHitEffect(key, x, y, progress, scale, alpha)
@@ -558,7 +532,6 @@ function vfx.drawHitEffect(key, x, y, progress, scale, alpha)
     end
 
     doDraw(false)
-    drawToBloomAlso(doDraw)
 end
 
 function vfx.drawLightningSegment(x1, y1, x2, y2, width, alpha)
@@ -663,7 +636,6 @@ function vfx.drawLightningSegment(x1, y1, x2, y2, width, alpha)
     end
 
     doDraw(false)
-    drawToBloomAlso(doDraw)
 end
 
 local function presetForKind(kind)

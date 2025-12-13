@@ -1,19 +1,21 @@
 local bloom = {}
-bloom.enabled = true
 
 local canvas_main
-local canvas_emission
 local canvas_bright
 local canvas_blur_h
 local canvas_blur_v
 local shader_blur
+local shader_extract
 
 local down_w
 local down_h
 
+local bloom_threshold = 0.78
+local bloom_knee = 0.22
+local bloom_intensity = 1.0
+
 function bloom.init(w, h)
     canvas_main = love.graphics.newCanvas(w, h)
-    canvas_emission = love.graphics.newCanvas(w, h)
     down_w = math.max(1, math.floor(w / 2))
     down_h = math.max(1, math.floor(h / 2))
     canvas_bright = love.graphics.newCanvas(down_w, down_h) -- Downscale for performance and better blur
@@ -42,48 +44,49 @@ function bloom.init(w, h)
             return sum * color;
         }
     ]]
-end
 
-function bloom.isEnabled()
-    return bloom.enabled
-end
+    -- Bright-pass extraction (automatic bloom): keep only highlights with soft knee.
+    shader_extract = love.graphics.newShader[[
+        extern number threshold;
+        extern number knee;
 
-function bloom.getEmissionCanvas()
-    return canvas_emission
-end
+        number luminance(vec3 c) {
+            return dot(c, vec3(0.2126, 0.7152, 0.0722));
+        }
 
-function bloom.toggle()
-    bloom.enabled = not bloom.enabled
-    print("Bloom enabled:", bloom.enabled)
+        vec4 effect(vec4 color, Image texture, vec2 uv, vec2 sc) {
+            vec4 c = Texel(texture, uv) * color;
+            number l = luminance(c.rgb);
+
+            number k = max(1e-6, knee);
+            number soft = clamp((l - threshold + k) / (2.0 * k), 0.0, 1.0);
+            number w = max(l - threshold, soft * soft * (2.0 * k));
+
+            // Preserve hue; weight by highlight energy.
+            vec3 outRgb = c.rgb * w;
+            return vec4(outRgb, 1.0);
+        }
+    ]]
 end
 
 function bloom.preDraw()
-    if not bloom.enabled then return end
-    local prev = love.graphics.getCanvas()
-
     love.graphics.setCanvas(canvas_main)
     love.graphics.clear()
-
-    love.graphics.setCanvas(canvas_emission)
-    love.graphics.clear()
-
-    love.graphics.setCanvas(prev)
-
-    love.graphics.setCanvas(canvas_main)
 end
 
 function bloom.postDraw()
-    if not bloom.enabled then return end
     love.graphics.setCanvas() -- Reset to screen
 
-    -- 1. Downscale emission
+    -- 1. Downscale + extract highlights from main
     love.graphics.setCanvas(canvas_bright)
     love.graphics.clear()
-    love.graphics.setShader()
+    love.graphics.setShader(shader_extract)
+    shader_extract:send("threshold", bloom_threshold)
+    shader_extract:send("knee", bloom_knee)
     love.graphics.setColor(1, 1, 1, 1)
-    local sx = down_w / canvas_emission:getWidth()
-    local sy = down_h / canvas_emission:getHeight()
-    love.graphics.draw(canvas_emission, 0, 0, 0, sx, sy) -- Draw downscaled
+    local sx = down_w / canvas_main:getWidth()
+    local sy = down_h / canvas_main:getHeight()
+    love.graphics.draw(canvas_main, 0, 0, 0, sx, sy) -- Draw downscaled
 
     -- 2. Horizontal Blur
     love.graphics.setCanvas(canvas_blur_h)
@@ -107,13 +110,11 @@ function bloom.postDraw()
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.draw(canvas_main, 0, 0)
     -- Draw bloom (additive)
-    -- love.graphics.setBlendMode("add", "alphamultiply")
     love.graphics.setBlendMode("add")
-    love.graphics.setColor(1, 1, 1, 1) -- Adjust alpha for bloom intensity
+    love.graphics.setColor(bloom_intensity, bloom_intensity, bloom_intensity, 1)
     local usx = canvas_main:getWidth() / down_w
     local usy = canvas_main:getHeight() / down_h
     love.graphics.draw(canvas_blur_v, 0, 0, 0, usx, usy) -- Upscale back
-    -- love.graphics.draw(canvas_blur_v, 0, 0, 0, 2, 2) -- Draw twice for extra glow!
     love.graphics.setBlendMode("alpha")
 end
 

@@ -32,7 +32,6 @@ function love.load()
     arsenal.init(state)
     bloom.init(love.graphics.getWidth(), love.graphics.getHeight())
     vfx.init()
-    vfx.setBloomEmitter(bloom.isEnabled, bloom.getEmissionCanvas)
     if state.gameState ~= 'ARSENAL' then
         weapons.addWeapon(state, 'wand')
     end
@@ -142,7 +141,6 @@ function love.keypressed(key)
         return
     end
     if key == 'f5' then benchmark.toggle(state) end
-    if key == 'b' then bloom.toggle() end
     if key == 'v' then vfx.toggle() end
     -- 等级界面：按数字选择升级
     if debugmenu.keypressed(state, key) then return end
