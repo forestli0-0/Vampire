@@ -9,6 +9,20 @@ local BOSS_KEY = 'boss_treant'
 function director.update(state, dt)
     state.directorState = state.directorState or {}
 
+    -- test arena: keep a single dummy alive, and disable all timed/spawn logic
+    if state.testArena then
+        if #state.enemies == 0 then
+            local dummyKey = (state.debug and state.debug.selectedDummy) or 'dummy_pole'
+            enemies.spawnEnemy(state, dummyKey, false, state.player.x + 140, state.player.y)
+        end
+        return
+    end
+
+    -- scenario-driven tests: disable director spawns/events entirely
+    if state.scenarioNoDirector then
+        return
+    end
+
     -- timed elite events
     if not state.directorState.event60 and state.gameTimer >= 60 then
         enemies.spawnEnemy(state, 'skeleton', true)
@@ -19,14 +33,6 @@ function director.update(state, dt)
         enemies.spawnEnemy(state, 'bat', true)
         state.directorState.event120 = true
         table.insert(state.texts, {x=state.player.x, y=state.player.y-100, text="ELITE BAT!", color={1,0,0}, life=3})
-    end
-
-    if state.testArena then
-        if #state.enemies == 0 then
-            local dummyKey = (state.debug and state.debug.selectedDummy) or 'dummy_pole'
-            enemies.spawnEnemy(state, dummyKey, false, state.player.x + 140, state.player.y)
-        end
-        return
     end
 
     -- boss warning / spawn

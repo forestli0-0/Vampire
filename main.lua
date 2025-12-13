@@ -15,11 +15,18 @@ local benchmark = require('benchmark')
 local arsenal = require('arsenal')
 local bloom = require('bloom')
 local vfx = require('vfx')
+local testmode = require('testmode')
+local testScenarios = require('test_scenarios')
 
 -- 游戏启动时的初始化（状态、日志、默认武器等）
 function love.load()
     if state.stopMusic then state.stopMusic() end
     state.init()
+
+    -- deterministic runs for scenario-driven tests
+    if state.pendingScenarioSeed then
+        math.randomseed(state.pendingScenarioSeed)
+    end
     state.augments = augments
     logger.init(state)
     arsenal.init(state)
@@ -31,11 +38,21 @@ function love.load()
     end
     if state.playMusic then state.playMusic() end
     debugmenu.init(state)
+    testmode.init(state)
     -- 调试用武器组合：测试状态联动时取消注释
     -- weapons.addWeapon(state, 'oil_bottle')
     -- weapons.addWeapon(state, 'fire_wand')
     -- weapons.addWeapon(state, 'ice_ring')
     -- weapons.addWeapon(state, 'heavy_hammer')
+
+    if state.pendingScenarioId then
+        arsenal.startRun(state)
+        testScenarios.apply(state, state.pendingScenarioId)
+        state.activeScenarioId = state.pendingScenarioId
+        state.activeScenarioSeed = state.pendingScenarioSeed
+        state.pendingScenarioId = nil
+        state.pendingScenarioSeed = nil
+    end
 end
 
 function love.update(dt)
@@ -95,6 +112,7 @@ end
 function love.draw()
     if state.gameState == 'ARSENAL' then
         arsenal.draw(state)
+        testmode.draw(state)
         return
     end
     
@@ -105,6 +123,7 @@ function love.draw()
 
     benchmark.draw(state)
     debugmenu.draw(state)
+    testmode.draw(state)
 end
 
 function love.resize(w, h)
@@ -117,6 +136,7 @@ function love.quit()
 end
 
 function love.keypressed(key)
+    if testmode.keypressed(state, key) then return end
     if state.gameState == 'ARSENAL' then
         if arsenal.keypressed(state, key) then return end
         return
