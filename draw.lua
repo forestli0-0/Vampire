@@ -446,6 +446,12 @@ function draw.renderWorld(state)
         end
     end
 
+    if state.lightningLinks then
+        for _, link in ipairs(state.lightningLinks) do
+            vfx.drawLightningSegment(link.x1, link.y1, link.x2, link.y2, link.width or 14, link.alpha or 0.95)
+        end
+    end
+
     -- 状态特效
     if state.hitEffects then
         love.graphics.setBlendMode("add")

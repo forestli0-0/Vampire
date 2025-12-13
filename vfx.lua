@@ -481,7 +481,7 @@ function vfx.drawHitEffect(key, x, y, progress, scale, alpha)
     local colA = {1.0, 0.85, 0.30}
     local colB = {1.0, 1.0, 1.0}
     local spikeCount = 10
-    if key == 'static_hit' or key == 'shock' then
+    if key == 'static_hit' or key == 'shock' or key == 'magnetic_hit' then
         colA = {0.65, 0.90, 1.00}
         colB = {1.00, 1.00, 1.00}
         spikeCount = 12
@@ -493,6 +493,38 @@ function vfx.drawHitEffect(key, x, y, progress, scale, alpha)
         colA = {1.00, 0.45, 0.12}
         colB = {1.00, 0.95, 0.55}
         spikeCount = 9
+    elseif key == 'toxin_hit' then
+        colA = {0.20, 1.00, 0.35}
+        colB = {0.80, 1.00, 0.60}
+        spikeCount = 10
+    elseif key == 'gas_hit' then
+        colA = {0.45, 1.00, 0.25}
+        colB = {0.90, 1.00, 0.55}
+        spikeCount = 10
+    elseif key == 'bleed_hit' then
+        colA = {1.00, 0.22, 0.22}
+        colB = {1.00, 0.85, 0.85}
+        spikeCount = 10
+    elseif key == 'viral_hit' then
+        colA = {0.85, 0.35, 1.00}
+        colB = {0.95, 0.80, 1.00}
+        spikeCount = 11
+    elseif key == 'corrosive_hit' then
+        colA = {0.78, 1.00, 0.22}
+        colB = {1.00, 1.00, 0.80}
+        spikeCount = 11
+    elseif key == 'blast_hit' then
+        colA = {1.00, 0.65, 0.20}
+        colB = {1.00, 1.00, 0.75}
+        spikeCount = 10
+    elseif key == 'puncture_hit' then
+        colA = {1.00, 0.95, 0.55}
+        colB = {1.00, 1.00, 1.00}
+        spikeCount = 10
+    elseif key == 'radiation_hit' then
+        colA = {0.85, 1.00, 0.25}
+        colB = {1.00, 1.00, 0.65}
+        spikeCount = 12
     end
 
     progress = progress or 0

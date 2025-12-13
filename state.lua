@@ -822,6 +822,7 @@ function state.init()
     state.chests = {}
     state.upgradeOptions = {}
     state.chainLinks = {}
+    state.lightningLinks = {}
     state.quakeEffects = {}
 
     state.spawnTimer = 0
@@ -1073,7 +1074,18 @@ function state.init()
         shock = { duration = 0.18, defaultScale = 1.0 },
         static_hit = { duration = 0.18, defaultScale = 1.0 },
         ice_shatter = { duration = 0.20, defaultScale = 1.0 },
-        ember = { duration = 0.18, defaultScale = 1.0 }
+        ember = { duration = 0.18, defaultScale = 1.0 },
+
+        -- proc feedback (procedural)
+        toxin_hit = { duration = 0.18, defaultScale = 1.0 },
+        gas_hit = { duration = 0.18, defaultScale = 1.0 },
+        bleed_hit = { duration = 0.18, defaultScale = 1.0 },
+        viral_hit = { duration = 0.18, defaultScale = 1.0 },
+        corrosive_hit = { duration = 0.18, defaultScale = 1.0 },
+        magnetic_hit = { duration = 0.18, defaultScale = 1.0 },
+        blast_hit = { duration = 0.18, defaultScale = 1.0 },
+        puncture_hit = { duration = 0.18, defaultScale = 1.0 },
+        radiation_hit = { duration = 0.18, defaultScale = 1.0 }
     }
     function state.spawnEffect(key, x, y, scale)
         local eff = state.effectSprites[key]
@@ -1124,6 +1136,14 @@ function state.init()
             q.t = q.t + dt
             if q.t >= (q.duration or 0.5) then
                 table.remove(state.quakeEffects, i)
+            end
+        end
+
+        for i = #state.lightningLinks, 1, -1 do
+            local l = state.lightningLinks[i]
+            l.t = (l.t or 0) + dt
+            if l.t >= (l.duration or 0.12) then
+                table.remove(state.lightningLinks, i)
             end
         end
     end

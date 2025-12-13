@@ -279,6 +279,142 @@ local function buildDamageMods(enemy, instance, appliedEffects)
     return opts
 end
 
+local function spawnProcVfx(state, enemy, appliedEffects)
+    if not state or not state.spawnEffect or not enemy then return end
+    if not appliedEffects or #appliedEffects == 0 then return end
+
+    local counts = {}
+    for _, eff in ipairs(appliedEffects) do
+        local k = string.upper(eff or '')
+        local fxKey = 'hit'
+
+        if k == 'STATIC' then
+            fxKey = 'static_hit'
+        elseif k == 'MAGNETIC' then
+            fxKey = 'magnetic_hit'
+        elseif k == 'FREEZE' then
+            fxKey = 'ice_shatter'
+        elseif k == 'FIRE' then
+            fxKey = 'ember'
+        elseif k == 'TOXIN' then
+            fxKey = 'toxin_hit'
+        elseif k == 'GAS' then
+            fxKey = 'gas_hit'
+        elseif k == 'BLEED' then
+            fxKey = 'bleed_hit'
+        elseif k == 'VIRAL' then
+            fxKey = 'viral_hit'
+        elseif k == 'CORROSIVE' then
+            fxKey = 'corrosive_hit'
+        elseif k == 'BLAST' then
+            fxKey = 'blast_hit'
+        elseif k == 'PUNCTURE' then
+            fxKey = 'puncture_hit'
+        elseif k == 'RADIATION' then
+            fxKey = 'radiation_hit'
+        end
+
+        counts[fxKey] = (counts[fxKey] or 0) + 1
+    end
+
+    for fxKey, n in pairs(counts) do
+        local scale = 0.85 + 0.18 * math.min(3, math.max(0, n - 1))
+        state.spawnEffect(fxKey, enemy.x, enemy.y, scale)
+    end
+end
+
+local function spawnVoltStaticChain(state, enemy, instance, procCount)
+    if not state or not enemy or not state.enemies then return end
+    if not state.lightningLinks then return end
+
+    procCount = procCount or 1
+    if procCount <= 0 then return end
+
+    local effectData = instance and instance.effectData or nil
+    local range = (effectData and (effectData.range or effectData.radius)) or 180
+    range = math.max(60, range)
+
+    local maxJumps = (effectData and effectData.chain) or 4
+    maxJumps = math.max(1, math.min(8, maxJumps))
+
+    local function addLink(x1, y1, x2, y2, width, alpha)
+        table.insert(state.lightningLinks, {
+            x1 = x1, y1 = y1, x2 = x2, y2 = y2,
+            t = 0, duration = 0.12,
+            width = width or 14,
+            alpha = alpha or 0.95
+        })
+        local cap = 80
+        if #state.lightningLinks > cap then
+            table.remove(state.lightningLinks, 1)
+        end
+    end
+
+    local function findNearest(fromX, fromY, visited)
+        local best, bestD2 = nil, (range * range)
+        for _, o in ipairs(state.enemies) do
+            if o and o ~= enemy and not o.isDummy then
+                local hp = (o.health or o.hp or 0)
+                if hp > 0 and not visited[o] then
+                    local dx = (o.x or 0) - fromX
+                    local dy = (o.y or 0) - fromY
+                    local d2 = dx * dx + dy * dy
+                    if d2 > 0 and d2 <= bestD2 then
+                        bestD2 = d2
+                        best = o
+                    end
+                end
+            end
+        end
+        return best
+    end
+
+    -- damage settings (WF/Volt-like: arc deals some electric damage + applies electric proc)
+    local baseElectric = 0
+    if instance and instance.damageByType then
+        baseElectric = instance.damageByType.ELECTRIC or instance.damageByType.ELECTRICITY or 0
+    end
+    if baseElectric <= 0 then baseElectric = (instance and instance.damage) or 0 end
+    local chainDmgMult = (effectData and effectData.chainDamageMult) or 0.35
+    if chainDmgMult < 0 then chainDmgMult = 0 end
+    if chainDmgMult > 1 then chainDmgMult = 1 end
+    local chainHitDmg = math.max(1, math.floor(baseElectric * chainDmgMult + 0.5))
+
+    -- for multiple STATIC procs in one hit, emit slightly more arcs; only apply damage once
+    local bursts = math.min(2, procCount)
+    for b = 1, bursts do
+        local visited = {}
+        local current = enemy
+        visited[current] = true
+
+        -- seed: a tiny burst at source
+        if state.spawnEffect then
+            state.spawnEffect('static_hit', enemy.x, enemy.y, 0.9)
+        end
+
+        for j = 1, maxJumps do
+            local nextEnemy = findNearest(current.x, current.y, visited)
+            if not nextEnemy then break end
+            visited[nextEnemy] = true
+            addLink(current.x, current.y, nextEnemy.x, nextEnemy.y, 14, 0.95)
+
+            if b == 1 then
+                -- immediate arc hit (no recursion into calculator.applyHit)
+                enemies.damageEnemy(state, nextEnemy, chainHitDmg, false, 0, false, {noText=true, noFlash=true, noSfx=true})
+                enemies.applyStatus(state, nextEnemy, 'STATIC', chainHitDmg, instance and instance.weaponTags, {
+                    duration = 1.6,
+                    radius = math.max(90, range * 0.6),
+                    stunDuration = 0.22
+                })
+                if state.spawnEffect then
+                    state.spawnEffect('static_hit', nextEnemy.x, nextEnemy.y, 0.75)
+                end
+            end
+            current = nextEnemy
+        end
+    end
+end
+
 function calculator.applyDamage(state, enemy, instance, opts)
     opts = opts or {}
     local shieldBefore = enemy and (enemy.shield or 0) or 0
@@ -447,6 +583,21 @@ function calculator.applyHit(state, enemy, params)
         end
     end
     local appliedEffects = calculator.applyStatus(state, enemy, instance, forcedChance)
+
+    -- Status feedback should be visible even if the hit kills the enemy.
+    spawnProcVfx(state, enemy, appliedEffects)
+
+    -- Volt-like chain lightning: trigger immediately on STATIC proc (doesn't wait for DoT ticks).
+    local staticCount = 0
+    for _, eff in ipairs(appliedEffects or {}) do
+        if string.upper(eff or '') == 'STATIC' then
+            staticCount = staticCount + 1
+        end
+    end
+    if staticCount > 0 then
+        spawnVoltStaticChain(state, enemy, instance, staticCount)
+    end
+
     local opts = buildDamageMods(enemy, instance, appliedEffects)
     local dmg, isCrit = calculator.applyDamage(state, enemy, instance, opts)
     local result = {damage = dmg, isCrit = isCrit, statusApplied = (#appliedEffects > 0), appliedEffects = appliedEffects}
