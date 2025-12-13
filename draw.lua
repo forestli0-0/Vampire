@@ -4,7 +4,67 @@ local vfx = require('vfx')
 
 local draw = {}
 
-local function drawOutlineAnim(anim, x, y, r, sx, sy, t)
+local outlineShader
+local function getOutlineShader()
+    if outlineShader then return outlineShader end
+    outlineShader = love.graphics.newShader([[
+        extern vec2 texelSize;
+        extern number thickness;
+        extern vec4 outlineColor;
+
+        vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc)
+        {
+            vec4 base = Texel(tex, uv);
+            if (base.a > 0.001) {
+                return vec4(0.0);
+            }
+
+            number a = 0.0;
+            vec2 o = texelSize;
+
+            a = max(a, Texel(tex, uv + vec2( o.x, 0.0)).a);
+            a = max(a, Texel(tex, uv + vec2(-o.x, 0.0)).a);
+            a = max(a, Texel(tex, uv + vec2(0.0,  o.y)).a);
+            a = max(a, Texel(tex, uv + vec2(0.0, -o.y)).a);
+            a = max(a, Texel(tex, uv + vec2( o.x,  o.y)).a);
+            a = max(a, Texel(tex, uv + vec2(-o.x,  o.y)).a);
+            a = max(a, Texel(tex, uv + vec2( o.x, -o.y)).a);
+            a = max(a, Texel(tex, uv + vec2(-o.x, -o.y)).a);
+
+            if (thickness > 1.5) {
+                vec2 o2 = o * 2.0;
+                a = max(a, Texel(tex, uv + vec2( o2.x, 0.0)).a);
+                a = max(a, Texel(tex, uv + vec2(-o2.x, 0.0)).a);
+                a = max(a, Texel(tex, uv + vec2(0.0,  o2.y)).a);
+                a = max(a, Texel(tex, uv + vec2(0.0, -o2.y)).a);
+                a = max(a, Texel(tex, uv + vec2( o2.x,  o2.y)).a);
+                a = max(a, Texel(tex, uv + vec2(-o2.x,  o2.y)).a);
+                a = max(a, Texel(tex, uv + vec2( o2.x, -o2.y)).a);
+                a = max(a, Texel(tex, uv + vec2(-o2.x, -o2.y)).a);
+            }
+
+            if (thickness > 2.5) {
+                vec2 o3 = o * 3.0;
+                a = max(a, Texel(tex, uv + vec2( o3.x, 0.0)).a);
+                a = max(a, Texel(tex, uv + vec2(-o3.x, 0.0)).a);
+                a = max(a, Texel(tex, uv + vec2(0.0,  o3.y)).a);
+                a = max(a, Texel(tex, uv + vec2(0.0, -o3.y)).a);
+                a = max(a, Texel(tex, uv + vec2( o3.x,  o3.y)).a);
+                a = max(a, Texel(tex, uv + vec2(-o3.x,  o3.y)).a);
+                a = max(a, Texel(tex, uv + vec2( o3.x, -o3.y)).a);
+                a = max(a, Texel(tex, uv + vec2(-o3.x, -o3.y)).a);
+            }
+
+            if (a > 0.001) {
+                return outlineColor * a;
+            }
+            return vec4(0.0);
+        }
+    ]])
+    return outlineShader
+end
+
+local function drawOutlineAnimFallback(anim, x, y, r, sx, sy, t)
     t = t or 1
     local offsets = {
         {-t, 0}, {t, 0}, {0, -t}, {0, t},
@@ -13,6 +73,38 @@ local function drawOutlineAnim(anim, x, y, r, sx, sy, t)
     for _, o in ipairs(offsets) do
         anim:draw(x + o[1], y + o[2], r or 0, sx or 1, sy or 1)
     end
+end
+
+local function drawOutlineAnim(anim, x, y, r, sx, sy, thicknessPx, outlineCol)
+    local img = anim and anim.image
+    if not img then
+        love.graphics.setColor((outlineCol and outlineCol[1]) or 1, (outlineCol and outlineCol[2]) or 1, (outlineCol and outlineCol[3]) or 1, (outlineCol and outlineCol[4]) or 1)
+        drawOutlineAnimFallback(anim, x, y, r, sx, sy, thicknessPx)
+        love.graphics.setColor(1, 1, 1, 1)
+        return
+    end
+
+    local shader = getOutlineShader()
+    local prevShader = love.graphics.getShader()
+    local cr, cg, cb, ca = love.graphics.getColor()
+
+    local sxv = sx or 1
+    local syv = sy or 1
+    local scale = math.max(math.abs(sxv), math.abs(syv))
+    if scale < 1e-6 then scale = 1 end
+
+    local t = (thicknessPx or 1) / scale
+    if t < 1 then t = 1 end
+
+    shader:send('texelSize', { 1 / img:getWidth(), 1 / img:getHeight() })
+    shader:send('thickness', t)
+    shader:send('outlineColor', outlineCol or { 1, 1, 1, 1 })
+
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setShader(shader)
+    anim:draw(x, y, r or 0, sxv, syv)
+    love.graphics.setShader(prevShader)
+    love.graphics.setColor(cr, cg, cb, ca)
 end
 
 local function drawOutlineRect(x, y, size, t)
@@ -354,17 +446,20 @@ function draw.renderWorld(state)
 
         -- Outline for elites/bosses (drawn behind base)
         if e.isBoss or e.isElite then
+            local outlineCol
             if e.isBoss then
-                love.graphics.setColor(1, 0.6, 0.2, 0.85)
+                outlineCol = {1, 0.6, 0.2, 0.85}
             else
-                love.graphics.setColor(1, 0.15, 0.15, 0.75)
+                outlineCol = {1, 0.15, 0.15, 0.75}
             end
             local t = e.isBoss and 2 or 1
             if e.anim then
                 local sx = e.facing or 1
-                drawOutlineAnim(e.anim, e.x, e.y, 0, sx, 1, t)
+                drawOutlineAnim(e.anim, e.x, e.y, 0, sx, 1, t, outlineCol)
             else
+                love.graphics.setColor(outlineCol)
                 drawOutlineRect(e.x, e.y, e.size or 16, t)
+                love.graphics.setColor(1, 1, 1, 1)
             end
         end
 
@@ -530,11 +625,12 @@ function draw.renderWorld(state)
     local blink = inv and love.timer.getTime() % 0.2 < 0.1
 
     -- Player outline (drawn behind base)
-    love.graphics.setColor(0.9, 0.95, 1, 0.55)
     if state.playerAnim then
-        drawOutlineAnim(state.playerAnim, state.player.x, state.player.y, 0, state.player.facing, 1, 1)
+        drawOutlineAnim(state.playerAnim, state.player.x, state.player.y, 0, state.player.facing, 1, 1, {0.9, 0.95, 1, 0.55})
     else
+        love.graphics.setColor(0.9, 0.95, 1, 0.55)
         drawOutlineRect(state.player.x, state.player.y, state.player.size or 20, 1)
+        love.graphics.setColor(1, 1, 1, 1)
     end
 
     if state.playerAnim then
