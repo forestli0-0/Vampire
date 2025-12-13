@@ -485,6 +485,10 @@ function vfx.drawHitEffect(key, x, y, progress, scale, alpha)
         colA = {0.65, 0.90, 1.00}
         colB = {1.00, 1.00, 1.00}
         spikeCount = 12
+    elseif key == 'impact_hit' then
+        colA = {0.85, 0.62, 0.28}
+        colB = {1.00, 0.95, 0.80}
+        spikeCount = 8
     elseif key == 'ice_shatter' then
         colA = {0.35, 0.75, 1.00}
         colB = {0.85, 0.95, 1.00}

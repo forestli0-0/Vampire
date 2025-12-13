@@ -1073,6 +1073,7 @@ function state.init()
         hit = { duration = 0.16, defaultScale = 1.0 },
         shock = { duration = 0.18, defaultScale = 1.0 },
         static_hit = { duration = 0.18, defaultScale = 1.0 },
+        impact_hit = { duration = 0.16, defaultScale = 1.0 },
         ice_shatter = { duration = 0.20, defaultScale = 1.0 },
         ember = { duration = 0.18, defaultScale = 1.0 },
 

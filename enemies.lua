@@ -245,6 +245,11 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
             local dur = (effectData and effectData.duration) or 0.35
             local remaining = e.status.impactTimer or 0
             e.status.impactTimer = math.max(dur, remaining)
+            if remaining <= 0 and state and state.spawnEffect and dur > 0 then
+                local s = 1.0
+                if e.size and e.size > 0 then s = math.max(0.8, math.min(1.6, (e.size / 16) * 0.95)) end
+                state.spawnEffect('impact_hit', e.x, e.y, s)
+            end
         end
     elseif effect == 'STATIC' then
         local dur = math.max((effectData and effectData.duration) or 3.0, 0)
