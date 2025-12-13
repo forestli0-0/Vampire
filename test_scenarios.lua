@@ -30,6 +30,7 @@ local function clearCombat(state)
     state.areaFields = {}
     state.hitEffects = {}
     state.screenWaves = {}
+    state._screenWaveCooldown = {}
     state.lightningLinks = {}
     state.chainLinks = {}
 end

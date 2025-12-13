@@ -1091,7 +1091,36 @@ function state.init()
         radiation_hit = { duration = 0.18, defaultScale = 1.0 }
     }
 
-    function state.spawnScreenWave(x, y, radius, duration, strength)
+    local screenWaveDefs = {
+        blast_hit = { radius = 200, duration = 0.40, strength = 2.8, priority = 3 },
+        impact_hit = { radius = 160, duration = 0.34, strength = 2.5, priority = 2 },
+        shock = { radius = 140, duration = 0.30, strength = 2.2, priority = 2 },
+        hit = { radius = 100, duration = 0.26, strength = 1.5, priority = 1, cooldown = 0.07 },
+    }
+
+    local screenWaveMax = 12
+
+    local function trimScreenWaves()
+        local list = state.screenWaves
+        if type(list) ~= 'table' then return end
+        while #list > screenWaveMax do
+            local removeIndex = 1
+            local worstPrio = list[1].priority or 0
+            local worstT = list[1].t or 0
+            for i = 2, #list do
+                local p = list[i].priority or 0
+                local t = list[i].t or 0
+                if p < worstPrio or (p == worstPrio and t > worstT) then
+                    removeIndex = i
+                    worstPrio = p
+                    worstT = t
+                end
+            end
+            table.remove(list, removeIndex)
+        end
+    end
+
+    function state.spawnScreenWave(x, y, radius, duration, strength, priority)
         if not x or not y then return end
         radius = radius or 120
         duration = duration or 0.28
@@ -1104,25 +1133,28 @@ function state.init()
             t = 0,
             duration = duration,
             radius = radius,
-            strength = strength
+            strength = strength,
+            priority = priority or 0
         })
+        trimScreenWaves()
     end
 
     function state.spawnEffect(key, x, y, scale)
-        -- 根据命中类型触发纯视觉冲击波（用于后处理扭曲）
+        -- 纯视觉冲击波（用于后处理扭曲），表驱动 + 节流 + 上限
         -- NOTE: 这里不做任何伤害/判定，只是喂给 bloom 的 warp pass。
-        if key == 'blast_hit' then
-            state.spawnScreenWave(x, y, 200, 0.40, 2.8)
-        elseif key == 'impact_hit' then
-            state.spawnScreenWave(x, y, 160, 0.34, 2.5)
-        elseif key == 'shock' then
-            state.spawnScreenWave(x, y, 140, 0.30, 2.2)
-        elseif key == 'hit' then
-            -- 普通命中很频繁：做个轻量节流，避免波纹过密/影响性能
+        local def = screenWaveDefs[key]
+        if def then
             local now = love.timer and love.timer.getTime and love.timer.getTime() or 0
-            if (state._lastHitWaveTime or 0) + 0.07 <= now then
-                state._lastHitWaveTime = now
-                state.spawnScreenWave(x, y, 100, 0.26, 1.5)
+            local cd = def.cooldown or 0
+            if cd <= 0 then
+                state.spawnScreenWave(x, y, def.radius, def.duration, def.strength, def.priority)
+            else
+                state._screenWaveCooldown = state._screenWaveCooldown or {}
+                local last = state._screenWaveCooldown[key] or 0
+                if last + cd <= now then
+                    state._screenWaveCooldown[key] = now
+                    state.spawnScreenWave(x, y, def.radius, def.duration, def.strength, def.priority)
+                end
             end
         end
 
