@@ -14,6 +14,7 @@ local logger = require('logger')
 local benchmark = require('benchmark')
 local arsenal = require('arsenal')
 local bloom = require('bloom')
+local vfx = require('vfx')
 
 -- 游戏启动时的初始化（状态、日志、默认武器等）
 function love.load()
@@ -23,6 +24,7 @@ function love.load()
     logger.init(state)
     arsenal.init(state)
     bloom.init(love.graphics.getWidth(), love.graphics.getHeight())
+    vfx.init()
     if state.gameState ~= 'ARSENAL' then
         weapons.addWeapon(state, 'wand')
     end
@@ -120,6 +122,7 @@ function love.keypressed(key)
     end
     if key == 'f5' then benchmark.toggle(state) end
     if key == 'b' then bloom.toggle() end
+    if key == 'v' then vfx.toggle() end
     -- 等级界面：按数字选择升级
     if debugmenu.keypressed(state, key) then return end
     if state.gameState == 'LEVEL_UP' then

@@ -1,5 +1,6 @@
 local weapons = require('weapons')
 local enemies = require('enemies')
+local vfx = require('vfx')
 
 local draw = {}
 
@@ -192,7 +193,7 @@ local function drawStatsPanel(state)
     end
 end
 
-function draw.render(state)
+function draw.renderWorld(state)
     love.graphics.setFont(state.font)
     love.graphics.push()
     if state.shakeAmount and state.shakeAmount > 0 then
@@ -222,26 +223,38 @@ function draw.render(state)
         local gStats = weapons.calculateStats(state, key) or state.inventory.weapons[key].stats
         local r = (gStats.radius or 0) * (gStats.area or 1) * (state.player.stats.area or 1)
         local sprite = state.weaponSprites and state.weaponSprites[key]
+
+        -- 大面积范围提示不走 add，避免 bloom 泛白过曝
+        love.graphics.setBlendMode("alpha")
         if sprite then
             local sw, sh = sprite:getWidth(), sprite:getHeight()
             local scale = (r * 2) / sw
-            local alpha = key == 'soul_eater' and 0.35 or 0.25
-            love.graphics.setColor(1, 1, 1, alpha)
+            local alpha = key == 'soul_eater' and 0.28 or 0.22
+            
+            -- Pulsating effect for Soul Eater
+            if key == 'soul_eater' then
+                local pulse = (math.sin(love.timer.getTime() * 5) + 1) * 0.1
+                alpha = alpha + pulse * 0.35
+                love.graphics.setColor(0.85, 0.18, 0.75, alpha)
+            else
+                love.graphics.setColor(0.85, 0.75, 0.65, alpha)
+            end
+            
             love.graphics.draw(sprite, state.player.x, state.player.y, 0, scale, scale, sw / 2, sh / 2)
-            love.graphics.setColor(0, 0, 0, 0.2)
-            love.graphics.circle('fill', state.player.x, state.player.y, r * 0.45)
         else
             if key == 'soul_eater' then
-                love.graphics.setColor(0.7, 0.1, 0.6, 0.2)
+                love.graphics.setColor(0.65, 0.1, 0.6, 0.22)
                 love.graphics.circle('fill', state.player.x, state.player.y, r)
-                love.graphics.setColor(1, 0.8, 1, 0.25)
+                love.graphics.setColor(0.95, 0.75, 0.95, 0.28)
                 love.graphics.circle('line', state.player.x, state.player.y, r * 0.9)
-                love.graphics.setColor(1, 1, 1, 0.25)
             else
-                love.graphics.setColor(1, 0.2, 0.2, 0.2)
+                love.graphics.setColor(0.85, 0.75, 0.65, 0.18)
                 love.graphics.circle('fill', state.player.x, state.player.y, r)
+                love.graphics.setColor(0.9, 0.9, 0.9, 0.24)
+                love.graphics.circle('line', state.player.x, state.player.y, r)
             end
         end
+        love.graphics.setBlendMode("alpha")
     end
 
     -- 实体
@@ -262,6 +275,10 @@ function draw.render(state)
     -- 地面道具
     for _, item in ipairs(state.floorPickups) do
         local sprite = state.pickupSprites and state.pickupSprites[item.kind]
+        
+        local isGlow = (item.kind == 'magnet' or item.kind == 'chicken' or item.kind == 'chest_xp' or item.kind == 'chest_reward')
+        if isGlow then love.graphics.setBlendMode("add") end
+
         if sprite then
             local sw, sh = sprite:getWidth(), sprite:getHeight()
             local size = (item.size or 16)
@@ -271,33 +288,38 @@ function draw.render(state)
             love.graphics.draw(sprite, item.x, item.y, 0, scale, scale, sw/2, sh/2)
         else
             if item.kind == 'chicken' then
-                love.graphics.setColor(1, 0.8, 0.4)
+                love.graphics.setColor(1, 0.9, 0.6) -- Brighter gold
                 love.graphics.circle('fill', item.x, item.y, 8)
-                love.graphics.setColor(1, 0.95, 0.8)
+                love.graphics.setColor(1, 1, 0.9)
                 love.graphics.circle('fill', item.x, item.y - 2, 5)
                 love.graphics.setColor(0.8, 0.4, 0.2)
                 love.graphics.rectangle('fill', item.x - 2, item.y + 4, 4, 4)
             elseif item.kind == 'magnet' then
-                love.graphics.setColor(0, 0.7, 1)
+                love.graphics.setColor(0.2, 0.8, 1) -- Brighter blue
                 love.graphics.setLineWidth(3)
                 love.graphics.arc('line', 'open', item.x, item.y, 8, math.pi * 0.2, math.pi * 1.8)
                 love.graphics.line(item.x - 6, item.y + 6, item.x - 2, item.y + 6)
                 love.graphics.line(item.x + 2, item.y + 6, item.x + 6, item.y + 6)
                 love.graphics.setLineWidth(1)
             elseif item.kind == 'bomb' then
+                if isGlow then love.graphics.setBlendMode("alpha") end -- Bomb body shouldn't glow too much
                 love.graphics.setColor(0.2, 0.2, 0.2)
                 love.graphics.circle('fill', item.x, item.y, 8)
-                love.graphics.setColor(0.9, 0.5, 0.1)
-                love.graphics.rectangle('fill', item.x - 2, item.y - 10, 4, 5)
-                love.graphics.setColor(1, 0.1, 0.1)
-                love.graphics.circle('fill', item.x, item.y - 12, 2)
+                if isGlow then love.graphics.setBlendMode("add") end
+                
+                -- Fuse
+                love.graphics.setColor(1, 0.5, 0)
+                love.graphics.line(item.x, item.y - 8, item.x + 4, item.y - 12)
             end
         end
+        if isGlow then love.graphics.setBlendMode("alpha") end
     end
 
     -- 经验宝石
     for _, g in ipairs(state.gems) do
         local sprite = state.pickupSprites and state.pickupSprites['gem']
+        
+        love.graphics.setBlendMode("add")
         if sprite then
             local sw, sh = sprite:getWidth(), sprite:getHeight()
             local baseSize = 8
@@ -305,9 +327,10 @@ function draw.render(state)
             love.graphics.setColor(1,1,1)
             love.graphics.draw(sprite, g.x, g.y, 0, scale, scale, sw/2, sh/2)
         else
-            love.graphics.setColor(0,0.5,1)
+            love.graphics.setColor(0, 0.8, 1) -- Brighter blue for bloom
             love.graphics.rectangle('fill', g.x-3, g.y-3, 6, 6)
         end
+        love.graphics.setBlendMode("alpha")
     end
 
     for _, e in ipairs(state.enemies) do
@@ -347,10 +370,10 @@ function draw.render(state)
             love.graphics.rectangle('fill', e.x - e.size/2, e.y - e.size/2, e.size, e.size)
         end
         if e.status and e.status.static then
-            love.graphics.setColor(1,1,0,0.5)
-            love.graphics.setLineWidth(2)
-            love.graphics.circle('line', e.x, e.y, (e.size or 16) * 0.75)
-            love.graphics.setColor(1,1,0,0.8)
+            local r = (e.size or 16) * 0.75
+            vfx.drawElectricAura(e.x, e.y, r, 0.9)
+
+            love.graphics.setColor(1, 1, 0, 0.8)
             local lx = e.x; local ly = e.y
             love.graphics.line(lx - 4, ly - 6, lx - 1, ly - 1, lx - 6, ly + 3, lx, ly + 8, lx + 5, ly + 2)
             love.graphics.setLineWidth(1)
@@ -363,8 +386,7 @@ function draw.render(state)
         end
         if e.status and e.status.gasTimer and e.status.gasTimer > 0 then
             local r = e.status.gasRadius or 100
-            love.graphics.setColor(0.2, 1, 0.2, 0.12)
-            love.graphics.circle('fill', e.x, e.y, r)
+            vfx.drawGas(e.x, e.y, r, 1)
             love.graphics.setColor(0.3, 1, 0.3, 0.45)
             love.graphics.setLineWidth(1.5)
             love.graphics.circle('line', e.x, e.y, r)
@@ -402,16 +424,14 @@ function draw.render(state)
     end
 
     if state.chainLinks then
-        love.graphics.setColor(0.9, 0.95, 1, 0.9)
-        love.graphics.setLineWidth(3)
         for _, link in ipairs(state.chainLinks) do
-            love.graphics.line(link.x1, link.y1, link.x2, link.y2)
+            vfx.drawLightningSegment(link.x1, link.y1, link.x2, link.y2, 14, 0.95)
         end
-        love.graphics.setLineWidth(1)
     end
 
     -- 状态特效
     if state.hitEffects then
+        love.graphics.setBlendMode("add")
         for _, eff in ipairs(state.hitEffects) do
             local def = state.effectSprites and state.effectSprites[eff.key]
             if def then
@@ -423,6 +443,7 @@ function draw.render(state)
                 love.graphics.draw(img, eff.x, eff.y, 0, scale, scale, def.frameW / 2, def.frameH / 2)
             end
         end
+        love.graphics.setBlendMode("alpha")
     end
 
     -- 冰环提示
@@ -430,15 +451,19 @@ function draw.render(state)
         local iStats = weapons.calculateStats(state, 'ice_ring') or state.inventory.weapons.ice_ring.stats
         local r = (iStats.radius or 0) * (iStats.area or 1) * (state.player.stats.area or 1)
         local sprite = state.weaponSprites and state.weaponSprites['ice_ring']
+
+        -- 大面积范围提示不走 add，避免 bloom 泛白过曝
+        love.graphics.setBlendMode("alpha")
         if sprite then
             local sw, sh = sprite:getWidth(), sprite:getHeight()
             local scale = (r * 2) / sw
-            love.graphics.setColor(0.7, 0.9, 1, 0.35)
+            love.graphics.setColor(0.35, 0.65, 0.95, 0.28)
             love.graphics.draw(sprite, state.player.x, state.player.y, 0, scale, scale, sw / 2, sh / 2)
         else
-            love.graphics.setColor(0.7, 0.9, 1, 0.2)
+            love.graphics.setColor(0.35, 0.65, 0.95, 0.28)
             love.graphics.circle('line', state.player.x, state.player.y, r)
         end
+        love.graphics.setBlendMode("alpha")
     end
 
     -- 玩家阴影
@@ -463,15 +488,29 @@ function draw.render(state)
 
     -- 玩家投射物
     for _, b in ipairs(state.bullets) do
+        local isGlow = false
+        if b.type == 'absolute_zero' or b.type == 'fire_wand' or b.type == 'hellfire' or b.type == 'static_orb' or b.type == 'thunder_loop' or b.type == 'wand' or b.type == 'holy_wand' or b.type == 'death_spiral' or b.type == 'thousand_edge' then
+            isGlow = true
+        end
+
+        if isGlow then love.graphics.setBlendMode("add") end
+
         if b.type == 'absolute_zero' then
-            love.graphics.setColor(0.7, 0.9, 1, 0.25)
+            -- 这是大面积的范围圈：别用 add 叠加，不然 bloom 会把整屏洗白
+            love.graphics.setBlendMode("alpha")
+            love.graphics.setColor(0.45, 0.7, 1, 0.18)
             local r = b.radius or b.size or 0
             love.graphics.circle('fill', b.x, b.y, r)
             love.graphics.setColor(1,1,1)
+            if isGlow then love.graphics.setBlendMode("add") end
         else
             local sprite = state.weaponSprites and state.weaponSprites[b.type]
             if sprite then
-                love.graphics.setColor(1,1,1)
+                if isGlow then
+                    love.graphics.setColor(1, 1, 1, 1) -- Ensure full brightness for glow
+                else
+                    love.graphics.setColor(1,1,1)
+                end
                 local sw, sh = sprite:getWidth(), sprite:getHeight()
                 local scale = ((b.size or sw) / sw) * ((state.weaponSpriteScale and state.weaponSpriteScale[b.type]) or 1)
                 love.graphics.push()
@@ -488,6 +527,8 @@ function draw.render(state)
                 love.graphics.pop()
             end
         end
+
+        if isGlow then love.graphics.setBlendMode("alpha") end
     end
 
     -- 地震特效
@@ -498,6 +539,9 @@ function draw.render(state)
             local p = math.max(0, math.min(1, (q.t or 0) / dur))
             local cx, cy = q.x or state.player.x, q.y or state.player.y
             local baseR = q.radius or 420
+
+            vfx.drawExplosion(cx, cy, baseR * 0.7, p, 0.9 * (1 - p))
+
             -- subtle center flash
             local flashAlpha = 0.12 * (1 - p)
             if flashAlpha > 0.01 then
@@ -550,6 +594,10 @@ function draw.render(state)
     -- 飘字
     for _, t in ipairs(state.texts) do love.graphics.setColor(t.color); love.graphics.print(t.text, t.x, t.y) end
     love.graphics.pop()
+end
+
+function draw.renderUI(state)
+    love.graphics.setFont(state.font)
 
     -- 屏幕边缘指示道具方向（磁铁/炸弹/鸡腿/宝箱）
     do
@@ -690,6 +738,12 @@ function draw.render(state)
         love.graphics.setColor(1,1,1)
         love.graphics.printf("Press 1, 2, or 3 to select", 0, 550, love.graphics.getWidth(), "center")
     end
+end
+
+-- Backward compatible entry point
+function draw.render(state)
+    draw.renderWorld(state)
+    draw.renderUI(state)
 end
 
 return draw
