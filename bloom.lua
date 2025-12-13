@@ -1,11 +1,14 @@
 local bloom = {}
 
 local canvas_main
+local canvas_warp
 local canvas_bright
 local canvas_blur_h
 local canvas_blur_v
 local shader_blur
 local shader_extract
+local shader_combine
+local shader_warp
 
 local down_w
 local down_h
@@ -14,8 +17,53 @@ local bloom_threshold = 0.78
 local bloom_knee = 0.22
 local bloom_intensity = 1.0
 
+local tonemap_exposure = 1.15
+local tonemap_amount = 0.0
+local vignette_strength = 0.0
+local vignette_power = 1.7
+
+local warp_max_waves = 3
+local warp_strength = 3.0 -- pixels
+local warp_width = 42.0 -- pixels (ring thickness/falloff)
+local warp_freq = 0.18 -- radians per pixel
+
+local function collectWarpWaves(state)
+    local waves = {
+        {0, 0, 0, 0},
+        {0, 0, 0, 0},
+        {0, 0, 0, 0},
+        {0, 0, 0, 0},
+    }
+    if not state or not state.quakeEffects or not state.camera then
+        return waves, 0
+    end
+
+    local candidates = {}
+    for _, q in ipairs(state.quakeEffects) do
+        local t = q.t or 0
+        local dur = q.duration or 1.0
+        if t >= 0 and dur > 0 then
+            local p = math.max(0, math.min(1, t / dur))
+            local radius = (q.radius or 220) * p
+            local strength = warp_strength * (1.0 - p)
+            local cx = (q.x or state.player.x) - state.camera.x
+            local cy = (q.y or state.player.y) - state.camera.y
+            table.insert(candidates, {cx = cx, cy = cy, r = radius, s = strength, p = p})
+        end
+    end
+
+    table.sort(candidates, function(a, b) return a.p > b.p end)
+    local count = math.min(#candidates, warp_max_waves)
+    for i = 1, count do
+        local c = candidates[i]
+        waves[i] = {c.cx, c.cy, c.r, c.s}
+    end
+    return waves, count
+end
+
 function bloom.init(w, h)
     canvas_main = love.graphics.newCanvas(w, h)
+    canvas_warp = love.graphics.newCanvas(w, h)
     down_w = math.max(1, math.floor(w / 2))
     down_h = math.max(1, math.floor(h / 2))
     canvas_bright = love.graphics.newCanvas(down_w, down_h) -- Downscale for performance and better blur
@@ -67,6 +115,77 @@ function bloom.init(w, h)
             return vec4(outRgb, 1.0);
         }
     ]]
+
+    -- Local shockwave warp (screen-space): distorts around quake wavefronts.
+    shader_warp = love.graphics.newShader[[
+        extern vec2 size;
+        extern number width;
+        extern number freq;
+        extern vec4 wave0;
+        extern vec4 wave1;
+        extern vec4 wave2;
+        extern vec4 wave3;
+
+        vec2 applyWave(vec2 sc, vec2 uv, vec4 wv) {
+            number strength = wv.w;
+            if (strength <= 0.0) return vec2(0.0);
+            vec2 center = wv.xy;
+            number r = wv.z;
+            vec2 d = sc - center;
+            number dist = length(d);
+            vec2 dir = d / (dist + 1e-4);
+            number ring = sin((dist - r) * freq);
+            number atten = exp(-abs(dist - r) / max(1e-3, width));
+            number amp = strength * ring * atten;
+            return dir * amp;
+        }
+
+        vec4 effect(vec4 color, Image texture, vec2 uv, vec2 sc) {
+            vec2 offset = vec2(0.0);
+            offset += applyWave(sc, uv, wave0);
+            offset += applyWave(sc, uv, wave1);
+            offset += applyWave(sc, uv, wave2);
+            offset += applyWave(sc, uv, wave3);
+
+            vec2 uv2 = uv + offset / size;
+            uv2 = clamp(uv2, vec2(0.0), vec2(1.0));
+            return Texel(texture, uv2) * color;
+        }
+    ]]
+
+    -- Final combine: main + bloom, tonemap, then vignette.
+    shader_combine = love.graphics.newShader[[
+        extern Image bloomTex;
+        extern number bloomIntensity;
+        extern number exposure;
+        extern number tonemapAmount;
+        extern number vignetteStrength;
+        extern number vignettePower;
+
+        vec3 tonemapReinhard(vec3 hdr, number exposureVal) {
+            vec3 x = hdr * exposureVal;
+            return x / (x + vec3(1.0));
+        }
+
+        vec4 effect(vec4 color, Image mainTex, vec2 uv, vec2 sc) {
+            vec3 mainCol = Texel(mainTex, uv).rgb;
+            vec3 bloomCol = Texel(bloomTex, uv).rgb;
+
+            vec3 hdr = mainCol + bloomCol * bloomIntensity;
+            vec3 mapped = tonemapReinhard(hdr, exposure);
+            vec3 ldr = mix(hdr, mapped, clamp(tonemapAmount, 0.0, 1.0));
+            ldr = clamp(ldr, 0.0, 1.0);
+
+            // Subtle vignette (screen-space)
+            vec2 p = uv * 2.0 - 1.0;
+            number d = clamp(dot(p, p), 0.0, 1.0);
+            number vs = clamp(vignetteStrength, 0.0, 1.0);
+            number v = 1.0 - vs * pow(d, vignettePower);
+            ldr *= v;
+
+            return vec4(ldr, 1.0);
+        }
+    ]]
 end
 
 function bloom.preDraw()
@@ -74,8 +193,27 @@ function bloom.preDraw()
     love.graphics.clear()
 end
 
-function bloom.postDraw()
+function bloom.postDraw(state)
     love.graphics.setCanvas() -- Reset to screen
+
+    local src = canvas_main
+    local waves, waveCount = collectWarpWaves(state)
+    if waveCount > 0 then
+        love.graphics.setCanvas(canvas_warp)
+        love.graphics.clear()
+        love.graphics.setShader(shader_warp)
+        shader_warp:send("size", {src:getWidth(), src:getHeight()})
+        shader_warp:send("width", warp_width)
+        shader_warp:send("freq", warp_freq)
+        shader_warp:send("wave0", waves[1])
+        shader_warp:send("wave1", waves[2])
+        shader_warp:send("wave2", waves[3])
+        shader_warp:send("wave3", waves[4])
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(src, 0, 0)
+        love.graphics.setShader()
+        src = canvas_warp
+    end
 
     -- 1. Downscale + extract highlights from main
     love.graphics.setCanvas(canvas_bright)
@@ -84,9 +222,9 @@ function bloom.postDraw()
     shader_extract:send("threshold", bloom_threshold)
     shader_extract:send("knee", bloom_knee)
     love.graphics.setColor(1, 1, 1, 1)
-    local sx = down_w / canvas_main:getWidth()
-    local sy = down_h / canvas_main:getHeight()
-    love.graphics.draw(canvas_main, 0, 0, 0, sx, sy) -- Draw downscaled
+    local sx = down_w / src:getWidth()
+    local sy = down_h / src:getHeight()
+    love.graphics.draw(src, 0, 0, 0, sx, sy) -- Draw downscaled
 
     -- 2. Horizontal Blur
     love.graphics.setCanvas(canvas_blur_h)
@@ -102,20 +240,22 @@ function bloom.postDraw()
     shader_blur:send("dir", {0.0, 1.0})
     love.graphics.draw(canvas_blur_h, 0, 0)
 
-    -- 4. Final Combine
+    -- 4. Final Combine (tonemap + vignette)
     love.graphics.setCanvas() -- Back to screen
-    love.graphics.setShader()
-    
-    -- Draw original scene
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.draw(canvas_main, 0, 0)
-    -- Draw bloom (additive)
-    love.graphics.setBlendMode("add")
-    love.graphics.setColor(bloom_intensity, bloom_intensity, bloom_intensity, 1)
-    local usx = canvas_main:getWidth() / down_w
-    local usy = canvas_main:getHeight() / down_h
-    love.graphics.draw(canvas_blur_v, 0, 0, 0, usx, usy) -- Upscale back
     love.graphics.setBlendMode("alpha")
+
+    love.graphics.setShader(shader_combine)
+    shader_combine:send("bloomTex", canvas_blur_v)
+    shader_combine:send("bloomIntensity", bloom_intensity)
+    shader_combine:send("exposure", tonemap_exposure)
+    shader_combine:send("tonemapAmount", tonemap_amount)
+    shader_combine:send("vignetteStrength", vignette_strength)
+    shader_combine:send("vignettePower", vignette_power)
+
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(src, 0, 0)
+
+    love.graphics.setShader()
 end
 
 function bloom.resize(w, h)

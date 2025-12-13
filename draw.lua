@@ -4,6 +4,22 @@ local vfx = require('vfx')
 
 local draw = {}
 
+local function drawOutlineAnim(anim, x, y, r, sx, sy, t)
+    t = t or 1
+    local offsets = {
+        {-t, 0}, {t, 0}, {0, -t}, {0, t},
+        {-t, -t}, {-t, t}, {t, -t}, {t, t},
+    }
+    for _, o in ipairs(offsets) do
+        anim:draw(x + o[1], y + o[2], r or 0, sx or 1, sy or 1)
+    end
+end
+
+local function drawOutlineRect(x, y, size, t)
+    t = t or 1
+    love.graphics.rectangle('fill', x - size / 2 - t, y - size / 2 - t, size + t * 2, size + t * 2)
+end
+
 local function drawStatsPanel(state)
     if not state or state.gameState ~= 'PLAYING' then return end
 
@@ -335,6 +351,23 @@ function draw.renderWorld(state)
         local shadowY = shadowR * 0.4
         love.graphics.setColor(0,0,0,0.25)
         love.graphics.ellipse('fill', e.x, e.y + (e.size or 16) * 0.55, shadowR, shadowY)
+
+        -- Outline for elites/bosses (drawn behind base)
+        if e.isBoss or e.isElite then
+            if e.isBoss then
+                love.graphics.setColor(1, 0.6, 0.2, 0.85)
+            else
+                love.graphics.setColor(1, 0.15, 0.15, 0.75)
+            end
+            local t = e.isBoss and 2 or 1
+            if e.anim then
+                local sx = e.facing or 1
+                drawOutlineAnim(e.anim, e.x, e.y, 0, sx, 1, t)
+            else
+                drawOutlineRect(e.x, e.y, e.size or 16, t)
+            end
+        end
+
         local col = e.color
         if e.status then
             if e.status.frozen then
@@ -495,6 +528,15 @@ function draw.renderWorld(state)
 
     local inv = state.player.invincibleTimer > 0
     local blink = inv and love.timer.getTime() % 0.2 < 0.1
+
+    -- Player outline (drawn behind base)
+    love.graphics.setColor(0.9, 0.95, 1, 0.55)
+    if state.playerAnim then
+        drawOutlineAnim(state.playerAnim, state.player.x, state.player.y, 0, state.player.facing, 1, 1)
+    else
+        drawOutlineRect(state.player.x, state.player.y, state.player.size or 20, 1)
+    end
+
     if state.playerAnim then
         if blink then love.graphics.setColor(1,1,1,0.35) else love.graphics.setColor(1,1,1) end
         state.playerAnim:draw(state.player.x, state.player.y, 0, state.player.facing, 1)

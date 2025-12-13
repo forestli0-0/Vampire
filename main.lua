@@ -118,7 +118,7 @@ function love.draw()
     bloom.preDraw()
     -- 渲染世界并叠加调试菜单
     draw.render(state)
-    bloom.postDraw()
+    bloom.postDraw(state)
 
     benchmark.draw(state)
     debugmenu.draw(state)
