@@ -335,36 +335,48 @@ function draw.renderWorld(state)
         local shadowY = shadowR * 0.4
         love.graphics.setColor(0,0,0,0.25)
         love.graphics.ellipse('fill', e.x, e.y + (e.size or 16) * 0.55, shadowR, shadowY)
-        if e.flashTimer and e.flashTimer > 0 then
-            love.graphics.setColor(1,1,1)
-        else
-            local col = e.color
-            if e.status then
-                if e.status.frozen then
-                    col = {0.6, 0.8, 1}
-                elseif e.status.burnTimer and e.status.burnTimer > 0 then
-                    local pulse = love.timer.getTime() % 0.2 < 0.1
-                    if pulse then col = {1, 0.2, 0.2} else col = {1, 0.4, 0.4} end
-                elseif e.status.heatTimer and e.status.heatTimer > 0 then
-                    local pulse = love.timer.getTime() % 0.3 < 0.15
-                    if pulse then col = {1, 0.35, 0.2} else col = {1, 0.55, 0.35} end
-                elseif e.status.blastTimer and e.status.blastTimer > 0 then
-                    col = {1, 0.7, 0.2}
-                elseif e.status.radiationTimer and e.status.radiationTimer > 0 then
-                    col = {1, 1, 0.3}
-                elseif e.status.gasTimer and e.status.gasTimer > 0 then
-                    col = {0.5, 1, 0.5}
-                elseif e.status.oiled then
-                    col = {0.3, 0.2, 0.1}
-                end
+        local col = e.color
+        if e.status then
+            if e.status.frozen then
+                col = {0.6, 0.8, 1}
+            elseif e.status.burnTimer and e.status.burnTimer > 0 then
+                local pulse = love.timer.getTime() % 0.2 < 0.1
+                if pulse then col = {1, 0.2, 0.2} else col = {1, 0.4, 0.4} end
+            elseif e.status.heatTimer and e.status.heatTimer > 0 then
+                local pulse = love.timer.getTime() % 0.3 < 0.15
+                if pulse then col = {1, 0.35, 0.2} else col = {1, 0.55, 0.35} end
+            elseif e.status.blastTimer and e.status.blastTimer > 0 then
+                col = {1, 0.7, 0.2}
+            elseif e.status.radiationTimer and e.status.radiationTimer > 0 then
+                col = {1, 1, 0.3}
+            elseif e.status.gasTimer and e.status.gasTimer > 0 then
+                col = {0.5, 1, 0.5}
+            elseif e.status.oiled then
+                col = {0.3, 0.2, 0.1}
             end
-            love.graphics.setColor(col)
         end
+
+        -- Base draw (keep enemy readable even under sustained hits)
+        love.graphics.setColor(col)
         if e.anim then
             local sx = e.facing or 1
             e.anim:draw(e.x, e.y, 0, sx, 1)
         else
             love.graphics.rectangle('fill', e.x - e.size/2, e.y - e.size/2, e.size, e.size)
+        end
+
+        -- Hit flash overlay: white highlight instead of forcing full-white base
+        local ft = e.flashTimer or 0
+        if ft > 0 then
+            local f = math.min(1, ft / 0.1)
+            local a = 0.22 + 0.28 * f
+            love.graphics.setColor(1, 1, 1, a)
+            if e.anim then
+                local sx = e.facing or 1
+                e.anim:draw(e.x, e.y, 0, sx, 1)
+            else
+                love.graphics.rectangle('fill', e.x - e.size/2, e.y - e.size/2, e.size, e.size)
+            end
         end
         if e.status and e.status.static then
             local r = (e.size or 16) * 0.75
