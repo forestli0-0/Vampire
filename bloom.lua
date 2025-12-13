@@ -22,6 +22,13 @@ local tonemap_amount = 0.0
 local vignette_strength = 0.0
 local vignette_power = 1.7
 
+-- Filmic polish (all default off): grain + subtle chromatic aberration
+local film_grain_amount = 0.1
+local film_grain_size = 2.0 -- pixels per noise cell
+local chroma_amount = 0.1
+local chroma_pixels = 0.85 -- max pixel offset at edge when chroma_amount=1
+local chroma_edge_power = 2.2
+
 local warp_max_waves = 3
 local warp_strength = 2.2 -- pixels
 local warp_width = 30.0 -- pixels (ring thickness/falloff)
@@ -105,6 +112,12 @@ function bloom.getParams()
         vignette_strength = vignette_strength,
         vignette_power = vignette_power,
 
+        film_grain_amount = film_grain_amount,
+        film_grain_size = film_grain_size,
+        chroma_amount = chroma_amount,
+        chroma_pixels = chroma_pixels,
+        chroma_edge_power = chroma_edge_power,
+
         warp_max_waves = warp_max_waves,
         warp_strength = warp_strength,
         warp_width = warp_width,
@@ -129,6 +142,12 @@ function bloom.setParams(p)
     if p.tonemap_amount ~= nil then tonemap_amount = p.tonemap_amount end
     if p.vignette_strength ~= nil then vignette_strength = p.vignette_strength end
     if p.vignette_power ~= nil then vignette_power = p.vignette_power end
+
+    if p.film_grain_amount ~= nil then film_grain_amount = p.film_grain_amount end
+    if p.film_grain_size ~= nil then film_grain_size = p.film_grain_size end
+    if p.chroma_amount ~= nil then chroma_amount = p.chroma_amount end
+    if p.chroma_pixels ~= nil then chroma_pixels = p.chroma_pixels end
+    if p.chroma_edge_power ~= nil then chroma_edge_power = p.chroma_edge_power end
 
     if p.warp_max_waves ~= nil then warp_max_waves = p.warp_max_waves end
     if p.warp_strength ~= nil then warp_strength = p.warp_strength end
@@ -275,7 +294,7 @@ function bloom.init(w, h)
         }
     ]]
 
-    -- Final combine: main + bloom, tonemap, then vignette.
+    -- Final combine: main + bloom, optional tonemap/vignette, optional filmic polish.
     shader_combine = love.graphics.newShader[[
         extern Image bloomTex;
         extern number bloomIntensity;
@@ -284,13 +303,47 @@ function bloom.init(w, h)
         extern number vignetteStrength;
         extern number vignettePower;
 
+        extern vec2 screenSize;
+        extern number time;
+        extern number filmGrainAmount;
+        extern number filmGrainSize;
+        extern number chromaAmount;
+        extern number chromaPixels;
+        extern number chromaEdgePower;
+
         vec3 tonemapReinhard(vec3 hdr, number exposureVal) {
             vec3 x = hdr * exposureVal;
             return x / (x + vec3(1.0));
         }
 
+        number hash21(vec2 p) {
+            return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
+        vec3 applyChromatic(Image tex, vec2 uv) {
+            number ca = clamp(chromaAmount, 0.0, 1.0);
+            if (ca <= 0.0) {
+                return Texel(tex, uv).rgb;
+            }
+
+            vec2 p = uv * 2.0 - 1.0;
+            number rad = clamp(length(p), 0.0, 1.0);
+            number w = pow(rad, max(0.5, chromaEdgePower));
+            vec2 dir = (rad > 1e-4) ? (p / rad) : vec2(0.0, 0.0);
+
+            vec2 px = vec2(1.0) / max(screenSize, vec2(1.0));
+            vec2 off = dir * (chromaPixels * w * ca) * px;
+
+            vec3 base = Texel(tex, uv).rgb;
+            vec3 c;
+            c.r = Texel(tex, clamp(uv + off, vec2(0.0), vec2(1.0))).r;
+            c.g = base.g;
+            c.b = Texel(tex, clamp(uv - off, vec2(0.0), vec2(1.0))).b;
+            return c;
+        }
+
         vec4 effect(vec4 color, Image mainTex, vec2 uv, vec2 sc) {
-            vec3 mainCol = Texel(mainTex, uv).rgb;
+            vec3 mainCol = applyChromatic(mainTex, uv);
             vec3 bloomCol = Texel(bloomTex, uv).rgb;
 
             vec3 hdr = mainCol + bloomCol * bloomIntensity;
@@ -304,6 +357,17 @@ function bloom.init(w, h)
             number vs = clamp(vignetteStrength, 0.0, 1.0);
             number v = 1.0 - vs * pow(d, vignettePower);
             ldr *= v;
+
+            // Film grain (zero-mean). Default off.
+            number ga = clamp(filmGrainAmount, 0.0, 1.0);
+            if (ga > 0.0) {
+                number cell = max(1.0, filmGrainSize);
+                vec2 g = floor(uv * (screenSize / cell));
+                number n = hash21(g + vec2(time * 17.0, time * 29.0));
+                number grain = (n - 0.5) * 2.0;
+                number amp = 0.04 * ga;
+                ldr = clamp(ldr + vec3(grain) * amp, 0.0, 1.0);
+            }
 
             return vec4(ldr, 1.0);
         }
@@ -379,6 +443,14 @@ function bloom.postDraw(state)
     shader_combine:send("tonemapAmount", tonemap_amount)
     shader_combine:send("vignetteStrength", vignette_strength)
     shader_combine:send("vignettePower", vignette_power)
+
+    shader_combine:send("screenSize", {src:getWidth(), src:getHeight()})
+    shader_combine:send("time", love.timer.getTime())
+    shader_combine:send("filmGrainAmount", film_grain_amount)
+    shader_combine:send("filmGrainSize", film_grain_size)
+    shader_combine:send("chromaAmount", chroma_amount)
+    shader_combine:send("chromaPixels", chroma_pixels)
+    shader_combine:send("chromaEdgePower", chroma_edge_power)
 
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.draw(src, 0, 0)
