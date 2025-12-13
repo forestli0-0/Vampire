@@ -13,6 +13,7 @@ local augments = require('augments')
 local logger = require('logger')
 local benchmark = require('benchmark')
 local arsenal = require('arsenal')
+local bloom = require('bloom')
 
 -- 游戏启动时的初始化（状态、日志、默认武器等）
 function love.load()
@@ -21,6 +22,7 @@ function love.load()
     state.augments = augments
     logger.init(state)
     arsenal.init(state)
+    bloom.init(love.graphics.getWidth(), love.graphics.getHeight())
     if state.gameState ~= 'ARSENAL' then
         weapons.addWeapon(state, 'wand')
     end
@@ -92,10 +94,18 @@ function love.draw()
         arsenal.draw(state)
         return
     end
+    
+    bloom.preDraw()
     -- 渲染世界并叠加调试菜单
     draw.render(state)
+    bloom.postDraw()
+
     benchmark.draw(state)
     debugmenu.draw(state)
+end
+
+function love.resize(w, h)
+    bloom.resize(w, h)
 end
 
 function love.quit()
@@ -109,6 +119,7 @@ function love.keypressed(key)
         return
     end
     if key == 'f5' then benchmark.toggle(state) end
+    if key == 'b' then bloom.toggle() end
     -- 等级界面：按数字选择升级
     if debugmenu.keypressed(state, key) then return end
     if state.gameState == 'LEVEL_UP' then
