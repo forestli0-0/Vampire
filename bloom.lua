@@ -23,9 +23,10 @@ local vignette_strength = 0.0
 local vignette_power = 1.7
 
 local warp_max_waves = 3
-local warp_strength = 3.0 -- pixels
-local warp_width = 42.0 -- pixels (ring thickness/falloff)
+local warp_strength = 2.2 -- pixels
+local warp_width = 30.0 -- pixels (ring thickness/falloff)
 local warp_freq = 0.18 -- radians per pixel
+local quake_visual_radius_scale = 0.85
 
 local function collectWarpWaves(state)
     local waves = {
@@ -34,25 +35,43 @@ local function collectWarpWaves(state)
         {0, 0, 0, 0},
         {0, 0, 0, 0},
     }
-    if not state or not state.quakeEffects or not state.camera then
+    if not state or not state.camera then
         return waves, 0
     end
 
     local candidates = {}
-    for _, q in ipairs(state.quakeEffects) do
-        local t = q.t or 0
-        local dur = q.duration or 1.0
-        if t >= 0 and dur > 0 then
-            local p = math.max(0, math.min(1, t / dur))
-            local radius = (q.radius or 220) * p
-            local strength = warp_strength * (1.0 - p)
-            local cx = (q.x or state.player.x) - state.camera.x
-            local cy = (q.y or state.player.y) - state.camera.y
-            table.insert(candidates, {cx = cx, cy = cy, r = radius, s = strength, p = p})
+    if state.quakeEffects then
+        for _, q in ipairs(state.quakeEffects) do
+            local t = q.t or 0
+            local dur = q.duration or 1.0
+            if t >= 0 and dur > 0 then
+                local p = math.max(0, math.min(1, t / dur))
+                local radius = (q.radius or 220) * quake_visual_radius_scale * p
+                local strength = warp_strength * (1.0 - p)
+                local cx = (q.x or state.player.x) - state.camera.x
+                local cy = (q.y or state.player.y) - state.camera.y
+                table.insert(candidates, {cx = cx, cy = cy, r = radius, s = strength, sort = p})
+            end
         end
     end
 
-    table.sort(candidates, function(a, b) return a.p > b.p end)
+    if state.screenWaves then
+        for _, w in ipairs(state.screenWaves) do
+            local t = w.t or 0
+            local dur = w.duration or 0.3
+            if t >= 0 and dur > 0 then
+                local p = math.max(0, math.min(1, t / dur))
+                local radius = (w.radius or 140) * p
+                local strength = (w.strength or 2.2) * (1.0 - p)
+                local cx = (w.x or state.player.x) - state.camera.x
+                local cy = (w.y or state.player.y) - state.camera.y
+                -- 普通命中希望立刻可见：用 (1-p) 做排序权重
+                table.insert(candidates, {cx = cx, cy = cy, r = radius, s = strength, sort = (1.0 - p)})
+            end
+        end
+    end
+
+    table.sort(candidates, function(a, b) return (a.sort or 0) > (b.sort or 0) end)
     local count = math.min(#candidates, warp_max_waves)
     for i = 1, count do
         local c = candidates[i]

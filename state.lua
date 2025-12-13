@@ -1032,6 +1032,8 @@ function state.init()
     -- 状态特效贴图（3 帧横条）
     state.effectSprites = {}
     state.hitEffects = {}
+    -- 纯视觉屏幕波纹（用于后处理扭曲/冲击波），不参与伤害/判定
+    state.screenWaves = {}
     -- 持续性地面/范围场（shader 体积云类）
     state.areaFields = {}
     local effectScaleOverrides = {
@@ -1088,7 +1090,42 @@ function state.init()
         puncture_hit = { duration = 0.18, defaultScale = 1.0 },
         radiation_hit = { duration = 0.18, defaultScale = 1.0 }
     }
+
+    function state.spawnScreenWave(x, y, radius, duration, strength)
+        if not x or not y then return end
+        radius = radius or 120
+        duration = duration or 0.28
+        strength = strength or 1.8
+        if duration <= 0 or radius <= 0 or strength <= 0 then return end
+        state.screenWaves = state.screenWaves or {}
+        table.insert(state.screenWaves, {
+            x = x,
+            y = y,
+            t = 0,
+            duration = duration,
+            radius = radius,
+            strength = strength
+        })
+    end
+
     function state.spawnEffect(key, x, y, scale)
+        -- 根据命中类型触发纯视觉冲击波（用于后处理扭曲）
+        -- NOTE: 这里不做任何伤害/判定，只是喂给 bloom 的 warp pass。
+        if key == 'blast_hit' then
+            state.spawnScreenWave(x, y, 200, 0.40, 2.8)
+        elseif key == 'impact_hit' then
+            state.spawnScreenWave(x, y, 160, 0.34, 2.5)
+        elseif key == 'shock' then
+            state.spawnScreenWave(x, y, 140, 0.30, 2.2)
+        elseif key == 'hit' then
+            -- 普通命中很频繁：做个轻量节流，避免波纹过密/影响性能
+            local now = love.timer and love.timer.getTime and love.timer.getTime() or 0
+            if (state._lastHitWaveTime or 0) + 0.07 <= now then
+                state._lastHitWaveTime = now
+                state.spawnScreenWave(x, y, 100, 0.26, 1.5)
+            end
+        end
+
         local eff = state.effectSprites[key]
         if eff then
             local useScale = scale or eff.defaultScale or 1
@@ -1121,6 +1158,14 @@ function state.init()
             e.t = e.t + dt
             if e.t >= (e.duration or 0.3) then
                 table.remove(state.hitEffects, i)
+            end
+        end
+
+        for i = #(state.screenWaves or {}), 1, -1 do
+            local w = state.screenWaves[i]
+            w.t = (w.t or 0) + dt
+            if w.t >= (w.duration or 0.3) then
+                table.remove(state.screenWaves, i)
             end
         end
 

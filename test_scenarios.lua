@@ -29,6 +29,7 @@ local function clearCombat(state)
     clearList(state.enemyBullets)
     state.areaFields = {}
     state.hitEffects = {}
+    state.screenWaves = {}
     state.lightningLinks = {}
     state.chainLinks = {}
 end
