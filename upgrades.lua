@@ -49,6 +49,14 @@ function upgrades.generateUpgradeOptions(state)
         return n
     end
 
+    local function countWeapons()
+        local n = 0
+        for _, _ in pairs(state.inventory.weapons or {}) do
+            n = n + 1
+        end
+        return n
+    end
+
     for key, item in pairs(state.catalog) do
         -- evolved-only武器不进入随机池；已经进化后隐藏基础武器
         local skip = false
@@ -112,14 +120,63 @@ function upgrades.generateUpgradeOptions(state)
         return opt
     end
 
+    local function hasType(options, wanted)
+        for _, opt in ipairs(options or {}) do
+            if opt and opt.type == wanted then return true end
+        end
+        return false
+    end
+
+    local function takeRandomOfType(list, wanted)
+        if #list == 0 then return nil end
+        local candidates = {}
+        for i, opt in ipairs(list) do
+            if opt and opt.type == wanted then
+                table.insert(candidates, i)
+            end
+        end
+        if #candidates == 0 then return nil end
+        local pick = candidates[math.random(#candidates)]
+        local opt = list[pick]
+        table.remove(list, pick)
+        return opt
+    end
+
     if #evolvePool > 0 then
         table.insert(state.upgradeOptions, takeRandom(evolvePool))
+    end
+
+    local runLevel = (state.player and state.player.level) or 1
+    local preferExistingChance = 0.7
+    if runLevel <= 6 then
+        preferExistingChance = 0.35
+    elseif runLevel <= 12 then
+        preferExistingChance = 0.55
+    end
+
+    -- Early feel: ensure at least one "new route" option (weapon/augment) when possible.
+    if #state.upgradeOptions < 3 then
+        local weaponsOwned = countWeapons()
+        if weaponsOwned < 2 and not hasType(state.upgradeOptions, 'weapon') then
+            local forcedWeapon = takeRandomOfType(poolNew, 'weapon')
+            if forcedWeapon then
+                table.insert(state.upgradeOptions, forcedWeapon)
+            end
+        end
+    end
+    if #state.upgradeOptions < 3 and runLevel <= 6 then
+        if countAugments() == 0 and not hasType(state.upgradeOptions, 'augment') then
+            local forcedAug = takeRandomOfType(poolNew, 'augment')
+            if forcedAug then
+                table.insert(state.upgradeOptions, forcedAug)
+            end
+        end
     end
 
     for i = #state.upgradeOptions + 1, 3 do
         local choice = nil
         -- 现有/新选项混合：偏向现有，但保留一定随机新路线
-        local preferExisting = (#poolExisting > 0) and (math.random() < 0.7 or #poolNew == 0)
+        local preferExisting = (#poolExisting > 0) and (math.random() < preferExistingChance or #poolNew == 0)
         if preferExisting then
             choice = takeRandom(poolExisting)
         else
@@ -130,6 +187,13 @@ function upgrades.generateUpgradeOptions(state)
         if not choice then choice = takeRandom(evolvePool) end
         if not choice then break end
         table.insert(state.upgradeOptions, choice)
+    end
+
+    if runLevel <= 6 and not (hasType(state.upgradeOptions, 'weapon') or hasType(state.upgradeOptions, 'augment')) then
+        local forced = takeRandomOfType(poolNew, 'weapon') or takeRandomOfType(poolNew, 'augment')
+        if forced then
+            state.upgradeOptions[#state.upgradeOptions] = forced
+        end
     end
 
     local ctx = {options = state.upgradeOptions, player = state.player}

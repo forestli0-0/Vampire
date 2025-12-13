@@ -78,6 +78,7 @@ local function ensureStatus(e)
             oiled = false,
             static = false,
             shockTimer = 0,
+            shockLockout = 0,
             bleedStacks = 0,
             bleedTimer = 0,
             bleedDps = 0,
@@ -105,12 +106,17 @@ local function ensureStatus(e)
             gasDps = 0,
             gasRadius = 0,
             gasAcc = 0,
+            gasSplashCd = 0,
             radiationTimer = 0,
             radiationTargetTimer = 0,
             radiationTarget = nil,
-            radiationAngle = 0
+            radiationAngle = 0,
+            staticSplashCd = 0
         }
     end
+    e.status.shockLockout = e.status.shockLockout or 0
+    e.status.gasSplashCd = e.status.gasSplashCd or 0
+    e.status.staticSplashCd = e.status.staticSplashCd or 0
     e.baseSpeed = e.baseSpeed or e.speed
     e.baseArmor = e.baseArmor or e.armor or 0
     e.health = e.health or e.hp
@@ -247,7 +253,12 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         e.status.staticDps = (e.status.staticDps or 0) + addDps
         e.status.staticRadius = math.max(e.status.staticRadius or 0, radius)
         e.status.staticAcc = e.status.staticAcc or 0
-        e.status.shockTimer = math.max(e.status.shockTimer or 0, dur)
+        -- Prevent perma-stun loops: apply a short stun with a lockout instead of refreshing for full duration.
+        if (e.status.shockLockout or 0) <= 0 then
+            local stun = (effectData and effectData.stunDuration) or 0.45
+            e.status.shockTimer = math.max(e.status.shockTimer or 0, stun)
+            e.status.shockLockout = 0.9
+        end
         if state.spawnEffect then state.spawnEffect('static', e.x, e.y) end
     elseif effect == 'MAGNETIC' then
         local dur = (effectData and effectData.duration) or 6.0
@@ -516,6 +527,18 @@ function enemies.update(state, dt)
                 e.status.shockTimer = nil
             end
         end
+        if e.status.shockLockout and e.status.shockLockout > 0 then
+            e.status.shockLockout = e.status.shockLockout - dt
+            if e.status.shockLockout < 0 then e.status.shockLockout = 0 end
+        end
+        if e.status.gasSplashCd and e.status.gasSplashCd > 0 then
+            e.status.gasSplashCd = e.status.gasSplashCd - dt
+            if e.status.gasSplashCd < 0 then e.status.gasSplashCd = 0 end
+        end
+        if e.status.staticSplashCd and e.status.staticSplashCd > 0 then
+            e.status.staticSplashCd = e.status.staticSplashCd - dt
+            if e.status.staticSplashCd < 0 then e.status.staticSplashCd = 0 end
+        end
 
         if e.status.punctureTimer and e.status.punctureTimer > 0 then
             e.status.punctureTimer = e.status.punctureTimer - dt
@@ -609,9 +632,13 @@ function enemies.update(state, dt)
                                 local dy = o.y - e.y
                                 if dx*dx + dy*dy <= r2 then
                                     ensureStatus(o)
-                                    applyDotTick(state, o, 'ELECTRIC', tick, {noText=true})
-                                    o.status.shockTimer = math.max(o.status.shockTimer or 0, 0.6)
-                                    if shown < 6 then
+                                    local applied = false
+                                    if (o.status.staticSplashCd or 0) <= 0 then
+                                        applyDotTick(state, o, 'ELECTRIC', tick, {noText=true})
+                                        o.status.staticSplashCd = 0.25
+                                        applied = true
+                                    end
+                                    if applied and shown < 6 then
                                         table.insert(state.chainLinks, {x1=e.x, y1=e.y, x2=o.x, y2=o.y})
                                         shown = shown + 1
                                     end
@@ -694,7 +721,11 @@ function enemies.update(state, dt)
                             local dx = o.x - e.x
                             local dy = o.y - e.y
                             if dx*dx + dy*dy <= r2 then
-                                applyDotTick(state, o, 'GAS', tick, {bypassShield=true, noText=true})
+                                ensureStatus(o)
+                                if (o.status.gasSplashCd or 0) <= 0 then
+                                    applyDotTick(state, o, 'GAS', tick, {bypassShield=true, noText=true})
+                                    o.status.gasSplashCd = 0.35
+                                end
                             end
                         end
                     end
