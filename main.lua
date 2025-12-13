@@ -59,6 +59,8 @@ function love.update(dt)
         arsenal.update(state, dt)
         return
     end
+
+    if bloom and bloom.update then bloom.update(dt) end
     -- 升级/死亡界面下暂停主循环
     if state.gameState == 'LEVEL_UP' then return end
     if state.gameState == 'GAME_OVER' then

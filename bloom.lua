@@ -28,6 +28,20 @@ local warp_width = 30.0 -- pixels (ring thickness/falloff)
 local warp_freq = 0.18 -- radians per pixel
 local quake_visual_radius_scale = 0.85
 
+-- Perf / adaptive quality (very lightweight): decimate expensive passes when FPS drops.
+local perf_dt_smooth = 1 / 60
+local perf_tier = 0 -- 0=full, 1=medium, 2=low
+local perf_frame = 0
+local perf_bloom_div = 1
+local perf_warp_div = 1
+local warp_max_waves_effective = warp_max_waves
+local bloom_ready = false
+
+local perf_fps_to_medium = 42
+local perf_fps_to_full = 50
+local perf_fps_to_low = 28
+local perf_fps_to_medium_from_low = 34
+
 local function collectWarpWaves(state)
     local waves = {
         {0, 0, 0, 0},
@@ -72,12 +86,101 @@ local function collectWarpWaves(state)
     end
 
     table.sort(candidates, function(a, b) return (a.sort or 0) > (b.sort or 0) end)
-    local count = math.min(#candidates, warp_max_waves)
+    local count = math.min(#candidates, warp_max_waves_effective)
     for i = 1, count do
         local c = candidates[i]
         waves[i] = {c.cx, c.cy, c.r, c.s}
     end
     return waves, count
+end
+
+function bloom.getParams()
+    return {
+        bloom_threshold = bloom_threshold,
+        bloom_knee = bloom_knee,
+        bloom_intensity = bloom_intensity,
+
+        tonemap_exposure = tonemap_exposure,
+        tonemap_amount = tonemap_amount,
+        vignette_strength = vignette_strength,
+        vignette_power = vignette_power,
+
+        warp_max_waves = warp_max_waves,
+        warp_strength = warp_strength,
+        warp_width = warp_width,
+        warp_freq = warp_freq,
+        quake_visual_radius_scale = quake_visual_radius_scale,
+
+        perf_fps_to_medium = perf_fps_to_medium,
+        perf_fps_to_full = perf_fps_to_full,
+        perf_fps_to_low = perf_fps_to_low,
+        perf_fps_to_medium_from_low = perf_fps_to_medium_from_low,
+    }
+end
+
+function bloom.setParams(p)
+    if type(p) ~= 'table' then return bloom.getParams() end
+
+    if p.bloom_threshold ~= nil then bloom_threshold = p.bloom_threshold end
+    if p.bloom_knee ~= nil then bloom_knee = p.bloom_knee end
+    if p.bloom_intensity ~= nil then bloom_intensity = p.bloom_intensity end
+
+    if p.tonemap_exposure ~= nil then tonemap_exposure = p.tonemap_exposure end
+    if p.tonemap_amount ~= nil then tonemap_amount = p.tonemap_amount end
+    if p.vignette_strength ~= nil then vignette_strength = p.vignette_strength end
+    if p.vignette_power ~= nil then vignette_power = p.vignette_power end
+
+    if p.warp_max_waves ~= nil then warp_max_waves = p.warp_max_waves end
+    if p.warp_strength ~= nil then warp_strength = p.warp_strength end
+    if p.warp_width ~= nil then warp_width = p.warp_width end
+    if p.warp_freq ~= nil then warp_freq = p.warp_freq end
+    if p.quake_visual_radius_scale ~= nil then quake_visual_radius_scale = p.quake_visual_radius_scale end
+
+    if p.perf_fps_to_medium ~= nil then perf_fps_to_medium = p.perf_fps_to_medium end
+    if p.perf_fps_to_full ~= nil then perf_fps_to_full = p.perf_fps_to_full end
+    if p.perf_fps_to_low ~= nil then perf_fps_to_low = p.perf_fps_to_low end
+    if p.perf_fps_to_medium_from_low ~= nil then perf_fps_to_medium_from_low = p.perf_fps_to_medium_from_low end
+
+    return bloom.getParams()
+end
+
+function bloom.update(dt)
+    if type(dt) ~= 'number' or dt <= 0 then return end
+    perf_frame = perf_frame + 1
+    perf_dt_smooth = perf_dt_smooth * 0.92 + dt * 0.08
+    local fps = 1 / math.max(1e-6, perf_dt_smooth)
+
+    if perf_tier == 0 then
+        if fps < perf_fps_to_low then
+            perf_tier = 2
+        elseif fps < perf_fps_to_medium then
+            perf_tier = 1
+        end
+    elseif perf_tier == 1 then
+        if fps < perf_fps_to_low then
+            perf_tier = 2
+        elseif fps > perf_fps_to_full then
+            perf_tier = 0
+        end
+    else
+        if fps > perf_fps_to_medium_from_low then
+            perf_tier = 1
+        end
+    end
+
+    if perf_tier == 0 then
+        perf_bloom_div = 1
+        perf_warp_div = 1
+        warp_max_waves_effective = warp_max_waves
+    elseif perf_tier == 1 then
+        perf_bloom_div = 2
+        perf_warp_div = 1
+        warp_max_waves_effective = math.max(1, math.min(warp_max_waves, 2))
+    else
+        perf_bloom_div = 4
+        perf_warp_div = 2
+        warp_max_waves_effective = 1
+    end
 end
 
 function bloom.init(w, h)
@@ -216,7 +319,8 @@ function bloom.postDraw(state)
     love.graphics.setCanvas() -- Reset to screen
 
     local src = canvas_main
-    local waves, waveCount = collectWarpWaves(state)
+    local doWarp = (perf_warp_div <= 1) or (perf_frame % perf_warp_div == 0)
+    local waves, waveCount = doWarp and collectWarpWaves(state) or nil, 0
     if waveCount > 0 then
         love.graphics.setCanvas(canvas_warp)
         love.graphics.clear()
@@ -234,30 +338,35 @@ function bloom.postDraw(state)
         src = canvas_warp
     end
 
-    -- 1. Downscale + extract highlights from main
-    love.graphics.setCanvas(canvas_bright)
-    love.graphics.clear()
-    love.graphics.setShader(shader_extract)
-    shader_extract:send("threshold", bloom_threshold)
-    shader_extract:send("knee", bloom_knee)
-    love.graphics.setColor(1, 1, 1, 1)
-    local sx = down_w / src:getWidth()
-    local sy = down_h / src:getHeight()
-    love.graphics.draw(src, 0, 0, 0, sx, sy) -- Draw downscaled
+    local doBloom = (perf_bloom_div <= 1) or (perf_frame % perf_bloom_div == 0) or (not bloom_ready)
+    if doBloom then
+        -- 1. Downscale + extract highlights from main
+        love.graphics.setCanvas(canvas_bright)
+        love.graphics.clear()
+        love.graphics.setShader(shader_extract)
+        shader_extract:send("threshold", bloom_threshold)
+        shader_extract:send("knee", bloom_knee)
+        love.graphics.setColor(1, 1, 1, 1)
+        local sx = down_w / src:getWidth()
+        local sy = down_h / src:getHeight()
+        love.graphics.draw(src, 0, 0, 0, sx, sy) -- Draw downscaled
 
-    -- 2. Horizontal Blur
-    love.graphics.setCanvas(canvas_blur_h)
-    love.graphics.clear()
-    love.graphics.setShader(shader_blur)
-    shader_blur:send("dir", {1.0, 0.0})
-    shader_blur:send("size", {canvas_bright:getWidth(), canvas_bright:getHeight()})
-    love.graphics.draw(canvas_bright, 0, 0)
+        -- 2. Horizontal Blur
+        love.graphics.setCanvas(canvas_blur_h)
+        love.graphics.clear()
+        love.graphics.setShader(shader_blur)
+        shader_blur:send("dir", {1.0, 0.0})
+        shader_blur:send("size", {canvas_bright:getWidth(), canvas_bright:getHeight()})
+        love.graphics.draw(canvas_bright, 0, 0)
 
-    -- 3. Vertical Blur
-    love.graphics.setCanvas(canvas_blur_v)
-    love.graphics.clear()
-    shader_blur:send("dir", {0.0, 1.0})
-    love.graphics.draw(canvas_blur_h, 0, 0)
+        -- 3. Vertical Blur
+        love.graphics.setCanvas(canvas_blur_v)
+        love.graphics.clear()
+        shader_blur:send("dir", {0.0, 1.0})
+        love.graphics.draw(canvas_blur_h, 0, 0)
+
+        bloom_ready = true
+    end
 
     -- 4. Final Combine (tonemap + vignette)
     love.graphics.setCanvas() -- Back to screen
