@@ -170,12 +170,14 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
             e.status.frozenTimer = math.max(dur, remaining)
             e.speed = 0
             if state.spawnEffect then state.spawnEffect('freeze', e.x, e.y) end
+            if state.spawnAreaField then state.spawnAreaField('freeze', e.x, e.y, (e.size or 16) * 2.2, 0.55, 1) end
         elseif e.status.frozen then
             local freezeDur = (effectData and effectData.freezeDuration) or (effectData and effectData.duration) or 1.2
             local remaining = e.status.frozenTimer or 0
             e.status.frozenTimer = math.max(freezeDur, remaining)
             e.speed = 0
             if state.spawnEffect then state.spawnEffect('freeze', e.x, e.y) end
+            if state.spawnAreaField then state.spawnAreaField('freeze', e.x, e.y, (e.size or 16) * 2.2, 0.55, 1) end
         else
             local dur = (effectData and effectData.duration) or 6.0
             e.status.coldTimer = math.max(e.status.coldTimer or 0, dur)
@@ -188,6 +190,7 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
                 e.status.coldStacks = 0
                 e.status.coldTimer = 0
                 if state.spawnEffect then state.spawnEffect('freeze', e.x, e.y) end
+                if state.spawnAreaField then state.spawnAreaField('freeze', e.x, e.y, (e.size or 16) * 2.4, 0.65, 1) end
             else
                 local stacks = e.status.coldStacks or 0
                 local slowPct = 0.25 + math.max(0, stacks - 1) * 0.05

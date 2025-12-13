@@ -25,6 +25,7 @@ function love.load()
     arsenal.init(state)
     bloom.init(love.graphics.getWidth(), love.graphics.getHeight())
     vfx.init()
+    vfx.setBloomEmitter(bloom.isEnabled, bloom.getEmissionCanvas)
     if state.gameState ~= 'ARSENAL' then
         weapons.addWeapon(state, 'wand')
     end

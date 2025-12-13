@@ -187,6 +187,14 @@ function projectiles.updatePlayerBullets(state, dt)
                                     end
                                 end
                             end
+
+                            -- Ground cover: persistent oil field (visual-only)
+                            if state.spawnAreaField then
+                                local r = (splash > 0 and splash) or ((b.size or 16) * 4)
+                                local dur = (b.effectDuration or 2.0)
+                                state.spawnAreaField('oil', e.x, e.y, r, dur, 1)
+                            end
+
                             table.remove(state.bullets, i)
                             hit = true
                             break

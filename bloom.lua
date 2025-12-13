@@ -2,33 +2,23 @@ local bloom = {}
 bloom.enabled = true
 
 local canvas_main
+local canvas_emission
 local canvas_bright
 local canvas_blur_h
 local canvas_blur_v
-
-local shader_threshold
 local shader_blur
+
+local down_w
+local down_h
 
 function bloom.init(w, h)
     canvas_main = love.graphics.newCanvas(w, h)
-    canvas_bright = love.graphics.newCanvas(w/2, h/2) -- Downscale for performance and better blur
-    canvas_blur_h = love.graphics.newCanvas(w/2, h/2)
-    canvas_blur_v = love.graphics.newCanvas(w/2, h/2)
-
-    -- Shader to extract bright parts
-    shader_threshold = love.graphics.newShader[[
-        extern number threshold;
-        vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
-            vec4 texcolor = Texel(texture, texture_coords);
-            number brightness = max(max(texcolor.r, texcolor.g), texcolor.b);
-            if (brightness > threshold) {
-                return texcolor * color;
-            } else {
-                return vec4(0.0, 0.0, 0.0, 0.0);
-            }
-        }
-    ]]
-    shader_threshold:send("threshold", 0.5) -- Lowered threshold for visibility
+    canvas_emission = love.graphics.newCanvas(w, h)
+    down_w = math.max(1, math.floor(w / 2))
+    down_h = math.max(1, math.floor(h / 2))
+    canvas_bright = love.graphics.newCanvas(down_w, down_h) -- Downscale for performance and better blur
+    canvas_blur_h = love.graphics.newCanvas(down_w, down_h)
+    canvas_blur_v = love.graphics.newCanvas(down_w, down_h)
 
     -- Gaussian Blur Shader
     shader_blur = love.graphics.newShader[[
@@ -54,6 +44,14 @@ function bloom.init(w, h)
     ]]
 end
 
+function bloom.isEnabled()
+    return bloom.enabled
+end
+
+function bloom.getEmissionCanvas()
+    return canvas_emission
+end
+
 function bloom.toggle()
     bloom.enabled = not bloom.enabled
     print("Bloom enabled:", bloom.enabled)
@@ -61,19 +59,31 @@ end
 
 function bloom.preDraw()
     if not bloom.enabled then return end
+    local prev = love.graphics.getCanvas()
+
     love.graphics.setCanvas(canvas_main)
     love.graphics.clear()
+
+    love.graphics.setCanvas(canvas_emission)
+    love.graphics.clear()
+
+    love.graphics.setCanvas(prev)
+
+    love.graphics.setCanvas(canvas_main)
 end
 
 function bloom.postDraw()
     if not bloom.enabled then return end
     love.graphics.setCanvas() -- Reset to screen
 
-    -- 1. Extract bright areas
+    -- 1. Downscale emission
     love.graphics.setCanvas(canvas_bright)
     love.graphics.clear()
-    love.graphics.setShader(shader_threshold)
-    love.graphics.draw(canvas_main, 0, 0, 0, 0.5, 0.5) -- Draw downscaled
+    love.graphics.setShader()
+    love.graphics.setColor(1, 1, 1, 1)
+    local sx = down_w / canvas_emission:getWidth()
+    local sy = down_h / canvas_emission:getHeight()
+    love.graphics.draw(canvas_emission, 0, 0, 0, sx, sy) -- Draw downscaled
 
     -- 2. Horizontal Blur
     love.graphics.setCanvas(canvas_blur_h)
@@ -100,7 +110,9 @@ function bloom.postDraw()
     -- love.graphics.setBlendMode("add", "alphamultiply")
     love.graphics.setBlendMode("add")
     love.graphics.setColor(1, 1, 1, 1) -- Adjust alpha for bloom intensity
-    love.graphics.draw(canvas_blur_v, 0, 0, 0, 2, 2) -- Upscale back
+    local usx = canvas_main:getWidth() / down_w
+    local usy = canvas_main:getHeight() / down_h
+    love.graphics.draw(canvas_blur_v, 0, 0, 0, usx, usy) -- Upscale back
     -- love.graphics.draw(canvas_blur_v, 0, 0, 0, 2, 2) -- Draw twice for extra glow!
     love.graphics.setBlendMode("alpha")
 end

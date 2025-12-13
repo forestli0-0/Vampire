@@ -217,44 +217,41 @@ function draw.renderWorld(state)
         end
     end
 
-    -- 大蒜圈
+    -- 大蒜圈 / 灵魂吞噬者圈（统一用 shader 范围场，避免占位素材 + bloom 过曝）
     if state.inventory.weapons.garlic or state.inventory.weapons.soul_eater then
         local key = state.inventory.weapons.soul_eater and 'soul_eater' or 'garlic'
         local gStats = weapons.calculateStats(state, key) or state.inventory.weapons[key].stats
         local r = (gStats.radius or 0) * (gStats.area or 1) * (state.player.stats.area or 1)
-        local sprite = state.weaponSprites and state.weaponSprites[key]
 
-        -- 大面积范围提示不走 add，避免 bloom 泛白过曝
-        love.graphics.setBlendMode("alpha")
-        if sprite then
-            local sw, sh = sprite:getWidth(), sprite:getHeight()
-            local scale = (r * 2) / sw
-            local alpha = key == 'soul_eater' and 0.28 or 0.22
-            
-            -- Pulsating effect for Soul Eater
-            if key == 'soul_eater' then
-                local pulse = (math.sin(love.timer.getTime() * 5) + 1) * 0.1
-                alpha = alpha + pulse * 0.35
-                love.graphics.setColor(0.85, 0.18, 0.75, alpha)
-            else
-                love.graphics.setColor(0.85, 0.75, 0.65, alpha)
-            end
-            
-            love.graphics.draw(sprite, state.player.x, state.player.y, 0, scale, scale, sw / 2, sh / 2)
-        else
-            if key == 'soul_eater' then
-                love.graphics.setColor(0.65, 0.1, 0.6, 0.22)
-                love.graphics.circle('fill', state.player.x, state.player.y, r)
-                love.graphics.setColor(0.95, 0.75, 0.95, 0.28)
-                love.graphics.circle('line', state.player.x, state.player.y, r * 0.9)
-            else
-                love.graphics.setColor(0.85, 0.75, 0.65, 0.18)
-                love.graphics.circle('fill', state.player.x, state.player.y, r)
-                love.graphics.setColor(0.9, 0.9, 0.9, 0.24)
-                love.graphics.circle('line', state.player.x, state.player.y, r)
-            end
+        local pulse = 0
+        if key == 'soul_eater' then
+            pulse = (math.sin(love.timer.getTime() * 5) + 1) * 0.5
         end
-        love.graphics.setBlendMode("alpha")
+
+        vfx.drawAreaField(key, state.player.x, state.player.y, r, 1 + pulse * 0.35, { alpha = 1 })
+
+        -- 轻描边保证可读性（不走 add）
+        if key == 'soul_eater' then
+            love.graphics.setColor(0.95, 0.75, 0.95, 0.18)
+            love.graphics.circle('line', state.player.x, state.player.y, r * 0.92)
+        else
+            love.graphics.setColor(0.9, 0.9, 0.9, 0.14)
+            love.graphics.circle('line', state.player.x, state.player.y, r)
+        end
+        love.graphics.setColor(1, 1, 1)
+    end
+
+    -- 持续性范围场（如油地面覆盖）：绘制在实体之前
+    if state.areaFields then
+        for _, a in ipairs(state.areaFields) do
+            local dur = a.duration or 2.0
+            local p = (dur > 0) and math.max(0, math.min(1, (a.t or 0) / dur)) or 1
+            local fade = 1 - p
+            local alpha = 0.35 + 0.65 * fade
+            local intensity = (a.intensity or 1) * (0.85 + 0.35 * fade)
+            vfx.drawAreaField(a.kind or 'oil', a.x, a.y, a.radius or 0, intensity, { alpha = alpha })
+        end
+        love.graphics.setColor(1, 1, 1)
     end
 
     -- 实体
@@ -392,6 +389,14 @@ function draw.renderWorld(state)
             love.graphics.circle('line', e.x, e.y, r)
             love.graphics.setLineWidth(1)
         end
+        if e.status and e.status.toxinTimer and e.status.toxinTimer > 0 then
+            local r = math.max((e.size or 16) * 1.05, 16)
+            vfx.drawAreaField('toxin', e.x, e.y, r, 1, { alpha = 0.75 })
+            love.graphics.setColor(0.25, 0.95, 0.35, 0.32)
+            love.graphics.setLineWidth(1)
+            love.graphics.circle('line', e.x, e.y, r)
+            love.graphics.setLineWidth(1)
+        end
         if e.status and e.status.radiationTimer and e.status.radiationTimer > 0 then
             love.graphics.setColor(1, 1, 0.2, 0.5)
             love.graphics.setLineWidth(1.5)
@@ -441,29 +446,24 @@ function draw.renderWorld(state)
                 local scale = eff.scale or def.defaultScale or 1
                 love.graphics.setColor(1,1,1)
                 love.graphics.draw(img, eff.x, eff.y, 0, scale, scale, def.frameW / 2, def.frameH / 2)
+            else
+                local frac = math.max(0, math.min(0.999, eff.t / (eff.duration or 0.18)))
+                vfx.drawHitEffect(eff.key, eff.x, eff.y, frac, eff.scale or 1, 1)
+                love.graphics.setBlendMode("add")
             end
         end
         love.graphics.setBlendMode("alpha")
     end
 
-    -- 冰环提示
+    -- 冰环提示（统一用 shader 范围场，避免泛白过曝）
     if state.inventory.weapons.ice_ring then
         local iStats = weapons.calculateStats(state, 'ice_ring') or state.inventory.weapons.ice_ring.stats
         local r = (iStats.radius or 0) * (iStats.area or 1) * (state.player.stats.area or 1)
-        local sprite = state.weaponSprites and state.weaponSprites['ice_ring']
 
-        -- 大面积范围提示不走 add，避免 bloom 泛白过曝
-        love.graphics.setBlendMode("alpha")
-        if sprite then
-            local sw, sh = sprite:getWidth(), sprite:getHeight()
-            local scale = (r * 2) / sw
-            love.graphics.setColor(0.35, 0.65, 0.95, 0.28)
-            love.graphics.draw(sprite, state.player.x, state.player.y, 0, scale, scale, sw / 2, sh / 2)
-        else
-            love.graphics.setColor(0.35, 0.65, 0.95, 0.28)
-            love.graphics.circle('line', state.player.x, state.player.y, r)
-        end
-        love.graphics.setBlendMode("alpha")
+        vfx.drawAreaField('ice', state.player.x, state.player.y, r, 1, { alpha = 1 })
+        love.graphics.setColor(0.6, 0.85, 1, 0.14)
+        love.graphics.circle('line', state.player.x, state.player.y, r)
+        love.graphics.setColor(1, 1, 1)
     end
 
     -- 玩家阴影
@@ -496,12 +496,9 @@ function draw.renderWorld(state)
         if isGlow then love.graphics.setBlendMode("add") end
 
         if b.type == 'absolute_zero' then
-            -- 这是大面积的范围圈：别用 add 叠加，不然 bloom 会把整屏洗白
-            love.graphics.setBlendMode("alpha")
-            love.graphics.setColor(0.45, 0.7, 1, 0.18)
+            -- 大面积范围场：统一走 shader（alpha 混合），避免 bloom 洗白
             local r = b.radius or b.size or 0
-            love.graphics.circle('fill', b.x, b.y, r)
-            love.graphics.setColor(1,1,1)
+            vfx.drawAreaField('absolute_zero', b.x, b.y, r, 1, { alpha = 1 })
             if isGlow then love.graphics.setBlendMode("add") end
         else
             local sprite = state.weaponSprites and state.weaponSprites[b.type]

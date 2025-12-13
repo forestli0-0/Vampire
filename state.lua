@@ -1031,6 +1031,8 @@ function state.init()
     -- 状态特效贴图（3 帧横条）
     state.effectSprites = {}
     state.hitEffects = {}
+    -- 持续性地面/范围场（shader 体积云类）
+    state.areaFields = {}
     local effectScaleOverrides = {
         freeze = 0.4,
         oil = 0.2,
@@ -1065,11 +1067,40 @@ function state.init()
     end
     local effectKeys = {'freeze','oil','fire','static','bleed'}
     for _, k in ipairs(effectKeys) do loadEffectFrames(k, 3) end
+
+    local proceduralEffectDefs = {
+        hit = { duration = 0.16, defaultScale = 1.0 },
+        shock = { duration = 0.18, defaultScale = 1.0 },
+        static_hit = { duration = 0.18, defaultScale = 1.0 },
+        ice_shatter = { duration = 0.20, defaultScale = 1.0 },
+        ember = { duration = 0.18, defaultScale = 1.0 }
+    }
     function state.spawnEffect(key, x, y, scale)
         local eff = state.effectSprites[key]
-        if not eff then return end
-        local useScale = scale or eff.defaultScale or 1
-        table.insert(state.hitEffects, {key = key, x = x, y = y, t = 0, duration = eff.duration or 0.3, scale = useScale})
+        if eff then
+            local useScale = scale or eff.defaultScale or 1
+            table.insert(state.hitEffects, {key = key, x = x, y = y, t = 0, duration = eff.duration or 0.3, scale = useScale})
+            return
+        end
+
+        local p = proceduralEffectDefs[key]
+        if not p then return end
+        local useScale = scale or p.defaultScale or 1
+        table.insert(state.hitEffects, {key = key, x = x, y = y, t = 0, duration = p.duration or 0.18, scale = useScale})
+    end
+
+    function state.spawnAreaField(kind, x, y, radius, duration, intensity)
+        if not kind then return end
+        if not radius or radius <= 0 then return end
+        table.insert(state.areaFields, {
+            kind = kind,
+            x = x,
+            y = y,
+            radius = radius,
+            t = 0,
+            duration = duration or 2.0,
+            intensity = intensity or 1
+        })
     end
     function state.updateEffects(dt)
         for i = #state.hitEffects, 1, -1 do
@@ -1079,6 +1110,15 @@ function state.init()
                 table.remove(state.hitEffects, i)
             end
         end
+
+        for i = #state.areaFields, 1, -1 do
+            local a = state.areaFields[i]
+            a.t = a.t + dt
+            if a.t >= (a.duration or 2.0) then
+                table.remove(state.areaFields, i)
+            end
+        end
+
         for i = #state.quakeEffects, 1, -1 do
             local q = state.quakeEffects[i]
             q.t = q.t + dt
