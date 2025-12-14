@@ -393,6 +393,51 @@ function draw.renderWorld(state)
         love.graphics.setColor(1, 1, 1)
     end
 
+    -- 敌方攻击预警（红圈/红线）：绘制在实体之前
+    if state.telegraphs then
+        for _, tg in ipairs(state.telegraphs) do
+            local dur = tg.duration or 0.6
+            local p = (dur > 0) and math.max(0, math.min(1, (tg.t or 0) / dur)) or 1
+            local alpha = 0.10 + 0.70 * p
+            local intensity = (tg.intensity or 1) * (0.65 + 0.75 * p)
+
+            if tg.shape == 'circle' then
+                local r = tg.radius or 0
+                if r > 0 then
+                    vfx.drawAreaField(tg.kind or 'telegraph', tg.x, tg.y, r, intensity, { alpha = alpha, alphaCap = 0.6, edgeSoft = 0.52 })
+                    love.graphics.setColor(1, 0.22, 0.22, 0.18 + 0.38 * p)
+                    love.graphics.setLineWidth(2)
+                    love.graphics.circle('line', tg.x, tg.y, r)
+                    love.graphics.setLineWidth(1)
+                end
+            elseif tg.shape == 'line' then
+                local x1, y1, x2, y2 = tg.x1, tg.y1, tg.x2, tg.y2
+                local dx = (x2 or 0) - (x1 or 0)
+                local dy = (y2 or 0) - (y1 or 0)
+                local len = math.sqrt(dx * dx + dy * dy)
+                if len > 0.001 then
+                    local ang = math.atan2(dy, dx)
+                    local w = tg.width or 28
+                    local col = tg.color or {1, 0.22, 0.22}
+                    local fillA = 0.08 + 0.42 * p
+                    local lineA = 0.18 + 0.60 * p
+                    love.graphics.push()
+                    love.graphics.translate(x1, y1)
+                    love.graphics.rotate(ang)
+                    love.graphics.setColor(col[1], col[2], col[3], fillA)
+                    love.graphics.rectangle('fill', 0, -w / 2, len, w, w * 0.35, w * 0.35)
+                    love.graphics.setColor(col[1], col[2], col[3], lineA)
+                    love.graphics.setLineWidth(2)
+                    love.graphics.rectangle('line', 0, -w / 2, len, w, w * 0.35, w * 0.35)
+                    love.graphics.setLineWidth(1)
+                    love.graphics.pop()
+                end
+            end
+        end
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.setLineWidth(1)
+    end
+
     -- 实体
     for _, c in ipairs(state.chests) do
         local sprite = state.pickupSprites and state.pickupSprites['chest']

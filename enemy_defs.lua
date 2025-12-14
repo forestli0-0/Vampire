@@ -44,6 +44,27 @@ local enemyDefs = {
         bulletLife = 4,
         bulletSize = 10
     },
+    charger = {
+        hp = 18,
+        speed = 70,
+        size = 18,
+        color = {0.95, 0.55, 0.15},
+        healthType = 'INFESTED',
+        contactDamage = 8,
+        attacks = {
+            charge = {range = 320, windup = 0.55, distance = 260, speed = 560, cooldown = 2.4, damage = 18, telegraphWidth = 36}
+        }
+    },
+    spore_mortar = {
+        hp = 26,
+        speed = 38,
+        size = 20,
+        color = {0.75, 0.25, 0.95},
+        healthType = 'INFESTED',
+        attacks = {
+            slam = {range = 420, windup = 0.85, radius = 120, cooldown = 3.0, damage = 16}
+        }
+    },
     dummy_pole = {
         hp = 800,
         shield = 0,

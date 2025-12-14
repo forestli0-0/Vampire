@@ -482,6 +482,7 @@ function enemies.update(state, dt)
     for i = #state.enemies, 1, -1 do
         local e = state.enemies[i]
         ensureStatus(e)
+        local def = enemyDefs[e.kind] or enemyDefs.skeleton
 
         if e.flashTimer and e.flashTimer > 0 then
             e.flashTimer = e.flashTimer - dt
@@ -800,7 +801,122 @@ function enemies.update(state, dt)
         end
         local angToTarget = math.atan2(targetY - e.y, targetX - e.x)
 
-        if e.shootInterval and not stunned then
+        -- Telegraph-based attacks (reusable templates via enemy_defs.lua: def.attacks)
+        if e.attackCooldown == nil then e.attackCooldown = 0 end
+        if e.attackCooldown > 0 then
+            e.attackCooldown = e.attackCooldown - dt * coldMult
+            if e.attackCooldown < 0 then e.attackCooldown = 0 end
+        end
+
+        if stunned and e.attack then
+            -- crowd control cancels telegraphed attacks (keeps fairness: no hidden hits after a freeze/stun)
+            e.attack = nil
+            e.attackCooldown = math.max(e.attackCooldown or 0, 0.6)
+        end
+
+        local attacks = def and def.attacks
+        if attacks and not stunned then
+            local atk = e.attack
+
+            -- tick active attack
+            if atk and atk.type == 'charge' then
+                if atk.phase == 'windup' then
+                    atk.timer = (atk.timer or 0) - dt * coldMult
+                    if atk.timer <= 0 then
+                        atk.phase = 'dash'
+                        atk.remaining = atk.distance or 0
+                        atk.hitPlayer = false
+                    end
+                end
+            elseif atk and atk.type == 'slam' then
+                if atk.phase == 'windup' then
+                    atk.timer = (atk.timer or 0) - dt * coldMult
+                    if atk.timer <= 0 then
+                        local sx, sy = atk.x or e.x, atk.y or e.y
+                        local radius = atk.radius or 0
+                        local damage = atk.damage or 0
+                        if radius > 0 and damage > 0 then
+                            local dx = (p.x - sx)
+                            local dy = (p.y - sy)
+                            local pr = (p.size or 20) / 2
+                            local rr = radius + pr
+                            if dx * dx + dy * dy <= rr * rr then
+                                local dmgMult = 1 - getPunctureReduction(e)
+                                if dmgMult < 0.25 then dmgMult = 0.25 end
+                                player.hurt(state, damage * dmgMult)
+                            end
+                        end
+                        if state.spawnEffect then
+                            local s = 1.0
+                            if radius and radius > 0 then s = math.max(0.8, math.min(2.0, radius / 90)) end
+                            state.spawnEffect('blast_hit', sx, sy, s)
+                        end
+                        e.attack = nil
+                        e.attackCooldown = atk.cooldown or (attacks.slam and attacks.slam.cooldown) or 3.0
+                    end
+                end
+            end
+
+            -- start a new attack if ready
+            if not e.attack and (e.attackCooldown or 0) <= 0 then
+                local dx = targetX - e.x
+                local dy = targetY - e.y
+                local distSq = dx * dx + dy * dy
+
+                local charge = attacks.charge
+                if charge then
+                    local range = charge.range or 320
+                    if distSq <= range * range then
+                        local windup = charge.windup or 0.55
+                        local distance = charge.distance or 260
+                        local spd = charge.speed or 520
+                        local width = charge.telegraphWidth or 36
+                        local damage = charge.damage or 18
+                        e.attack = {
+                            type = 'charge',
+                            phase = 'windup',
+                            timer = windup,
+                            dirX = math.cos(angToTarget),
+                            dirY = math.sin(angToTarget),
+                            distance = distance,
+                            speed = spd,
+                            width = width,
+                            damage = damage,
+                            cooldown = charge.cooldown or 2.5
+                        }
+                        if state.spawnTelegraphLine then
+                            local ex, ey = e.x, e.y
+                            state.spawnTelegraphLine(ex, ey, ex + math.cos(angToTarget) * distance, ey + math.sin(angToTarget) * distance, width, windup)
+                        end
+                    end
+                end
+
+                local slam = attacks.slam
+                if not e.attack and slam then
+                    local range = slam.range or 420
+                    if distSq <= range * range then
+                        local windup = slam.windup or 0.85
+                        local radius = slam.radius or 110
+                        local damage = slam.damage or 16
+                        e.attack = {
+                            type = 'slam',
+                            phase = 'windup',
+                            timer = windup,
+                            x = targetX,
+                            y = targetY,
+                            radius = radius,
+                            damage = damage,
+                            cooldown = slam.cooldown or 3.0
+                        }
+                        if state.spawnTelegraphCircle then
+                            state.spawnTelegraphCircle(targetX, targetY, radius, windup)
+                        end
+                    end
+                end
+            end
+        end
+
+        if e.shootInterval and not stunned and not e.attack then
             e.shootTimer = (e.shootTimer or e.shootInterval) - dt * coldMult
             if e.shootTimer <= 0 then
                 local ang = angToTarget
@@ -829,7 +945,6 @@ function enemies.update(state, dt)
             end
         end
 
-        local angle = angToTarget
         local dxToTarget = targetX - e.x
         if math.abs(dxToTarget) > 1 then
             e.facing = dxToTarget >= 0 and 1 or -1
@@ -837,18 +952,52 @@ function enemies.update(state, dt)
         if stunned then
             e.x = e.x + pushX * dt
             e.y = e.y + pushY * dt
+        elseif e.attack and e.attack.type == 'charge' and e.attack.phase == 'dash' then
+            local atk = e.attack
+            local remaining = atk.remaining or 0
+            local step = (atk.speed or 0) * dt
+            if step > remaining then step = remaining end
+            if step > 0 then
+                e.x = e.x + (atk.dirX or 0) * step
+                e.y = e.y + (atk.dirY or 0) * step
+                atk.remaining = remaining - step
+            end
+
+            if (atk.dirX or 0) ~= 0 then
+                e.facing = ((atk.dirX or 0) >= 0) and 1 or -1
+            end
+
+            -- Charge collision: apply once per dash
+            local hitRadius = ((p.size or 20) + (e.size or 16)) * 0.5
+            local cdx = p.x - e.x
+            local cdy = p.y - e.y
+            if not atk.hitPlayer and cdx * cdx + cdy * cdy <= hitRadius * hitRadius then
+                local dmgMult = 1 - getPunctureReduction(e)
+                if dmgMult < 0.25 then dmgMult = 0.25 end
+                player.hurt(state, (atk.damage or 18) * dmgMult)
+                atk.hitPlayer = true
+            end
+
+            if (atk.remaining or 0) <= 0 then
+                e.attack = nil
+                e.attackCooldown = atk.cooldown or 2.5
+            end
+        elseif e.attack and e.attack.phase == 'windup' then
+            -- windup: hold position (telegraph fairness)
         else
-            e.x = e.x + (math.cos(angle) * e.speed + pushX) * dt
-            e.y = e.y + (math.sin(angle) * e.speed + pushY) * dt
+            e.x = e.x + (math.cos(angToTarget) * e.speed + pushX) * dt
+            e.y = e.y + (math.sin(angToTarget) * e.speed + pushY) * dt
         end
 
         local pDist = math.sqrt((p.x - e.x)^2 + (p.y - e.y)^2)
         local playerRadius = (p.size or 20) / 2
         local enemyRadius = (e.size or 16) / 2
-        if pDist < (playerRadius + enemyRadius) and not e.noContactDamage then
+        local inChargeDash = e.attack and e.attack.type == 'charge' and e.attack.phase == 'dash'
+        if not inChargeDash and pDist < (playerRadius + enemyRadius) and not e.noContactDamage then
             local dmgMult = 1 - getPunctureReduction(e)
             if dmgMult < 0.25 then dmgMult = 0.25 end
-            player.hurt(state, 10 * dmgMult)
+            local baseContact = (def and def.contactDamage) or 10
+            player.hurt(state, baseContact * dmgMult)
         end
 
         if e.health <= 0 then

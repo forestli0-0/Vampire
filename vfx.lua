@@ -774,6 +774,18 @@ local function presetForKind(kind)
         }
     end
 
+    if kind == 'telegraph' or kind == 'danger' then
+        return {
+            colA = {1.00, 0.18, 0.18},
+            colB = {1.00, 0.60, 0.22},
+            noiseScale = 7.0,
+            flowAmp = 0.05,
+            edgeSoft = 0.56,
+            alphaCap = 0.60,
+            blend = 'alpha'
+        }
+    end
+
     -- default
     return {
         colA = {0.8, 0.8, 0.8},

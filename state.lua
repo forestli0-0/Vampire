@@ -1370,6 +1370,8 @@ function state.init()
     state.screenWaves = {}
     -- 持续性地面/范围场（shader 体积云类）
     state.areaFields = {}
+    -- 敌方攻击预警（纯视觉，不参与判定）
+    state.telegraphs = {}
     local effectScaleOverrides = {
         freeze = 0.4,
         oil = 0.2,
@@ -1518,6 +1520,49 @@ function state.init()
             intensity = intensity or 1
         })
     end
+
+    function state.spawnTelegraphCircle(x, y, radius, duration, opts)
+        if not x or not y then return nil end
+        if not radius or radius <= 0 then return nil end
+        duration = duration or 0.7
+        if duration <= 0 then return nil end
+        state.telegraphs = state.telegraphs or {}
+        local t = {
+            shape = 'circle',
+            x = x,
+            y = y,
+            radius = radius,
+            t = 0,
+            duration = duration,
+            kind = (opts and opts.kind) or 'telegraph',
+            intensity = (opts and opts.intensity) or 1
+        }
+        table.insert(state.telegraphs, t)
+        return t
+    end
+
+    function state.spawnTelegraphLine(x1, y1, x2, y2, width, duration, opts)
+        if not x1 or not y1 or not x2 or not y2 then return nil end
+        width = width or 28
+        if width <= 0 then return nil end
+        duration = duration or 0.6
+        if duration <= 0 then return nil end
+        state.telegraphs = state.telegraphs or {}
+        local t = {
+            shape = 'line',
+            x1 = x1,
+            y1 = y1,
+            x2 = x2,
+            y2 = y2,
+            width = width,
+            t = 0,
+            duration = duration,
+            color = (opts and opts.color) or nil
+        }
+        table.insert(state.telegraphs, t)
+        return t
+    end
+
     function state.updateEffects(dt)
         for i = #state.hitEffects, 1, -1 do
             local e = state.hitEffects[i]
@@ -1540,6 +1585,14 @@ function state.init()
             a.t = a.t + dt
             if a.t >= (a.duration or 2.0) then
                 table.remove(state.areaFields, i)
+            end
+        end
+
+        for i = #(state.telegraphs or {}), 1, -1 do
+            local t = state.telegraphs[i]
+            t.t = (t.t or 0) + dt
+            if t.t >= (t.duration or 0.6) then
+                table.remove(state.telegraphs, i)
             end
         end
 

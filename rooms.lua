@@ -98,9 +98,13 @@ local function buildEnemyPool(roomIndex)
     }
     if roomIndex >= 2 then
         table.insert(pool, {key = 'bat', w = 6})
+        table.insert(pool, {key = 'charger', w = 4})
     end
     if roomIndex >= 3 then
         table.insert(pool, {key = 'plant', w = 4})
+    end
+    if roomIndex >= 4 then
+        table.insert(pool, {key = 'spore_mortar', w = 3})
     end
     if roomIndex >= 5 then
         table.insert(pool, {key = 'shield_lancer', w = 4})
@@ -113,7 +117,7 @@ end
 
 local function chooseEliteKind(roomIndex)
     if (roomIndex or 0) < 4 then return 'skeleton' end
-    local candidates = {'skeleton', 'bat', 'plant', 'shield_lancer'}
+    local candidates = {'skeleton', 'bat', 'plant', 'charger', 'spore_mortar', 'shield_lancer'}
     if (roomIndex or 0) >= 6 then
         table.insert(candidates, 'armored_brute')
     end
