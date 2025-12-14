@@ -1,6 +1,7 @@
 local util = require('util')
 local upgrades = require('upgrades')
 local logger = require('logger')
+local crew = require('crew')
 
 local pickups = {}
 
@@ -232,6 +233,15 @@ function pickups.updateFloorPickups(state, dt)
                     if state and state.augments and state.augments.dispatch then
                         state.augments.dispatch(state, 'postPickup', ctx)
                     end
+                end
+            elseif item.kind == 'crew_contract' then
+                local recruited = crew.recruit(state, {})
+                if recruited then
+                    table.insert(state.texts, {x=p.x, y=p.y-30, text="Recruited " .. tostring(recruited.name), color={0.75, 0.95, 1.0}, life=1.2})
+                    logger.pickup(state, 'crew_recruit')
+                else
+                    table.insert(state.texts, {x=p.x, y=p.y-30, text="Crew full", color={1, 0.6, 0.6}, life=1.0})
+                    logger.pickup(state, 'crew_full')
                 end
             end
             if consume then

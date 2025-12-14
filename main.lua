@@ -18,11 +18,13 @@ local vfx = require('vfx')
 local rooms = require('rooms')
 local testmode = require('testmode')
 local testScenarios = require('test_scenarios')
+local crew = require('crew')
 
 -- 游戏启动时的初始化（状态、日志、默认武器等）
 function love.load()
     if state.stopMusic then state.stopMusic() end
     state.init()
+    crew.init(state)
 
     -- deterministic runs for scenario-driven tests
     if state.pendingScenarioSeed then
@@ -34,7 +36,7 @@ function love.load()
     bloom.init(love.graphics.getWidth(), love.graphics.getHeight())
     vfx.init()
     if state.gameState ~= 'ARSENAL' then
-        weapons.addWeapon(state, 'wand')
+        weapons.addWeapon(state, 'wand', 'player')
     end
     if state.playMusic then state.playMusic() end
     debugmenu.init(state)
@@ -85,6 +87,7 @@ function love.update(dt)
 
     -- 核心更新顺序：玩家 → 武器 → 子弹 → 刷怪
     player.updateMovement(state, dt)
+    crew.update(state, dt)
     if state.augments and state.augments.update then
         state.augments.update(state, dt)
     end
@@ -151,6 +154,11 @@ function love.keypressed(key)
     if key == 'v' then vfx.toggle() end
 
     if player.keypressed and player.keypressed(state, key) then return end
+
+    if state.gameState == 'PLAYING' then
+        if key == '1' then crew.toggleMode(state, 1) return end
+        if key == '2' then crew.toggleMode(state, 2) return end
+    end
 
     -- 等级界面：按数字选择升级
     if debugmenu.keypressed(state, key) then return end

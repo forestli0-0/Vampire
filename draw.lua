@@ -525,10 +525,14 @@ function draw.renderWorld(state)
             weapon = {1.0, 0.55, 0.5},
             passive = {0.55, 1.0, 0.55},
             mod = {0.55, 0.8, 1.0},
-            augment = {1.0, 0.9, 0.45}
+            augment = {1.0, 0.9, 0.45},
+            shop = {0.55, 0.95, 1.0},
+            event = {0.9, 0.7, 1.0}
         }
         for _, d in ipairs(state.doors) do
             local col = colors[d.rewardType] or {1, 1, 1}
+            if d.roomKind == 'shop' then col = colors.shop end
+            if d.roomKind == 'event' then col = colors.event end
             local w = d.w or 54
             local h = d.h or 86
             local x = d.x or 0
@@ -543,9 +547,21 @@ function draw.renderWorld(state)
                 love.graphics.setLineWidth(3)
                 love.graphics.rectangle('line', x - w/2 - 3, y - h/2 - 3, w + 6, h + 6, 10, 10)
                 love.graphics.setLineWidth(1)
+            elseif d.roomKind == 'shop' then
+                love.graphics.setColor(0.35, 0.95, 1.0, 0.85)
+                love.graphics.setLineWidth(2)
+                love.graphics.rectangle('line', x - w/2 - 2, y - h/2 - 2, w + 4, h + 4, 10, 10)
+                love.graphics.setLineWidth(1)
+            elseif d.roomKind == 'event' then
+                love.graphics.setColor(0.95, 0.7, 1.0, 0.85)
+                love.graphics.setLineWidth(2)
+                love.graphics.rectangle('line', x - w/2 - 2, y - h/2 - 2, w + 4, h + 4, 10, 10)
+                love.graphics.setLineWidth(1)
             end
             love.graphics.setColor(1, 1, 1, 0.95)
             local label = d.rewardType and string.upper(tostring(d.rewardType)) or "?"
+            if d.roomKind == 'shop' then label = "SHOP" end
+            if d.roomKind == 'event' then label = "EVENT" end
             love.graphics.printf(label, x - 80, y - h/2 - 18, 160, "center")
             if d.roomKind == 'elite' then
                 love.graphics.setColor(1, 0.2, 0.2, 0.95)
@@ -559,7 +575,7 @@ function draw.renderWorld(state)
     for _, item in ipairs(state.floorPickups) do
         local sprite = state.pickupSprites and state.pickupSprites[item.kind]
         
-        local isGlow = (item.kind == 'magnet' or item.kind == 'chicken' or item.kind == 'chest_xp' or item.kind == 'chest_reward')
+        local isGlow = (item.kind == 'magnet' or item.kind == 'chicken' or item.kind == 'chest_xp' or item.kind == 'chest_reward' or item.kind == 'crew_contract')
         if isGlow then love.graphics.setBlendMode("add") end
 
         if sprite then
@@ -593,6 +609,17 @@ function draw.renderWorld(state)
                 -- Fuse
                 love.graphics.setColor(1, 0.5, 0)
                 love.graphics.line(item.x, item.y - 8, item.x + 4, item.y - 12)
+            elseif item.kind == 'crew_contract' then
+                local rk = item.roomKind
+                if rk == 'shop' then
+                    love.graphics.setColor(0.35, 0.95, 1.0, 0.9)
+                else
+                    love.graphics.setColor(0.95, 0.7, 1.0, 0.9)
+                end
+                love.graphics.circle('line', item.x, item.y, 10)
+                love.graphics.circle('fill', item.x, item.y, 6)
+                love.graphics.setColor(1, 1, 1, 0.9)
+                love.graphics.printf("RECRUIT", item.x - 40, item.y + 12, 80, "center")
             end
         end
         if isGlow then love.graphics.setBlendMode("alpha") end
@@ -797,6 +824,57 @@ function draw.renderWorld(state)
         local shadowY = shadowR * 0.35
         love.graphics.setColor(0,0,0,0.25)
         love.graphics.ellipse('fill', state.player.x, state.player.y + size * 0.55, shadowR, shadowY)
+    end
+
+    -- 船员（占位绘制：后续可替换为独立动画/皮肤）
+    do
+        local list = state.crew and state.crew.list
+        if type(list) == 'table' and #list > 0 then
+            -- shadows first
+            for _, a in ipairs(list) do
+                if a and not a.dead then
+                    local size = a.size or 18
+                    local shadowR = size * 0.62
+                    local shadowY = shadowR * 0.35
+                    love.graphics.setColor(0, 0, 0, 0.22)
+                    love.graphics.ellipse('fill', a.x, a.y + size * 0.55, shadowR, shadowY)
+                end
+            end
+
+            for idx, a in ipairs(list) do
+                if a and not a.dead then
+                    local size = a.size or 18
+                    local col = (idx == 2) and {1.0, 0.55, 0.95} or {0.55, 0.85, 1.0}
+                    if a.downed then col = {1.0, 0.35, 0.35} end
+
+                    love.graphics.setColor(col[1], col[2], col[3], a.downed and 0.75 or 0.95)
+                    love.graphics.circle('fill', a.x, a.y, size * 0.55)
+                    love.graphics.setColor(0, 0, 0, 0.35)
+                    love.graphics.circle('line', a.x, a.y, size * 0.55)
+
+                    -- HP / revive bar
+                    local barW, barH = 30, 4
+                    local bx, by = a.x - barW / 2, a.y - size * 0.95
+                    love.graphics.setColor(0.1, 0.1, 0.1, 0.7)
+                    love.graphics.rectangle('fill', bx, by, barW, barH)
+                    if a.downed then
+                        local hold = (state.crew and state.crew.reviveHoldTime) or 1.2
+                        local p = (hold > 0) and math.max(0, math.min(1, (a.reviveProgress or 0) / hold)) or 0
+                        love.graphics.setColor(0.55, 1.0, 0.55, 0.85)
+                        love.graphics.rectangle('fill', bx, by, barW * p, barH)
+                        love.graphics.setColor(1, 1, 1, 0.9)
+                        love.graphics.printf("Hold E", bx - 24, by - 16, barW + 48, "center")
+                    else
+                        local hp = a.hp or 0
+                        local maxHp = a.maxHp or 1
+                        local p = (maxHp > 0) and math.max(0, math.min(1, hp / maxHp)) or 0
+                        love.graphics.setColor(col[1], col[2], col[3], 0.85)
+                        love.graphics.rectangle('fill', bx, by, barW * p, barH)
+                    end
+                end
+            end
+            love.graphics.setColor(1, 1, 1, 1)
+        end
     end
 
     -- 闪避拖影（shader）：绘制在玩家本体之前
@@ -1081,12 +1159,19 @@ function draw.renderUI(state)
         local room = r.roomIndex or 0
         local wave = r.waveIndex or 0
         local waves = r.wavesTotal or 0
-        local kindSuffix = ((r.roomKind or '') == 'elite') and "  ELITE" or ""
+        local kindSuffix = ""
+        local rk = (r.roomKind or '')
+        if rk == 'elite' then kindSuffix = "  ELITE"
+        elseif rk == 'shop' then kindSuffix = "  SHOP"
+        elseif rk == 'event' then kindSuffix = "  EVENT"
+        end
         local label = string.format("ROOM %d", room)
         if (r.phase or '') == 'boss' then
             label = string.format("ROOM %d  BOSS", room)
         elseif (r.phase or '') == 'reward' then
             label = string.format("ROOM %d%s  CLEAR", room, kindSuffix)
+        elseif (r.phase or '') == 'special' then
+            label = string.format("ROOM %d%s  INTERACT", room, kindSuffix)
         elseif (r.phase or '') == 'doors' then
             label = string.format("ROOM %d  CHOOSE NEXT", room)
         elseif waves > 0 then

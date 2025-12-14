@@ -288,8 +288,9 @@ function upgrades.applyUpgrade(state, opt)
     if opt.evolveFrom then
         -- 直接进化：移除基础武器，添加目标武器
         local carryMods = state.inventory and state.inventory.weaponMods and state.inventory.weaponMods[opt.evolveFrom]
+        local owner = state.inventory and state.inventory.weapons and state.inventory.weapons[opt.evolveFrom] and state.inventory.weapons[opt.evolveFrom].owner
         state.inventory.weapons[opt.evolveFrom] = nil
-        weapons.addWeapon(state, opt.key)
+        weapons.addWeapon(state, opt.key, owner)
         if carryMods and state.inventory and state.inventory.weaponMods then
             state.inventory.weaponMods[opt.key] = carryMods
             state.inventory.weaponMods[opt.evolveFrom] = nil
@@ -299,7 +300,7 @@ function upgrades.applyUpgrade(state, opt)
         return
     elseif opt.type == 'weapon' then
         if not state.inventory.weapons[opt.key] then
-            weapons.addWeapon(state, opt.key)
+            weapons.addWeapon(state, opt.key, opt.assignOwner)
             logger.upgrade(state, opt, 1)
             dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = 1})
         else
@@ -357,8 +358,9 @@ function upgrades.tryEvolveWeapon(state)
                 local targetKey = def.evolveInfo.target
                 local targetDef = state.catalog[targetKey]
                 local carryMods = state.inventory and state.inventory.weaponMods and state.inventory.weaponMods[key]
+                local owner = w and w.owner
                 state.inventory.weapons[key] = nil
-                weapons.addWeapon(state, targetKey)
+                weapons.addWeapon(state, targetKey, owner)
                 if carryMods and state.inventory and state.inventory.weaponMods then
                     state.inventory.weaponMods[targetKey] = carryMods
                     state.inventory.weaponMods[key] = nil

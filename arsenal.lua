@@ -208,7 +208,7 @@ function arsenal.startRun(state, opts)
         if not def or def.type ~= 'weapon' or def.evolvedOnly then
             startKey = 'wand'
         end
-        weapons.addWeapon(state, startKey)
+        weapons.addWeapon(state, startKey, 'player')
     end
     state.gameState = 'PLAYING'
 end

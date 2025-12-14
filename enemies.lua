@@ -1,6 +1,7 @@
 local player = require('player')
 local enemyDefs = require('enemy_defs')
 local logger = require('logger')
+local crew = require('crew')
 
 local enemies = {}
 
@@ -542,11 +543,25 @@ local function resetDummy(e)
     ensureStatus(e)
 end
 
-function enemies.findNearestEnemy(state, maxDist)
+function enemies.findNearestEnemy(state, maxDist, fromX, fromY)
+    if not state then return nil end
+    local px = fromX
+    local py = fromY
+    if px == nil then px = state.player and state.player.x end
+    if py == nil then py = state.player and state.player.y end
+    if px == nil or py == nil then return nil end
+
     local t, m = nil, (maxDist or 999999) ^ 2
-    for _, e in ipairs(state.enemies) do
-        local d = (state.player.x - e.x)^2 + (state.player.y - e.y)^2
-        if d < m then m = d; t = e end
+    for _, e in ipairs(state.enemies or {}) do
+        if e and (e.health or e.hp or 0) > 0 then
+            local dx = px - e.x
+            local dy = py - e.y
+            local d2 = dx * dx + dy * dy
+            if d2 < m then
+                m = d2
+                t = e
+            end
+        end
     end
     return t
 end
@@ -1004,6 +1019,7 @@ function enemies.update(state, dt)
                         atk.phase = 'dash'
                         atk.remaining = atk.distance or 0
                         atk.hitPlayer = false
+                        atk.hitCrew = nil
                     end
                 end
             elseif atk and atk.type == 'slam' then
@@ -1018,10 +1034,24 @@ function enemies.update(state, dt)
                             local dy = (p.y - sy)
                             local pr = (p.size or 20) / 2
                             local rr = radius + pr
+                            local dmgMult = 1 - getPunctureReduction(e)
+                            if dmgMult < 0.25 then dmgMult = 0.25 end
                             if dx * dx + dy * dy <= rr * rr then
-                                local dmgMult = 1 - getPunctureReduction(e)
-                                if dmgMult < 0.25 then dmgMult = 0.25 end
                                 player.hurt(state, damage * dmgMult)
+                            end
+                            local list = state.crew and state.crew.list
+                            if type(list) == 'table' then
+                                for _, a in ipairs(list) do
+                                    if a and not a.dead and not a.downed then
+                                        local ax = (a.x - sx)
+                                        local ay = (a.y - sy)
+                                        local ar = (a.size or 18) / 2
+                                        local rr2 = radius + ar
+                                        if ax * ax + ay * ay <= rr2 * rr2 then
+                                            crew.hurt(state, a, damage * dmgMult)
+                                        end
+                                    end
+                                end
                             end
                         end
                         if state.spawnEffect then
@@ -1282,14 +1312,29 @@ function enemies.update(state, dt)
             end
 
             -- Charge collision: apply once per dash
+            local dmgMult = 1 - getPunctureReduction(e)
+            if dmgMult < 0.25 then dmgMult = 0.25 end
             local hitRadius = ((p.size or 20) + (e.size or 16)) * 0.5
             local cdx = p.x - e.x
             local cdy = p.y - e.y
             if not atk.hitPlayer and cdx * cdx + cdy * cdy <= hitRadius * hitRadius then
-                local dmgMult = 1 - getPunctureReduction(e)
-                if dmgMult < 0.25 then dmgMult = 0.25 end
                 player.hurt(state, (atk.damage or 18) * dmgMult)
                 atk.hitPlayer = true
+            end
+            local list = state.crew and state.crew.list
+            if type(list) == 'table' then
+                atk.hitCrew = atk.hitCrew or {}
+                for _, a in ipairs(list) do
+                    if a and not a.dead and not a.downed and not atk.hitCrew[a] then
+                        local r = (((a.size or 18) + (e.size or 16)) * 0.5)
+                        local dx = (a.x or 0) - e.x
+                        local dy = (a.y or 0) - e.y
+                        if dx * dx + dy * dy <= r * r then
+                            crew.hurt(state, a, (atk.damage or 18) * dmgMult)
+                            atk.hitCrew[a] = true
+                        end
+                    end
+                end
             end
 
             if (atk.remaining or 0) <= 0 then
@@ -1312,6 +1357,23 @@ function enemies.update(state, dt)
             if dmgMult < 0.25 then dmgMult = 0.25 end
             local baseContact = ((def and def.contactDamage) or 10) * (e.eliteDamageMult or 1)
             player.hurt(state, baseContact * dmgMult)
+        end
+        if not inChargeDash and not e.noContactDamage then
+            local list = state.crew and state.crew.list
+            if type(list) == 'table' then
+                local dmgMult = 1 - getPunctureReduction(e)
+                if dmgMult < 0.25 then dmgMult = 0.25 end
+                local baseContact = ((def and def.contactDamage) or 10) * (e.eliteDamageMult or 1)
+                for _, a in ipairs(list) do
+                    if a and not a.dead and not a.downed then
+                        local dist = math.sqrt(((a.x or 0) - e.x)^2 + ((a.y or 0) - e.y)^2)
+                        local ar = (a.size or 18) / 2
+                        if dist < (ar + enemyRadius) then
+                            crew.hurt(state, a, baseContact * dmgMult)
+                        end
+                    end
+                end
+            end
         end
 
         if e.health <= 0 then

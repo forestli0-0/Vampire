@@ -1,6 +1,7 @@
 local util = require('util')
 local enemies = require('enemies')
 local player = require('player')
+local crew = require('crew')
 local calculator = require('calculator')
 
 local projectiles = {}
@@ -325,6 +326,19 @@ function projectiles.updateEnemyBullets(state, dt)
         elseif state.player.invincibleTimer <= 0 and util.checkCollision(eb, {x=state.player.x, y=state.player.y, size=state.player.size}) then
             player.hurt(state, eb.damage)
             table.remove(state.enemyBullets, i)
+        else
+            local list = state.crew and state.crew.list
+            if type(list) == 'table' then
+                for _, a in ipairs(list) do
+                    if a and not a.dead and not a.downed and (a.invincibleTimer or 0) <= 0 then
+                        if util.checkCollision(eb, {x=a.x, y=a.y, size=a.size or 18}) then
+                            crew.hurt(state, a, eb.damage)
+                            table.remove(state.enemyBullets, i)
+                            break
+                        end
+                    end
+                end
+            end
         end
     end
 end

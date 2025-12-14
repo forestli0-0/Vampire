@@ -54,6 +54,7 @@ local function ensureState(state)
     if r.eliteDropsChests == nil then r.eliteDropsChests = false end
     if r.eliteRoomBonusUpgrades == nil then r.eliteRoomBonusUpgrades = 1 end
     r._hadCombat = r._hadCombat or false
+    r.specialPickup = r.specialPickup or nil
     return r
 end
 
@@ -124,6 +125,8 @@ local function chooseEliteKind(roomIndex)
     return candidates[math.random(#candidates)] or 'skeleton'
 end
 
+local spawnSpecialRoomPickup
+
 local function spawnWave(state, r)
     local roomIndex = r.roomIndex or 1
     local waveIndex = r.waveIndex or 1
@@ -192,12 +195,19 @@ local function startRoom(state, r)
     r.roomRewardType = rewardType
 
     r._hadCombat = false
-    r.phase = 'spawning'
+    if roomKind == 'shop' or roomKind == 'event' then
+        r.phase = 'special'
+        if spawnSpecialRoomPickup then spawnSpecialRoomPickup(state, r) end
+    else
+        r.phase = 'spawning'
+    end
 
     table.insert(state.texts, {
         x = state.player.x,
         y = state.player.y - 100,
-        text = string.format("ROOM %d%s", r.roomIndex, (roomKind == 'elite') and " (ELITE)" or ""),
+        text = string.format("ROOM %d%s", r.roomIndex,
+            (roomKind == 'elite') and " (ELITE)" or ((roomKind == 'shop') and " (SHOP)" or ((roomKind == 'event') and " (EVENT)" or ""))
+        ),
         color = {1, 1, 1},
         life = 1.2
     })
@@ -270,6 +280,22 @@ local function spawnDoors(state, r)
         if math.random() < 0.5 then leftKind = 'elite' else rightKind = 'elite' end
     end
 
+    -- Special rooms: event/shop can appear (primarily to recruit crew).
+    local crewCount, crewMax = 0, 0
+    if state.crew then
+        crewMax = tonumber(state.crew.max) or 0
+        for _, a in ipairs(state.crew.list or {}) do
+            if a and not a.dead then crewCount = crewCount + 1 end
+        end
+    end
+    if crewMax > 0 and crewCount < crewMax then
+        local specialKind = (crewCount == 0) and 'event' or 'shop'
+        local chance = (crewCount == 0) and 1.0 or 0.35
+        if math.random() < chance then
+            if math.random() < 0.5 then leftKind = specialKind else rightKind = specialKind end
+        end
+    end
+
     local offset = 150
     local w, h = 54, 86
     local size = 70
@@ -283,6 +309,27 @@ local function spawnDoors(state, r)
         color = {0.9, 0.9, 1},
         life = 1.4
     })
+end
+
+spawnSpecialRoomPickup = function(state, r)
+    clearList(state.enemyBullets)
+
+    local cx = r.roomCenterX or state.player.x
+    local cy = r.roomCenterY or state.player.y
+
+    state.floorPickups = state.floorPickups or {}
+    local pickup = {
+        x = cx,
+        y = cy,
+        size = 18,
+        kind = 'crew_contract',
+        roomKind = r.roomKind
+    }
+    table.insert(state.floorPickups, pickup)
+    r.specialPickup = pickup
+
+    local label = (r.roomKind == 'shop') and "SHOP" or "EVENT"
+    table.insert(state.texts, {x = cx, y = cy - 110, text = label, color = {0.9, 0.9, 1}, life = 1.8})
 end
 
 local function startBossRoom(state, r)
@@ -398,6 +445,25 @@ function rooms.update(state, dt)
         return
     end
 
+    if r.phase == 'special' then
+        clearList(state.enemyBullets)
+        if r.specialPickup and containsRef(state.floorPickups, r.specialPickup) then
+            return
+        end
+        r.specialPickup = nil
+
+        local nextRoom = (r.roomIndex or 0) + 1
+        if nextRoom >= (r.bossRoom or 8) then
+            r.timer = 0.25
+            r.phase = 'between_rooms'
+            return
+        end
+
+        r.phase = 'doors'
+        spawnDoors(state, r)
+        return
+    end
+
     if r.phase == 'doors' then
         clearList(state.enemyBullets)
 
@@ -411,6 +477,8 @@ function rooms.update(state, dt)
 
                 local suffix = rewardType and (" (" .. string.upper(tostring(rewardType)) .. ")") or ""
                 local kindLabel = (r.nextRoomKind == 'elite') and " ELITE" or ""
+                if r.nextRoomKind == 'shop' then kindLabel = " SHOP" end
+                if r.nextRoomKind == 'event' then kindLabel = " EVENT" end
                 table.insert(state.texts, {
                     x = p.x,
                     y = p.y - 110,
