@@ -144,6 +144,9 @@ function love.keypressed(key)
     end
     if key == 'f5' then benchmark.toggle(state) end
     if key == 'v' then vfx.toggle() end
+
+    if player.keypressed and player.keypressed(state, key) then return end
+
     -- 等级界面：按数字选择升级
     if debugmenu.keypressed(state, key) then return end
     if state.gameState == 'LEVEL_UP' then

@@ -831,6 +831,32 @@ function draw.renderUI(state)
     love.graphics.setColor(1,1,1)
     love.graphics.print("LV "..state.player.level, 10, 40)
 
+    do
+        local p = state.player or {}
+        local dash = p.dash or {}
+        local maxCharges = (p.stats and p.stats.dashCharges) or dash.maxCharges or 0
+        if maxCharges and maxCharges > 0 then
+            local charges = dash.charges or 0
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.print(string.format("DASH %d/%d (Space)", charges, maxCharges), 10, 58)
+
+            if charges < maxCharges then
+                local cd = (p.stats and p.stats.dashCooldown) or 0
+                local t = dash.rechargeTimer or 0
+                local ratio = 0
+                if cd > 0 then
+                    ratio = math.max(0, math.min(1, t / cd))
+                end
+                local barX, barY, barW, barH = 10, 76, 150, 5
+                love.graphics.setColor(0.1, 0.1, 0.1, 0.65)
+                love.graphics.rectangle('fill', barX, barY, barW, barH)
+                love.graphics.setColor(0.55, 0.85, 1.0, 0.9)
+                love.graphics.rectangle('fill', barX, barY, barW * ratio, barH)
+                love.graphics.setColor(1, 1, 1, 1)
+            end
+        end
+    end
+
     local minutes = math.floor(state.gameTimer / 60)
     local seconds = math.floor(state.gameTimer % 60)
     local timeStr = string.format("%02d:%02d", minutes, seconds)

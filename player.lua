@@ -2,16 +2,182 @@ local logger = require('logger')
 
 local player = {}
 
-function player.updateMovement(state, dt)
-    local p = state.player
-    local ox, oy = p.x, p.y
+local function getMoveInput()
     local dx, dy = 0, 0
     if love.keyboard.isDown('w') then dy = -1 end
     if love.keyboard.isDown('s') then dy = 1 end
     if love.keyboard.isDown('a') then dx = -1 end
     if love.keyboard.isDown('d') then dx = 1 end
+    return dx, dy
+end
+
+local function ensureDashState(p)
+    if not p then return nil end
+    p.dash = p.dash or {}
+
+    local stats = p.stats or {}
+    local maxCharges = math.max(0, math.floor(stats.dashCharges or 0))
+    local prevMax = p.dash.maxCharges
+    p.dash.maxCharges = maxCharges
+
+    if p.dash.charges == nil then
+        p.dash.charges = maxCharges
+    else
+        if prevMax and maxCharges > prevMax then
+            p.dash.charges = math.min(maxCharges, (p.dash.charges or 0) + (maxCharges - prevMax))
+        else
+            p.dash.charges = math.min(maxCharges, (p.dash.charges or 0))
+        end
+    end
+
+    p.dash.rechargeTimer = p.dash.rechargeTimer or 0
+    p.dash.timer = p.dash.timer or 0
+    p.dash.dx = p.dash.dx or (p.facing or 1)
+    p.dash.dy = p.dash.dy or 0
+
+    return p.dash
+end
+
+local function tickDashRecharge(p, dt)
+    local dash = ensureDashState(p)
+    if not dash then return end
+    local maxCharges = dash.maxCharges or 0
+    if maxCharges <= 0 then return end
+    dash.charges = dash.charges or 0
+
+    if dash.charges >= maxCharges then
+        dash.rechargeTimer = 0
+        return
+    end
+
+    local cd = (p.stats and p.stats.dashCooldown) or 0
+    if cd <= 0 then
+        dash.charges = maxCharges
+        dash.rechargeTimer = 0
+        return
+    end
+
+    dash.rechargeTimer = (dash.rechargeTimer or 0) + dt
+    while dash.rechargeTimer >= cd and dash.charges < maxCharges do
+        dash.rechargeTimer = dash.rechargeTimer - cd
+        dash.charges = dash.charges + 1
+    end
+end
+
+function player.tryDash(state, dirX, dirY)
+    if not state or not state.player then return false end
+    local p = state.player
+
+    local dash = ensureDashState(p)
+    if not dash or (dash.maxCharges or 0) <= 0 then return false end
+    if (dash.timer or 0) > 0 then return false end
+    if (dash.charges or 0) <= 0 then return false end
+
+    local dx, dy = dirX, dirY
+    if dx == nil or dy == nil then
+        dx, dy = getMoveInput()
+    end
+    if dx == 0 and dy == 0 then
+        dx, dy = (p.facing or 1), 0
+    end
+    local len = math.sqrt(dx * dx + dy * dy)
+    if len <= 0 then return false end
+    dx, dy = dx / len, dy / len
+
+    local stats = p.stats or {}
+    local duration = stats.dashDuration or 0
+    local distance = stats.dashDistance or 0
+    local inv = stats.dashInvincible
+    if inv == nil then inv = duration end
+
+    local ctx = {
+        player = p,
+        dirX = dx,
+        dirY = dy,
+        duration = duration,
+        distance = distance,
+        invincibleTimer = inv
+    }
+    if state.augments and state.augments.dispatch then
+        state.augments.dispatch(state, 'preDash', ctx)
+        if ctx.cancel then return false end
+    end
+
+    dx, dy = ctx.dirX or dx, ctx.dirY or dy
+    local len2 = math.sqrt(dx * dx + dy * dy)
+    if len2 <= 0 then
+        dx, dy = (p.facing or 1), 0
+    else
+        dx, dy = dx / len2, dy / len2
+    end
+
+    duration = ctx.duration or duration
+    distance = ctx.distance or distance
+    inv = ctx.invincibleTimer
+    if inv == nil then inv = duration end
+
+    if duration <= 0 or distance <= 0 then return false end
+
+    dash.charges = math.max(0, (dash.charges or 0) - 1)
+    dash.duration = duration
+    dash.distance = distance
+    dash.speed = distance / duration
+    dash.timer = duration
+    dash.dx = dx
+    dash.dy = dy
+
+    if inv and inv > 0 then
+        p.invincibleTimer = math.max(p.invincibleTimer or 0, inv)
+    end
+    if state.spawnEffect then
+        state.spawnEffect('shock', p.x, p.y, 0.9)
+    end
+
+    if state.augments and state.augments.dispatch then
+        state.augments.dispatch(state, 'onDash', ctx)
+    end
+
+    return true
+end
+
+function player.keypressed(state, key)
+    if not state or state.gameState ~= 'PLAYING' then return false end
+    if key == 'space' then
+        return player.tryDash(state)
+    end
+    return false
+end
+
+function player.updateMovement(state, dt)
+    local p = state.player
+    local ox, oy = p.x, p.y
+
+    local dash = ensureDashState(p)
+    tickDashRecharge(p, dt)
+
+    local dx, dy = getMoveInput()
     local moving = dx ~= 0 or dy ~= 0
-    if moving then
+
+    if dash and (dash.timer or 0) > 0 then
+        local speed = dash.speed
+        if speed == nil then
+            local stats = p.stats or {}
+            local duration = stats.dashDuration or 0
+            local distance = stats.dashDistance or 0
+            speed = (duration > 0) and (distance / duration) or 0
+        end
+
+        p.x = p.x + (dash.dx or 0) * speed * dt
+        p.y = p.y + (dash.dy or 0) * speed * dt
+        dash.timer = dash.timer - dt
+        if dash.timer < 0 then dash.timer = 0 end
+        moving = true
+        dx, dy = dash.dx or 0, dash.dy or 0
+
+        if dash.timer <= 0 and state.augments and state.augments.dispatch then
+            state.augments.dispatch(state, 'postDash', {player = p})
+        end
+    elseif moving then
         local len = math.sqrt(dx * dx + dy * dy)
         p.x = p.x + (dx / len) * p.stats.moveSpeed * dt
         p.y = p.y + (dy / len) * p.stats.moveSpeed * dt

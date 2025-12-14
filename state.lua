@@ -116,6 +116,7 @@ function state.init()
         hp = 100, maxHp = 100,
         level = 1, xp = 0, xpToNextLevel = 10,
         invincibleTimer = 0,
+        dash = {charges = 2, maxCharges = 2, rechargeTimer = 0, timer = 0, dx = 1, dy = 0},
         stats = {
             moveSpeed = 180,
             might = 1.0,
@@ -124,7 +125,14 @@ function state.init()
             speed = 1.0,
             pickupRange = 120,
             armor = 0,
-            regen = 0
+            regen = 0,
+
+            -- Dodge / Dash (Hades-like i-frames + reposition, still keeps auto-shoot core loop)
+            dashCharges = 2,
+            dashCooldown = 0.9,      -- seconds to recharge 1 charge
+            dashDuration = 0.16,     -- seconds of dash movement
+            dashDistance = 200,      -- pixels traveled over dashDuration
+            dashInvincible = 0.16    -- i-frames (can be >= dashDuration)
         }
     }
 
