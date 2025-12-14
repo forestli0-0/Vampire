@@ -160,9 +160,16 @@ function love.keypressed(key)
             upgrades.applyUpgrade(state, state.upgradeOptions[idx])
             if state.pendingLevelUps > 0 then
                 state.pendingLevelUps = state.pendingLevelUps - 1
-                upgrades.generateUpgradeOptions(state)
+                local nextReq = nil
+                if state.pendingUpgradeRequests and #state.pendingUpgradeRequests > 0 then
+                    nextReq = table.remove(state.pendingUpgradeRequests, 1)
+                end
+                state.activeUpgradeRequest = nextReq
+                upgrades.generateUpgradeOptions(state, nextReq)
                 state.gameState = 'LEVEL_UP'
             else
+                state.activeUpgradeRequest = nil
+                state.pendingUpgradeRequests = {}
                 state.gameState = 'PLAYING'
             end
         end

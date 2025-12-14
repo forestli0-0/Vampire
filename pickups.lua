@@ -110,8 +110,14 @@ function pickups.updateChests(state, dt)
                     logger.pickup(state, 'chest_evolve')
                 else
                     -- 触发一次升级选项（模拟 VS 宝箱随机加成）
-                    upgrades.queueLevelUp(state, 'chest')
-                    table.insert(state.texts, {x=p.x, y=p.y-50, text="CHEST!", color={1, 1, 0}, life=1.5})
+                    local rewardType = c and c.rewardType or nil
+                    local req = nil
+                    if rewardType == 'weapon' or rewardType == 'passive' or rewardType == 'mod' or rewardType == 'augment' then
+                        req = {allowedTypes = {[rewardType] = true}, rewardType = rewardType, source = 'chest', chestKind = c and c.kind}
+                    end
+                    upgrades.queueLevelUp(state, 'chest', req)
+                    local suffix = rewardType and (" (" .. string.upper(rewardType) .. ")") or ""
+                    table.insert(state.texts, {x=p.x, y=p.y-50, text="CHEST!" .. suffix, color={1, 1, 0}, life=1.5})
                     logger.pickup(state, 'chest_reward')
                 end
                 if state and state.augments and state.augments.dispatch then

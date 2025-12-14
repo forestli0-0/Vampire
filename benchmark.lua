@@ -87,6 +87,8 @@ function benchmark.toggle(state)
         state.benchmarkMode = false
         state.noLevelUps = false
         state.pendingLevelUps = 0
+        state.pendingUpgradeRequests = {}
+        state.activeUpgradeRequest = nil
         state.player.level = 1
         state.player.xp = 0
         state.player.xpToNextLevel = 10
@@ -98,6 +100,8 @@ function benchmark.toggle(state)
         state.noLevelUps = true
         state.gameState = 'PLAYING'
         state.pendingLevelUps = 0
+        state.pendingUpgradeRequests = {}
+        state.activeUpgradeRequest = nil
         state.upgradeOptions = {}
         state.player.level = 1
         state.player.xp = 0
@@ -223,6 +227,8 @@ function benchmark.update(state, dt)
         state.benchmarkMode = false
         state.noLevelUps = false
         state.pendingLevelUps = 0
+        state.pendingUpgradeRequests = {}
+        state.activeUpgradeRequest = nil
         state.player.level = 1
         state.player.xp = 0
         state.player.xpToNextLevel = 10

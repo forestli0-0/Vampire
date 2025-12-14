@@ -829,6 +829,8 @@ function state.init()
     state.texts = {}
     state.chests = {}
     state.upgradeOptions = {}
+    state.pendingUpgradeRequests = {}
+    state.activeUpgradeRequest = nil
     state.chainLinks = {}
     state.lightningLinks = {}
     state.quakeEffects = {}

@@ -42,6 +42,7 @@ local function ensureState(state)
     r.roomCenterY = r.roomCenterY or 0
     r.rewardChest = r.rewardChest or nil
     r.bossRoom = r.bossRoom or 8
+    r.rewardCycle = r.rewardCycle or {'weapon', 'passive', 'mod', 'augment'}
     r._hadCombat = r._hadCombat or false
     return r
 end
@@ -133,21 +134,29 @@ local function spawnRewardChest(state, r)
 
     local cx = r.roomCenterX or state.player.x
     local cy = r.roomCenterY or state.player.y
+    local rewardType = nil
+    local cycle = r.rewardCycle
+    if type(cycle) == 'table' and #cycle > 0 then
+        rewardType = cycle[((r.roomIndex or 1) - 1) % #cycle + 1]
+    end
     local chest = {
         x = cx,
         y = cy,
         w = 20,
         h = 20,
         kind = 'room_reward',
-        room = r.roomIndex
+        room = r.roomIndex,
+        rewardType = rewardType
     }
     table.insert(state.chests, chest)
     r.rewardChest = chest
 
+    local rewardLabel = ''
+    if rewardType then rewardLabel = ' (' .. string.upper(tostring(rewardType)) .. ')' end
     table.insert(state.texts, {
         x = cx,
         y = cy - 100,
-        text = "ROOM CLEAR!",
+        text = "ROOM CLEAR!" .. rewardLabel,
         color = {0.8, 1, 0.8},
         life = 1.8
     })

@@ -19,7 +19,8 @@ local function canEvolve(state, key)
     return true
 end
 
-function upgrades.generateUpgradeOptions(state)
+function upgrades.generateUpgradeOptions(state, request, allowFallback)
+    if allowFallback == nil then allowFallback = true end
     local poolExisting = {}
     local poolNew = {}
     local evolvePool = {}
@@ -57,7 +58,22 @@ function upgrades.generateUpgradeOptions(state)
         return n
     end
 
+    local allowedTypes = request and request.allowedTypes
+    local function typeAllowed(t)
+        if type(allowedTypes) ~= 'table' then return true end
+        if next(allowedTypes) == nil then return true end
+        if allowedTypes[t] then return true end
+        for _, v in ipairs(allowedTypes) do
+            if v == t then return true end
+        end
+        return false
+    end
+
     for key, item in pairs(state.catalog) do
+        if item and item.type and not typeAllowed(item.type) then
+            goto continue_catalog
+        end
+
         -- evolved-only武器不进入随机池；已经进化后隐藏基础武器
         local skip = false
         if item.evolvedOnly then
@@ -157,7 +173,7 @@ function upgrades.generateUpgradeOptions(state)
     -- Early feel: ensure at least one "new route" option (weapon/augment) when possible.
     if #state.upgradeOptions < 3 then
         local weaponsOwned = countWeapons()
-        if weaponsOwned < 2 and not hasType(state.upgradeOptions, 'weapon') then
+        if typeAllowed('weapon') and weaponsOwned < 2 and not hasType(state.upgradeOptions, 'weapon') then
             local forcedWeapon = takeRandomOfType(poolNew, 'weapon')
             if forcedWeapon then
                 table.insert(state.upgradeOptions, forcedWeapon)
@@ -165,7 +181,7 @@ function upgrades.generateUpgradeOptions(state)
         end
     end
     if #state.upgradeOptions < 3 and runLevel <= 6 then
-        if countAugments() == 0 and not hasType(state.upgradeOptions, 'augment') then
+        if typeAllowed('augment') and countAugments() == 0 and not hasType(state.upgradeOptions, 'augment') then
             local forcedAug = takeRandomOfType(poolNew, 'augment')
             if forcedAug then
                 table.insert(state.upgradeOptions, forcedAug)
@@ -189,29 +205,45 @@ function upgrades.generateUpgradeOptions(state)
         table.insert(state.upgradeOptions, choice)
     end
 
-    if runLevel <= 6 and not (hasType(state.upgradeOptions, 'weapon') or hasType(state.upgradeOptions, 'augment')) then
+    if runLevel <= 6
+        and (typeAllowed('weapon') or typeAllowed('augment'))
+        and not (hasType(state.upgradeOptions, 'weapon') or hasType(state.upgradeOptions, 'augment')) then
         local forced = takeRandomOfType(poolNew, 'weapon') or takeRandomOfType(poolNew, 'augment')
         if forced then
             state.upgradeOptions[#state.upgradeOptions] = forced
         end
     end
 
-    local ctx = {options = state.upgradeOptions, player = state.player}
+    if #state.upgradeOptions == 0 and allowFallback and type(allowedTypes) == 'table' and next(allowedTypes) ~= nil then
+        return upgrades.generateUpgradeOptions(state, nil, false)
+    end
+
+    local ctx = {options = state.upgradeOptions, player = state.player, request = request}
     dispatch(state, 'onUpgradeOptions', ctx)
     if ctx.options and ctx.options ~= state.upgradeOptions then
         state.upgradeOptions = ctx.options
     end
 end
 
-function upgrades.queueLevelUp(state, reason)
+function upgrades.queueLevelUp(state, reason, request)
     if state.noLevelUps or state.benchmarkMode then return end
-    dispatch(state, 'onUpgradeQueued', {reason = reason or 'unknown', player = state.player})
-    state.pendingLevelUps = state.pendingLevelUps + 1
-    if state.gameState ~= 'LEVEL_UP' then
-        state.pendingLevelUps = state.pendingLevelUps - 1
-        upgrades.generateUpgradeOptions(state)
-        state.gameState = 'LEVEL_UP'
+
+    state.pendingLevelUps = state.pendingLevelUps or 0
+    state.pendingUpgradeRequests = state.pendingUpgradeRequests or {}
+    request = request or {}
+    request.reason = request.reason or reason or 'unknown'
+
+    dispatch(state, 'onUpgradeQueued', {reason = request.reason, player = state.player, request = request})
+
+    if state.gameState == 'LEVEL_UP' then
+        state.pendingLevelUps = state.pendingLevelUps + 1
+        table.insert(state.pendingUpgradeRequests, request)
+        return
     end
+
+    state.activeUpgradeRequest = request
+    upgrades.generateUpgradeOptions(state, request)
+    state.gameState = 'LEVEL_UP'
 end
 
 function upgrades.applyUpgrade(state, opt)
