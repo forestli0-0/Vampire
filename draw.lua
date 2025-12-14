@@ -64,6 +64,58 @@ local function getOutlineShader()
     return outlineShader
 end
 
+local dashTrailShader
+local function getDashTrailShader()
+    if dashTrailShader ~= nil then return dashTrailShader or nil end
+    if not love or not love.graphics or not love.graphics.newShader then
+        dashTrailShader = false
+        return nil
+    end
+    local ok, sh = pcall(love.graphics.newShader, [[
+        extern number time;
+        extern number alpha;
+        extern vec3 tint;
+        extern number warp;
+
+        number hash(vec2 p) {
+            return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
+        number noise(vec2 p) {
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            number a = hash(i);
+            number b = hash(i + vec2(1.0, 0.0));
+            number c = hash(i + vec2(0.0, 1.0));
+            number d = hash(i + vec2(1.0, 1.0));
+            vec2 u = f * f * (3.0 - 2.0 * f);
+            return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+        }
+
+        vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc)
+        {
+            vec4 base = Texel(tex, uv) * color;
+            if (base.a <= 0.001) {
+                return vec4(0.0);
+            }
+
+            number n = noise(uv * 10.0 + vec2(time * 2.3, -time * 1.9));
+            vec2 duv = uv + (vec2(n, 1.0 - n) - 0.5) * warp;
+            duv = clamp(duv, vec2(0.0), vec2(1.0));
+
+            vec4 b2 = Texel(tex, duv) * color;
+            vec3 col = mix(b2.rgb, tint, 0.85);
+            col += tint * (n - 0.5) * 0.35;
+
+            number a = b2.a * alpha * (0.75 + 0.25 * n);
+            col = clamp(col, vec3(0.0), vec3(1.0));
+            return vec4(col, a);
+        }
+    ]])
+    if ok then dashTrailShader = sh else dashTrailShader = false end
+    return dashTrailShader or nil
+end
+
 local function drawOutlineAnimFallback(anim, x, y, r, sx, sy, t)
     t = t or 1
     local offsets = {
@@ -745,6 +797,42 @@ function draw.renderWorld(state)
         local shadowY = shadowR * 0.35
         love.graphics.setColor(0,0,0,0.25)
         love.graphics.ellipse('fill', state.player.x, state.player.y + size * 0.55, shadowR, shadowY)
+    end
+
+    -- 闪避拖影（shader）：绘制在玩家本体之前
+    do
+        local list = state.dashAfterimages
+        if list and #list > 0 then
+            local sh = getDashTrailShader()
+            if sh then
+                love.graphics.setBlendMode("add")
+                love.graphics.setShader(sh)
+                sh:send('time', love.timer.getTime())
+                sh:send('tint', {0.45, 0.90, 1.00})
+                sh:send('warp', 0.010)
+
+                for _, a in ipairs(list) do
+                    local dur = a.duration or 0.22
+                    local p = (dur > 0) and math.max(0, math.min(1, (a.t or 0) / dur)) or 1
+                    local fade = 1 - p
+                    local aa = (a.alpha or 0.22) * fade
+                    if aa > 0.001 then
+                        sh:send('alpha', aa)
+                        love.graphics.setColor(1, 1, 1, 1)
+                        if state.playerAnim then
+                            state.playerAnim:draw(a.x, a.y, 0, a.facing or state.player.facing, 1)
+                        else
+                            local size = state.player.size or 20
+                            love.graphics.rectangle('fill', a.x - (size / 2), a.y - (size / 2), size, size)
+                        end
+                    end
+                end
+
+                love.graphics.setShader()
+                love.graphics.setBlendMode("alpha")
+                love.graphics.setColor(1, 1, 1, 1)
+            end
+        end
     end
 
     local inv = state.player.invincibleTimer > 0

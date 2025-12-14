@@ -125,6 +125,13 @@ function player.tryDash(state, dirX, dirY)
     dash.timer = duration
     dash.dx = dx
     dash.dy = dy
+    dash.trailX = p.x
+    dash.trailY = p.y
+    if state.spawnDashAfterimage then
+        local face = p.facing or 1
+        if dx > 0 then face = 1 elseif dx < 0 then face = -1 end
+        state.spawnDashAfterimage(p.x, p.y, face, {alpha = 0.26, duration = 0.20, dirX = dx, dirY = dy})
+    end
 
     if inv and inv > 0 then
         p.invincibleTimer = math.max(p.invincibleTimer or 0, inv)
@@ -174,6 +181,30 @@ function player.updateMovement(state, dt)
         moving = true
         dx, dy = dash.dx or 0, dash.dy or 0
 
+        if state.spawnDashAfterimage then
+            local spacing = 24
+            dash.trailX = dash.trailX or ox
+            dash.trailY = dash.trailY or oy
+            local tx, ty = dash.trailX, dash.trailY
+            local dirX, dirY = dash.dx or 0, dash.dy or 0
+            local face = p.facing or 1
+            if dirX > 0 then face = 1 elseif dirX < 0 then face = -1 end
+            local ddx = p.x - tx
+            local ddy = p.y - ty
+            local dist = math.sqrt(ddx * ddx + ddy * ddy)
+            local guard = 0
+            while dist >= spacing and guard < 32 do
+                tx = tx + dirX * spacing
+                ty = ty + dirY * spacing
+                state.spawnDashAfterimage(tx, ty, face, {alpha = 0.20, duration = 0.20, dirX = dirX, dirY = dirY})
+                ddx = p.x - tx
+                ddy = p.y - ty
+                dist = math.sqrt(ddx * ddx + ddy * ddy)
+                guard = guard + 1
+            end
+            dash.trailX, dash.trailY = tx, ty
+        end
+
         if dash.timer <= 0 and state.augments and state.augments.dispatch then
             state.augments.dispatch(state, 'postDash', {player = p})
         end
@@ -181,6 +212,11 @@ function player.updateMovement(state, dt)
         local len = math.sqrt(dx * dx + dy * dy)
         p.x = p.x + (dx / len) * p.stats.moveSpeed * dt
         p.y = p.y + (dy / len) * p.stats.moveSpeed * dt
+    end
+
+    if dash and (dash.timer or 0) <= 0 then
+        dash.trailX = nil
+        dash.trailY = nil
     end
 
     if dx > 0 then p.facing = 1

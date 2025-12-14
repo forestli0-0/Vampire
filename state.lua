@@ -1372,6 +1372,8 @@ function state.init()
     state.areaFields = {}
     -- 敌方攻击预警（纯视觉，不参与判定）
     state.telegraphs = {}
+    -- 闪避拖影（纯视觉，不参与判定）
+    state.dashAfterimages = {}
     local effectScaleOverrides = {
         freeze = 0.4,
         oil = 0.2,
@@ -1563,6 +1565,27 @@ function state.init()
         return t
     end
 
+    local dashAfterimageMax = 28
+    function state.spawnDashAfterimage(x, y, facing, opts)
+        if not x or not y then return nil end
+        state.dashAfterimages = state.dashAfterimages or {}
+        local a = {
+            x = x,
+            y = y,
+            facing = facing or 1,
+            t = 0,
+            duration = (opts and opts.duration) or 0.22,
+            alpha = (opts and opts.alpha) or 0.22,
+            dirX = (opts and opts.dirX) or nil,
+            dirY = (opts and opts.dirY) or nil
+        }
+        table.insert(state.dashAfterimages, a)
+        while #state.dashAfterimages > dashAfterimageMax do
+            table.remove(state.dashAfterimages, 1)
+        end
+        return a
+    end
+
     function state.updateEffects(dt)
         for i = #state.hitEffects, 1, -1 do
             local e = state.hitEffects[i]
@@ -1593,6 +1616,14 @@ function state.init()
             t.t = (t.t or 0) + dt
             if t.t >= (t.duration or 0.6) then
                 table.remove(state.telegraphs, i)
+            end
+        end
+
+        for i = #(state.dashAfterimages or {}), 1, -1 do
+            local a = state.dashAfterimages[i]
+            a.t = (a.t or 0) + dt
+            if a.t >= (a.duration or 0.22) then
+                table.remove(state.dashAfterimages, i)
             end
         end
 
