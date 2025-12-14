@@ -30,6 +30,9 @@
 - `onShoot`：一次开火（ctx: weaponKey, weaponStats, target, x,y）
 - `onProjectileSpawned`：生成投射物（ctx: bullet）
 - `onProjectileHit`：投射物命中（ctx: bullet, enemy, result）
+- `preDash`：冲刺前（可改方向/距离/无敌帧，可 cancel）
+- `onDash`：冲刺触发（用于冲刺类机制）
+- `postDash`：冲刺结束（用于“冲刺后”触发）
 - `preHit`：命中结算前（可改 instance / 可 cancel）
 - `onHit`：命中结算后（ctx: enemy, result{damage,isCrit,appliedEffects}, instance）
 - `onProc`：触发异常后（ctx: enemy, effectType）
@@ -134,6 +137,14 @@
   - `aug_blood_burst`：击杀爆炸。
   - `aug_combo_arc`：连击阈值触发链电。
   - `aug_evasive_momentum`：移动中周期闪避一次受击（带短暂无敌帧）。
+  - **闪避流（Dash）**
+    - `aug_greater_reflex`：+1 闪避充能。
+    - `aug_quickstep`：更快恢复闪避充能。
+    - `aug_longstride`：闪避距离更远、无敌帧更长。
+    - `aug_reload_step`：闪避刷新武器冷却（更容易打出节奏/爆发）。
+    - `aug_dash_strike`：闪避触发冲击波伤害（偏近战冲击）。
+    - `aug_shockstep`：闪避触发电击脉冲（可触发连锁）。
+    - `aug_froststep`：闪避冻结附近敌人（偏控场）。
   - **弹道变化包（最有感）**
     - `aug_forked_trajectory`：投射物分叉。
     - `aug_homing_protocol`：投射物追踪。
