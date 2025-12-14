@@ -59,7 +59,7 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
     local function isOwned(itemType, itemKey)
         if itemType == 'weapon' then return state.inventory.weapons[itemKey] ~= nil end
         if itemType == 'passive' then return state.inventory.passives[itemKey] ~= nil end
-        if itemType == 'mod' then return state.inventory.mods and state.inventory.mods[itemKey] ~= nil end
+        if itemType == 'mod' then return state.profile and state.profile.ownedMods and state.profile.ownedMods[itemKey] == true end
         if itemType == 'augment' then return state.inventory.augments and state.inventory.augments[itemKey] ~= nil end
         return false
     end
@@ -88,6 +88,9 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
         return false
     end
 
+    local allowInRunMods = state and state.allowInRunMods
+    if allowInRunMods == nil then allowInRunMods = false end
+
     for key, item in pairs(state.catalog) do
         if item and item.type and not typeAllowed(item.type) then
             goto continue_catalog
@@ -102,10 +105,13 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
         end
 
         if not skip then
-            -- mod池：允许局内抽到“已拥有但未装备”的mod作为新选项；未拥有的mod仍不进入池
+            -- Mods are loadout-only by default; when enabled, allow drawing owned-but-unequipped mods in-run.
             if item.type == 'mod' then
+                if not allowInRunMods then
+                    goto continue_catalog
+                end
                 local owned = state.profile and state.profile.ownedMods and state.profile.ownedMods[key]
-                if not owned and not (state.inventory.mods and state.inventory.mods[key]) then
+                if not owned then
                     goto continue_catalog
                 end
             end
@@ -117,7 +123,15 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
             local currentLevel = 0
             if item.type == 'weapon' and state.inventory.weapons[key] then currentLevel = state.inventory.weapons[key].level end
             if item.type == 'passive' and state.inventory.passives[key] then currentLevel = state.inventory.passives[key] end
-            if item.type == 'mod' and state.inventory.mods and state.inventory.mods[key] then currentLevel = state.inventory.mods[key] end
+            if item.type == 'mod' then
+                local profile = state.profile
+                local r = profile and profile.modRanks and profile.modRanks[key]
+                if r ~= nil then
+                    currentLevel = r
+                elseif profile and profile.ownedMods and profile.ownedMods[key] then
+                    currentLevel = 1
+                end
+            end
             if item.type == 'augment' and state.inventory.augments and state.inventory.augments[key] then currentLevel = state.inventory.augments[key] end
             if currentLevel < item.maxLevel then
                 local opt = {key=key, type=item.type, name=item.name, desc=item.desc, def=item}
@@ -273,8 +287,13 @@ end
 function upgrades.applyUpgrade(state, opt)
     if opt.evolveFrom then
         -- 直接进化：移除基础武器，添加目标武器
+        local carryMods = state.inventory and state.inventory.weaponMods and state.inventory.weaponMods[opt.evolveFrom]
         state.inventory.weapons[opt.evolveFrom] = nil
         weapons.addWeapon(state, opt.key)
+        if carryMods and state.inventory and state.inventory.weaponMods then
+            state.inventory.weaponMods[opt.key] = carryMods
+            state.inventory.weaponMods[opt.evolveFrom] = nil
+        end
         logger.upgrade(state, opt, 1)
         dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = 1})
         return
@@ -297,16 +316,24 @@ function upgrades.applyUpgrade(state, opt)
         if opt.def.onUpgrade then opt.def.onUpgrade() end
         dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = state.inventory.passives[opt.key]})
     elseif opt.type == 'mod' then
-        state.inventory.mods = state.inventory.mods or {}
-        state.inventory.modOrder = state.inventory.modOrder or {}
-        if not state.inventory.mods[opt.key] then
-            state.inventory.mods[opt.key] = 0
-            table.insert(state.inventory.modOrder, opt.key)
-        end
-        state.inventory.mods[opt.key] = state.inventory.mods[opt.key] + 1
-        logger.upgrade(state, opt, state.inventory.mods[opt.key])
+        -- Mods are loadout-only and apply per-weapon when equipped.
+        -- If enabled as an in-run reward (debug), treat this as ranking up the mod and refresh weapon loadouts.
+        state.profile = state.profile or {}
+        state.profile.modRanks = state.profile.modRanks or {}
+        state.profile.ownedMods = state.profile.ownedMods or {}
+        state.profile.ownedMods[opt.key] = true
+
+        local cur = state.profile.modRanks[opt.key]
+        if cur == nil then cur = 1 end
+        cur = cur + 1
+        local max = opt.def and opt.def.maxLevel
+        if max and cur > max then cur = max end
+        state.profile.modRanks[opt.key] = cur
+        if state.applyPersistentMods then state.applyPersistentMods() end
+
+        logger.upgrade(state, opt, cur)
         if opt.def.onUpgrade then opt.def.onUpgrade() end
-        dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = state.inventory.mods[opt.key]})
+        dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = cur})
     elseif opt.type == 'augment' then
         state.inventory.augments = state.inventory.augments or {}
         state.inventory.augmentOrder = state.inventory.augmentOrder or {}
@@ -329,8 +356,13 @@ function upgrades.tryEvolveWeapon(state)
             if state.inventory.passives[req] then
                 local targetKey = def.evolveInfo.target
                 local targetDef = state.catalog[targetKey]
+                local carryMods = state.inventory and state.inventory.weaponMods and state.inventory.weaponMods[key]
                 state.inventory.weapons[key] = nil
                 weapons.addWeapon(state, targetKey)
+                if carryMods and state.inventory and state.inventory.weaponMods then
+                    state.inventory.weaponMods[targetKey] = carryMods
+                    state.inventory.weaponMods[key] = nil
+                end
                 return targetDef.name
             end
         end

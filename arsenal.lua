@@ -4,6 +4,16 @@ local arsenal = {}
 
 local MAX_SLOTS = 4
 
+local function tagsMatch(weaponTags, targetTags)
+    if not weaponTags or not targetTags then return false end
+    for _, tag in ipairs(targetTags) do
+        for _, wTag in ipairs(weaponTags) do
+            if tag == wTag then return true end
+        end
+    end
+    return false
+end
+
 local function buildModList(state)
     local list = {}
     for key, def in pairs(state.catalog or {}) do
@@ -21,32 +31,60 @@ local function buildModList(state)
     return list
 end
 
-local function countEquipped(profile)
+local function buildWeaponList(state)
+    local list = {}
+    for key, def in pairs(state.catalog or {}) do
+        if def and def.type == 'weapon' and not def.evolvedOnly then
+            table.insert(list, key)
+        end
+    end
+    table.sort(list, function(a, b)
+        local da, db = state.catalog[a], state.catalog[b]
+        if da and db and da.name and db.name then
+            return da.name < db.name
+        end
+        return a < b
+    end)
+    return list
+end
+
+local function ensureWeaponLoadout(profile, weaponKey)
+    if not profile then return nil end
+    profile.weaponMods = profile.weaponMods or {}
+    profile.weaponMods[weaponKey] = profile.weaponMods[weaponKey] or {equippedMods = {}, modOrder = {}}
+    local lo = profile.weaponMods[weaponKey]
+    lo.equippedMods = lo.equippedMods or {}
+    lo.modOrder = lo.modOrder or {}
+    return lo
+end
+
+local function countEquipped(loadout)
     local n = 0
-    for _, v in pairs(profile.equippedMods or {}) do
+    for _, v in pairs((loadout and loadout.equippedMods) or {}) do
         if v then n = n + 1 end
     end
     return n
 end
 
-local function isEquipped(profile, key)
-    return profile and profile.equippedMods and profile.equippedMods[key]
+local function isEquipped(loadout, key)
+    return loadout and loadout.equippedMods and loadout.equippedMods[key]
 end
 
 local function isOwned(profile, key)
     return profile and profile.ownedMods and profile.ownedMods[key]
 end
 
-local function ensureOrder(profile, key)
-    profile.modOrder = profile.modOrder or {}
-    for _, k in ipairs(profile.modOrder) do
+local function ensureOrder(loadout, key)
+    if not loadout then return end
+    loadout.modOrder = loadout.modOrder or {}
+    for _, k in ipairs(loadout.modOrder) do
         if k == key then return end
     end
-    table.insert(profile.modOrder, key)
+    table.insert(loadout.modOrder, key)
 end
 
-local function removeOrder(profile, key)
-    local order = profile.modOrder or {}
+local function removeOrder(loadout, key)
+    local order = (loadout and loadout.modOrder) or {}
     for i = #order, 1, -1 do
         if order[i] == key then table.remove(order, i) end
     end
@@ -62,12 +100,30 @@ end
 function arsenal.init(state)
     state.arsenal = {
         modList = buildModList(state),
+        weaponList = buildWeaponList(state),
         idx = 1,
+        weaponIdx = 1,
         message = nil,
         messageTimer = 0
     }
     if #state.arsenal.modList == 0 then
         state.arsenal.idx = 0
+    end
+
+    local profile = state.profile
+    if profile then
+        profile.modTargetWeapon = profile.modTargetWeapon or 'wand'
+        local list = state.arsenal.weaponList or {}
+        for i, k in ipairs(list) do
+            if k == profile.modTargetWeapon then
+                state.arsenal.weaponIdx = i
+                return
+            end
+        end
+        if #list > 0 then
+            profile.modTargetWeapon = list[1]
+            state.arsenal.weaponIdx = 1
+        end
     end
 end
 
@@ -85,27 +141,38 @@ end
 function arsenal.toggleEquip(state, modKey)
     local profile = state.profile
     if not profile then return end
+    local weaponKey = profile.modTargetWeapon or 'wand'
+    local loadout = ensureWeaponLoadout(profile, weaponKey)
     if not isOwned(profile, modKey) then
         setMessage(state, "Locked mod")
         return
     end
 
-    profile.equippedMods = profile.equippedMods or {}
-    profile.modRanks = profile.modRanks or {}
-    profile.modOrder = profile.modOrder or {}
+    local weaponDef = state.catalog and state.catalog[weaponKey]
+    local modDef = state.catalog and state.catalog[modKey]
+    local weaponTags = weaponDef and weaponDef.tags or {}
+    local targetTags = modDef and modDef.targetTags or nil
+    if targetTags and not tagsMatch(weaponTags, targetTags) then
+        setMessage(state, "Incompatible with " .. tostring(weaponDef and weaponDef.name or weaponKey))
+        return
+    end
 
-    if profile.equippedMods[modKey] then
-        profile.equippedMods[modKey] = nil
-        removeOrder(profile, modKey)
+    loadout.equippedMods = loadout.equippedMods or {}
+    profile.modRanks = profile.modRanks or {}
+    loadout.modOrder = loadout.modOrder or {}
+
+    if loadout.equippedMods[modKey] then
+        loadout.equippedMods[modKey] = nil
+        removeOrder(loadout, modKey)
         setMessage(state, "Unequipped " .. ((state.catalog[modKey] and state.catalog[modKey].name) or modKey))
     else
-        if countEquipped(profile) >= MAX_SLOTS then
+        if countEquipped(loadout) >= MAX_SLOTS then
             setMessage(state, "Slots full (" .. MAX_SLOTS .. ")")
             return
         end
-        profile.equippedMods[modKey] = true
+        loadout.equippedMods[modKey] = true
         profile.modRanks[modKey] = profile.modRanks[modKey] or 1
-        ensureOrder(profile, modKey)
+        ensureOrder(loadout, modKey)
         setMessage(state, "Equipped " .. ((state.catalog[modKey] and state.catalog[modKey].name) or modKey))
     end
 
@@ -115,7 +182,10 @@ end
 
 function arsenal.adjustRank(state, modKey, delta)
     local profile = state.profile
-    if not (profile and isEquipped(profile, modKey)) then return end
+    if not profile then return end
+    local weaponKey = profile.modTargetWeapon or 'wand'
+    local loadout = ensureWeaponLoadout(profile, weaponKey)
+    if not isEquipped(loadout, modKey) then return end
     local def = state.catalog[modKey] or {}
     local maxLv = def.maxLevel or 1
     local cur = profile.modRanks[modKey] or 1
@@ -136,6 +206,18 @@ end
 function arsenal.keypressed(state, key)
     local a = state.arsenal
     if not a then return false end
+
+    if key == 'tab' or key == 'backspace' then
+        local list = a.weaponList or {}
+        if #list > 0 and state.profile then
+            local dir = (key == 'tab') and 1 or -1
+            a.weaponIdx = ((a.weaponIdx - 1 + dir) % #list) + 1
+            local weaponKey = list[a.weaponIdx]
+            state.profile.modTargetWeapon = weaponKey
+            setMessage(state, "Weapon: " .. tostring((state.catalog[weaponKey] and state.catalog[weaponKey].name) or weaponKey))
+        end
+        return true
+    end
 
     local list = a.modList or {}
     local count = #list
@@ -186,15 +268,22 @@ function arsenal.draw(state)
     local lineH = 24
     local list = a.modList or {}
 
+    local weaponKey = (state.profile and state.profile.modTargetWeapon) or 'wand'
+    local weaponDef = state.catalog and state.catalog[weaponKey]
+    local weaponName = (weaponDef and weaponDef.name) or weaponKey
+    local loadout = ensureWeaponLoadout(state.profile, weaponKey) or {}
+
     love.graphics.setColor(1, 1, 1)
     local credits = (state.profile and state.profile.currency) or 0
     love.graphics.print("Available Mods   Credits: " .. tostring(credits), leftX, topY - 30)
+    love.graphics.setColor(0.85, 0.85, 0.95)
+    love.graphics.print("Weapon: " .. tostring(weaponName) .. "  (Tab/Backspace)", leftX, topY - 54)
 
     for i, key in ipairs(list) do
         local def = state.catalog[key]
         local name = (def and def.name) or key
         local owned = isOwned(state.profile, key)
-        local equipped = isEquipped(state.profile, key)
+        local equipped = isEquipped(loadout, key)
         local rank = (state.profile and state.profile.modRanks and state.profile.modRanks[key]) or 1
         local maxLv = (def and def.maxLevel) or 1
         local y = topY + (i - 1) * lineH
@@ -216,12 +305,12 @@ function arsenal.draw(state)
 
     local rightX = w * 0.55
     love.graphics.setColor(1, 1, 1)
-    love.graphics.print(string.format("Equipped (%d/%d)", countEquipped(state.profile or {}), MAX_SLOTS), rightX, topY - 30)
+    love.graphics.print(string.format("Equipped (%d/%d)", countEquipped(loadout), MAX_SLOTS), rightX, topY - 30)
 
     local eqY = topY
-    local order = (state.profile and state.profile.modOrder) or {}
+    local order = (loadout and loadout.modOrder) or {}
     for _, key in ipairs(order) do
-        if isEquipped(state.profile, key) then
+        if isEquipped(loadout, key) then
             local def = state.catalog[key]
             local name = (def and def.name) or key
             local rank = (state.profile.modRanks and state.profile.modRanks[key]) or 1

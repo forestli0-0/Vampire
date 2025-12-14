@@ -43,7 +43,7 @@ local function ensureState(state)
     r.roomCenterY = r.roomCenterY or 0
     r.rewardChest = r.rewardChest or nil
     r.bossRoom = r.bossRoom or 8
-    r.rewardCycle = r.rewardCycle or {'weapon', 'passive', 'mod', 'augment'}
+    r.rewardCycle = r.rewardCycle or {'weapon', 'passive', 'augment'}
     r.roomRewardType = r.roomRewardType or nil
     r.nextRewardType = r.nextRewardType or nil
     r.roomKind = r.roomKind or 'normal'
@@ -244,7 +244,7 @@ local function spawnDoors(state, r)
     local cy = r.roomCenterY or state.player.y
     local cycle = r.rewardCycle
     if type(cycle) ~= 'table' or #cycle <= 0 then
-        cycle = {'weapon', 'passive', 'mod', 'augment'}
+        cycle = {'weapon', 'passive', 'augment'}
     end
     local leftType, rightType = pickTwoDistinct(cycle)
 

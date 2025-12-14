@@ -176,23 +176,54 @@ local function drawStatsPanel(state)
 
     table.insert(lines, "")
     table.insert(lines, "MODS")
-    local modKeys = {}
-    local order = state.inventory.modOrder or {}
-    if #order > 0 then
-        for _, k in ipairs(order) do if state.inventory.mods and state.inventory.mods[k] then table.insert(modKeys, k) end end
-    else
-        for k, _ in pairs(state.inventory.mods or {}) do table.insert(modKeys, k) end
-        table.sort(modKeys)
-    end
-    for _, key in ipairs(modKeys) do
-        local lv = (state.inventory.mods and state.inventory.mods[key]) or 0
-        if lv > 0 then
-            local def = state.catalog[key] or {}
-            local name = def.name or key
-            table.insert(lines, string.format("%s R%d", name, lv))
+    local weaponKeysForMods = {}
+    for k, _ in pairs(state.inventory.weapons or {}) do table.insert(weaponKeysForMods, k) end
+    table.sort(weaponKeysForMods)
+    for _, weaponKey in ipairs(weaponKeysForMods) do
+        local wDef = state.catalog[weaponKey] or {}
+        local weaponName = wDef.name or weaponKey
+
+        local wm = state.inventory.weaponMods and state.inventory.weaponMods[weaponKey]
+        local mods = (wm and wm.mods) or {}
+        local order = (wm and wm.modOrder) or {}
+
+        local modList = {}
+        local seen = {}
+        if #order > 0 then
+            for _, modKey in ipairs(order) do
+                local lv = mods[modKey] or 0
+                if lv > 0 and not seen[modKey] then
+                    local mDef = state.catalog[modKey] or {}
+                    local modName = mDef.name or modKey
+                    table.insert(modList, string.format("%s R%d", modName, lv))
+                    seen[modKey] = true
+                end
+            end
         end
+
+        local extra = {}
+        for modKey, lv in pairs(mods) do
+            if (lv or 0) > 0 and not seen[modKey] then
+                table.insert(extra, modKey)
+            end
+        end
+        table.sort(extra)
+        for _, modKey in ipairs(extra) do
+            local lv = mods[modKey] or 0
+            if lv > 0 then
+                local mDef = state.catalog[modKey] or {}
+                local modName = mDef.name or modKey
+                table.insert(modList, string.format("%s R%d", modName, lv))
+            end
+        end
+
+        local modsText = "None"
+        if #modList > 0 then
+            modsText = table.concat(modList, " | ")
+        end
+        table.insert(lines, string.format("%s: %s", weaponName, modsText))
     end
-    if #modKeys == 0 then table.insert(lines, "None") end
+    if #weaponKeysForMods == 0 then table.insert(lines, "None") end
 
     table.insert(lines, "")
     table.insert(lines, "AUGMENTS")
@@ -1016,7 +1047,15 @@ function draw.renderUI(state)
                 local curLv = 0
                 if opt.type == 'weapon' and state.inventory.weapons[opt.key] then curLv = state.inventory.weapons[opt.key].level end
                 if opt.type == 'passive' and state.inventory.passives[opt.key] then curLv = state.inventory.passives[opt.key] end
-                if opt.type == 'mod' and state.inventory.mods and state.inventory.mods[opt.key] then curLv = state.inventory.mods[opt.key] end
+                if opt.type == 'mod' then
+                    local profile = state.profile
+                    local r = profile and profile.modRanks and profile.modRanks[opt.key]
+                    if r ~= nil then
+                        curLv = r
+                    elseif profile and profile.ownedMods and profile.ownedMods[opt.key] then
+                        curLv = 1
+                    end
+                end
                 if opt.type == 'augment' and state.inventory.augments and state.inventory.augments[opt.key] then curLv = state.inventory.augments[opt.key] end
                 love.graphics.print("Current Lv: " .. curLv, 500, y+10)
             end

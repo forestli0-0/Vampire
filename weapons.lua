@@ -56,11 +56,12 @@ local function applyElementAdds(stats, addElements, level)
     end
 end
 
-local function getOrderedMods(state)
-    local order = state.inventory and state.inventory.modOrder
+local function getOrderedMods(state, weaponKey)
+    local wm = state.inventory and state.inventory.weaponMods and state.inventory.weaponMods[weaponKey]
+    local order = wm and wm.modOrder
     if order and #order > 0 then return order end
     local keys = {}
-    for k, _ in pairs((state.inventory and state.inventory.mods) or {}) do
+    for k, _ in pairs((wm and wm.mods) or {}) do
         table.insert(keys, k)
     end
     table.sort(keys)
@@ -137,8 +138,9 @@ function weapons.calculateStats(state, weaponKey)
         end
     end
 
-    for _, modKey in ipairs(getOrderedMods(state)) do
-        local level = state.inventory.mods and state.inventory.mods[modKey]
+    local wm = state.inventory and state.inventory.weaponMods and state.inventory.weaponMods[weaponKey]
+    for _, modKey in ipairs(getOrderedMods(state, weaponKey)) do
+        local level = wm and wm.mods and wm.mods[modKey]
         local modDef = state.catalog[modKey]
         if level and level > 0 and modDef and modDef.targetTags then
             if tagsMatch(weaponTags, modDef.targetTags) then

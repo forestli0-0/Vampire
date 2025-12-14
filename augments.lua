@@ -2,9 +2,10 @@ local augments = {}
 
 local function ensureState(state)
     if not state then return end
-    state.inventory = state.inventory or {weapons = {}, passives = {}, mods = {}, modOrder = {}, augments = {}, augmentOrder = {}}
+    state.inventory = state.inventory or {weapons = {}, passives = {}, mods = {}, modOrder = {}, weaponMods = {}, augments = {}, augmentOrder = {}}
     state.inventory.augments = state.inventory.augments or {}
     state.inventory.augmentOrder = state.inventory.augmentOrder or {}
+    state.inventory.weaponMods = state.inventory.weaponMods or {}
     state.augmentState = state.augmentState or {}
     state.maxAugmentsPerRun = state.maxAugmentsPerRun or 4
 end

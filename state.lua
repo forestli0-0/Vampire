@@ -30,6 +30,16 @@ end
 local function defaultProfile()
     return {
         modRanks = {},
+        -- Weapon-specific mod loadouts (Warframe-like). Each weapon has its own equipped set + ordering.
+        weaponMods = {
+            wand = {
+                equippedMods = {},
+                modOrder = {}
+            }
+        },
+        modTargetWeapon = 'wand',
+
+        -- Legacy global mod equip fields (kept for backward compatibility; migrated into weaponMods).
         equippedMods = {},
         modOrder = {},
         ownedMods = {
@@ -55,8 +65,10 @@ function state.loadProfile()
         end
     end
     profile.modRanks = profile.modRanks or {}
-    profile.equippedMods = profile.equippedMods or {}
-    profile.modOrder = profile.modOrder or {}
+    profile.weaponMods = profile.weaponMods or {}
+    profile.modTargetWeapon = profile.modTargetWeapon or 'wand'
+    profile.equippedMods = profile.equippedMods or {} -- legacy
+    profile.modOrder = profile.modOrder or {} -- legacy
     profile.ownedMods = profile.ownedMods or {}
     if next(profile.ownedMods) == nil then
         for k, v in pairs(defaultProfile().ownedMods) do
@@ -64,7 +76,49 @@ function state.loadProfile()
         end
     end
     for k, _ in pairs(profile.modRanks) do profile.ownedMods[k] = true end
-    for k, _ in pairs(profile.equippedMods) do profile.ownedMods[k] = true end
+
+    -- Migrate legacy global equippedMods/modOrder into weaponMods.wand if no weapon loadouts exist yet.
+    if next(profile.weaponMods) == nil then
+        local legacyEq = profile.equippedMods or {}
+        local legacyOrder = profile.modOrder or {}
+        local hasLegacy = (next(legacyEq) ~= nil) or (type(legacyOrder) == 'table' and #legacyOrder > 0)
+        if hasLegacy then
+            profile.weaponMods.wand = profile.weaponMods.wand or {equippedMods = {}, modOrder = {}}
+            local lo = profile.weaponMods.wand
+            lo.equippedMods = lo.equippedMods or {}
+            lo.modOrder = lo.modOrder or {}
+
+            for k, v in pairs(legacyEq) do
+                if v then lo.equippedMods[k] = true end
+            end
+            for _, k in ipairs(legacyOrder) do
+                if legacyEq[k] then
+                    table.insert(lo.modOrder, k)
+                end
+            end
+            -- include equipped-but-not-in-order mods deterministically
+            local extra = {}
+            for k, v in pairs(legacyEq) do
+                if v then
+                    local found = false
+                    for _, ok in ipairs(lo.modOrder) do
+                        if ok == k then found = true break end
+                    end
+                    if not found then table.insert(extra, k) end
+                end
+            end
+            table.sort(extra)
+            for _, k in ipairs(extra) do
+                table.insert(lo.modOrder, k)
+            end
+        end
+    end
+
+    for _, lo in pairs(profile.weaponMods or {}) do
+        for k, _ in pairs((lo and lo.equippedMods) or {}) do
+            profile.ownedMods[k] = true
+        end
+    end
     profile.currency = profile.currency or 0
     return profile
 end
@@ -76,19 +130,44 @@ function state.saveProfile(profile)
 end
 
 function state.applyPersistentMods()
-    state.inventory.mods = {}
-    state.inventory.modOrder = {}
+    state.inventory.mods = {} -- legacy (do not apply globally)
+    state.inventory.modOrder = {} -- legacy (do not apply globally)
+    state.inventory.weaponMods = {}
     if not state.profile then return end
-    local equipped = state.profile.equippedMods or {}
     local ranks = state.profile.modRanks or {}
-    for _, modKey in ipairs(state.profile.modOrder or {}) do
-        if equipped[modKey] then
-            local lvl = ranks[modKey] or 1
-            if lvl > 0 then
-                state.inventory.mods[modKey] = lvl
-                table.insert(state.inventory.modOrder, modKey)
+
+    for weaponKey, lo in pairs(state.profile.weaponMods or {}) do
+        local equipped = (lo and lo.equippedMods) or {}
+        local order = (lo and lo.modOrder) or {}
+
+        local entry = {mods = {}, modOrder = {}}
+
+        for _, modKey in ipairs(order) do
+            if equipped[modKey] then
+                local lvl = ranks[modKey] or 1
+                if lvl > 0 then
+                    entry.mods[modKey] = lvl
+                    table.insert(entry.modOrder, modKey)
+                end
             end
         end
+
+        local extra = {}
+        for modKey, on in pairs(equipped) do
+            if on and not entry.mods[modKey] then
+                table.insert(extra, modKey)
+            end
+        end
+        table.sort(extra)
+        for _, modKey in ipairs(extra) do
+            local lvl = ranks[modKey] or 1
+            if lvl > 0 then
+                entry.mods[modKey] = lvl
+                table.insert(entry.modOrder, modKey)
+            end
+        end
+
+        state.inventory.weaponMods[weaponKey] = entry
     end
 end
 
@@ -385,7 +464,7 @@ function state.init()
             effect = { statusChance = 0.20 }
         },
 
-        -- Warframe-style Mods (per-run, currently global)
+        -- Warframe-style Mods (loadout-only, per-weapon)
         mod_serration = {
             type = 'mod', name = "Serration",
             desc = "+15% Damage per rank.",
@@ -814,10 +893,12 @@ function state.init()
         }
     }
 
-    state.inventory = { weapons = {}, passives = {}, mods = {}, modOrder = {}, augments = {}, augmentOrder = {} }
+    state.inventory = { weapons = {}, passives = {}, mods = {}, modOrder = {}, weaponMods = {}, augments = {}, augmentOrder = {} }
     state.augmentState = {}
     state.maxAugmentsPerRun = 4
     state.maxWeaponsPerRun = 3
+    -- Mods are loadout-only by default (Warframe-like); in-run power comes from weapons/passives/augments.
+    state.allowInRunMods = false
 
     state.profile = state.loadProfile()
     state.applyPersistentMods()
