@@ -151,6 +151,13 @@ local function applyArmorReduction(dmg, armor)
     return dmg * (1 - dr)
 end
 
+local function clamp(x, lo, hi)
+    if x == nil then return lo end
+    if x < lo then return lo end
+    if x > hi then return hi end
+    return x
+end
+
 local function chooseWeighted(pool)
     local total = 0
     for _, it in ipairs(pool or {}) do
@@ -170,6 +177,10 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
     if type(effectType) ~= 'string' then return end
     ensureStatus(e)
 
+    local tenacity = clamp(e.tenacity or 0, 0, 0.95)
+    local hardCcImmune = e.hardCcImmune or false
+    local ccMult = 1 - tenacity
+
     local might = 1
     if state and state.player and state.player.stats and state.player.stats.might then
         might = state.player.stats.might
@@ -178,18 +189,43 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
     local effect = string.upper(effectType)
     if effect == 'FREEZE' then
         if effectData and (effectData.fullFreeze or effectData.forceFreeze) then
-            e.status.frozen = true
             local dur = effectData.freezeDuration or effectData.duration or 1.2
-            local remaining = e.status.frozenTimer or 0
-            e.status.frozenTimer = math.max(dur, remaining)
-            e.speed = 0
+            if hardCcImmune then
+                -- boss-style CC resistance: strong cold, but never full freeze
+                local softDur = dur * (0.4 + 0.6 * ccMult)
+                if softDur > 0 then
+                    e.status.coldTimer = math.max(e.status.coldTimer or 0, softDur)
+                    e.status.coldStacks = math.min(10, (e.status.coldStacks or 0) + 2)
+                end
+            else
+                dur = dur * ccMult
+                if dur > 0 then
+                    e.status.frozen = true
+                    local remaining = e.status.frozenTimer or 0
+                    e.status.frozenTimer = math.max(dur, remaining)
+                    e.speed = 0
+                end
+            end
             if state.spawnEffect then state.spawnEffect('freeze', e.x, e.y) end
             if state.spawnAreaField then state.spawnAreaField('freeze', e.x, e.y, (e.size or 16) * 2.2, 0.55, 1) end
         elseif e.status.frozen then
             local freezeDur = (effectData and effectData.freezeDuration) or (effectData and effectData.duration) or 1.2
-            local remaining = e.status.frozenTimer or 0
-            e.status.frozenTimer = math.max(freezeDur, remaining)
-            e.speed = 0
+            if hardCcImmune then
+                local softDur = freezeDur * (0.35 + 0.65 * ccMult)
+                if softDur > 0 then
+                    e.status.coldTimer = math.max(e.status.coldTimer or 0, softDur)
+                    e.status.coldStacks = math.min(10, (e.status.coldStacks or 0) + 1)
+                end
+                e.status.frozen = false
+                e.status.frozenTimer = nil
+            else
+                freezeDur = freezeDur * ccMult
+                if freezeDur > 0 then
+                    local remaining = e.status.frozenTimer or 0
+                    e.status.frozenTimer = math.max(freezeDur, remaining)
+                    e.speed = 0
+                end
+            end
             if state.spawnEffect then state.spawnEffect('freeze', e.x, e.y) end
             if state.spawnAreaField then state.spawnAreaField('freeze', e.x, e.y, (e.size or 16) * 2.2, 0.55, 1) end
         else
@@ -197,12 +233,21 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
             e.status.coldTimer = math.max(e.status.coldTimer or 0, dur)
             e.status.coldStacks = math.min(10, (e.status.coldStacks or 0) + 1)
             if e.status.coldStacks >= 10 then
-                e.status.frozen = true
-                local freezeDur = (effectData and effectData.freezeDuration) or 2.0
-                e.status.frozenTimer = math.max(freezeDur, e.status.frozenTimer or 0)
-                e.speed = 0
-                e.status.coldStacks = 0
-                e.status.coldTimer = 0
+                if hardCcImmune then
+                    -- prevent full freeze on bosses; keep it as heavy slow feedback
+                    e.status.coldStacks = 6
+                    e.status.coldTimer = math.max(e.status.coldTimer or 0, 1.2)
+                else
+                    e.status.frozen = true
+                    local freezeDur = (effectData and effectData.freezeDuration) or 2.0
+                    freezeDur = freezeDur * ccMult
+                    if freezeDur > 0 then
+                        e.status.frozenTimer = math.max(freezeDur, e.status.frozenTimer or 0)
+                        e.speed = 0
+                        e.status.coldStacks = 0
+                        e.status.coldTimer = 0
+                    end
+                end
                 if state.spawnEffect then state.spawnEffect('freeze', e.x, e.y) end
                 if state.spawnAreaField then state.spawnAreaField('freeze', e.x, e.y, (e.size or 16) * 2.4, 0.65, 1) end
             else
@@ -257,8 +302,15 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
             if state.playSfx then state.playSfx('glass') end
         else
             local dur = (effectData and effectData.duration) or 0.35
+            if hardCcImmune then
+                dur = 0
+            else
+                dur = dur * ccMult
+            end
             local remaining = e.status.impactTimer or 0
-            e.status.impactTimer = math.max(dur, remaining)
+            if dur > 0 then
+                e.status.impactTimer = math.max(dur, remaining)
+            end
             if remaining <= 0 and state and state.spawnEffect and dur > 0 then
                 local s = 1.0
                 if e.size and e.size > 0 then s = math.max(0.8, math.min(1.6, (e.size / 16) * 0.95)) end
@@ -278,7 +330,14 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         -- Prevent perma-stun loops: apply a short stun with a lockout instead of refreshing for full duration.
         if (e.status.shockLockout or 0) <= 0 then
             local stun = (effectData and effectData.stunDuration) or 0.45
-            e.status.shockTimer = math.max(e.status.shockTimer or 0, stun)
+            if hardCcImmune then
+                stun = 0
+            else
+                stun = stun * ccMult
+            end
+            if stun > 0 then
+                e.status.shockTimer = math.max(e.status.shockTimer or 0, stun)
+            end
             e.status.shockLockout = 0.9
         end
         if state.spawnEffect then state.spawnEffect('static', e.x, e.y) end
@@ -350,6 +409,13 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
     local shieldRegenDelay = nil
     local shieldRegenRate = nil
 
+    local tenacity = clamp(def.tenacity or 0, 0, 0.95)
+    local hardCcImmune = def.hardCcImmune or false
+    if def.isBoss then
+        tenacity = math.max(tenacity, 0.85)
+        hardCcImmune = (def.hardCcImmune ~= false)
+    end
+
     local shootInterval = def.shootInterval
     local bulletSpeed = def.bulletSpeed
     local bulletDamage = def.bulletDamage
@@ -370,6 +436,7 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
         hp = hp * 5
         shield = shield * 5
         size = size * 1.5
+        tenacity = math.max(tenacity, 0.15)
 
         local mods = {}
         table.insert(mods, {key = 'swift', w = 3})
@@ -404,6 +471,8 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
         end
     end
 
+    tenacity = clamp(tenacity, 0, 0.95)
+
     table.insert(state.enemies, {
         x = x,
         y = y,
@@ -429,6 +498,8 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
         eliteBulletSpeedMult = eliteBulletSpeedMult,
         shieldRegenDelay = shieldRegenDelay,
         shieldRegenRate = shieldRegenRate,
+        tenacity = tenacity,
+        hardCcImmune = hardCcImmune,
         isBoss = def.isBoss or false,
         kind = type,
         shootInterval = shootInterval,
@@ -550,6 +621,18 @@ function enemies.update(state, dt)
         local e = state.enemies[i]
         ensureStatus(e)
         local def = enemyDefs[e.kind] or enemyDefs.skeleton
+        local tenacity = clamp(e.tenacity or 0, 0, 0.95)
+        local hardCcImmune = (e.hardCcImmune == true) or (def and def.hardCcImmune == true) or false
+
+        if hardCcImmune and e.status then
+            if e.status.frozen then
+                e.status.frozen = false
+                e.status.frozenTimer = nil
+                e.speed = e.baseSpeed or e.speed
+            end
+            if e.status.impactTimer and e.status.impactTimer > 0 then e.status.impactTimer = 0 end
+            if e.status.shockTimer and e.status.shockTimer > 0 then e.status.shockTimer = 0 end
+        end
 
         -- Boss phase (simple HP thresholds) to create a readable escalation.
         if e.isBoss or (def and def.isBoss) then
@@ -595,6 +678,8 @@ function enemies.update(state, dt)
                 local stacks = e.status.coldStacks or 0
                 local slowPct = 0.25 + math.max(0, stacks - 1) * 0.05
                 if slowPct > 0.7 then slowPct = 0.7 end
+                -- Tenacity reduces soft-CC strength (slows) and makes bosses less lockable.
+                slowPct = slowPct * (1 - tenacity * 0.6)
                 local mult = 1 - slowPct
                 e.speed = (e.baseSpeed or e.speed) * mult
             end
@@ -868,14 +953,18 @@ function enemies.update(state, dt)
             end
         end
 
-        local stunned = e.status.frozen
-            or (e.status.impactTimer and e.status.impactTimer > 0)
-            or (e.status.shockTimer and e.status.shockTimer > 0)
+        local stunned = false
+        if not hardCcImmune then
+            stunned = e.status.frozen
+                or (e.status.impactTimer and e.status.impactTimer > 0)
+                or (e.status.shockTimer and e.status.shockTimer > 0)
+        end
         local coldMult = 1
         if not e.status.frozen and e.status.coldTimer and e.status.coldTimer > 0 and (e.status.coldStacks or 0) > 0 then
             local stacks = e.status.coldStacks or 0
             local slowPct = 0.25 + math.max(0, stacks - 1) * 0.05
             if slowPct > 0.7 then slowPct = 0.7 end
+            slowPct = slowPct * (1 - tenacity * 0.6)
             coldMult = 1 - slowPct
         end
         local targetX, targetY = p.x, p.y
@@ -897,8 +986,8 @@ function enemies.update(state, dt)
             if e.attackCooldown < 0 then e.attackCooldown = 0 end
         end
 
-        if stunned and e.attack then
-            -- crowd control cancels telegraphed attacks (keeps fairness: no hidden hits after a freeze/stun)
+        if stunned and e.attack and not hardCcImmune and e.attack.interruptible ~= false then
+            -- some enemies can be interrupted during windup (but bosses resist hard-CC and keep patterns readable)
             e.attack = nil
             e.attackCooldown = math.max(e.attackCooldown or 0, 0.6)
         end
@@ -1033,6 +1122,12 @@ function enemies.update(state, dt)
                 if e.isBoss then lineOpts = {color = {1.0, 0.55, 0.22}}
                 elseif e.isElite then lineOpts = {color = {1.0, 0.25, 0.25}} end
 
+                local interruptible = cfg.interruptible
+                if interruptible == nil then
+                    interruptible = (key ~= 'burst')
+                end
+                if e.isBoss then interruptible = false end
+
                 if key == 'charge' then
                     local windup = math.max(0.4, (cfg.windup or 0.55) * windupMult)
                     local distance = cfg.distance or 260
@@ -1052,6 +1147,7 @@ function enemies.update(state, dt)
                         type = 'charge',
                         phase = 'windup',
                         timer = windup,
+                        interruptible = interruptible,
                         dirX = math.cos(angToTarget),
                         dirY = math.sin(angToTarget),
                         distance = distance,
@@ -1079,6 +1175,7 @@ function enemies.update(state, dt)
                         type = 'slam',
                         phase = 'windup',
                         timer = windup,
+                        interruptible = interruptible,
                         x = targetX,
                         y = targetY,
                         radius = radius,
@@ -1113,6 +1210,7 @@ function enemies.update(state, dt)
                         type = 'burst',
                         phase = 'windup',
                         timer = windup,
+                        interruptible = interruptible,
                         ang = angToTarget, -- lock direction for fairness/readability
                         count = count,
                         spread = spread,

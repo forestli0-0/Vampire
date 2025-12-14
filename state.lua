@@ -210,7 +210,7 @@ function state.init()
             dashCharges = 2,
             dashCooldown = 0.9,      -- seconds to recharge 1 charge
             dashDuration = 0.16,     -- seconds of dash movement
-            dashDistance = 200,      -- pixels traveled over dashDuration
+            dashDistance = 120,      -- pixels traveled over dashDuration
             dashInvincible = 0.16    -- i-frames (can be >= dashDuration)
         }
     }

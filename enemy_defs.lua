@@ -150,11 +150,13 @@ local enemyDefs = {
         bulletLife = 6,
         bulletSize = 14,
         contactDamage = 14,
+        tenacity = 0.9,
+        hardCcImmune = true,
         attacks = {
             -- 3 readable boss moves: cone burst (ranged), slam (AoE), charge (line dash)
-            burst = {rangeMin = 260, range = 1200, w = 5, windup = 0.75, count = 7, spread = 0.95, bulletSpeed = 240, bulletDamage = 14, bulletLife = 6, bulletSize = 14, cooldown = 2.2, telegraphWidth = 58, telegraphLength = 520},
-            slam  = {range = 760, w = 3, windup = 0.95, radius = 150, cooldown = 2.8, damage = 20},
-            charge = {range = 420, w = 3, windup = 0.70, distance = 420, speed = 720, cooldown = 2.6, damage = 24, telegraphWidth = 56}
+            burst = {rangeMin = 260, range = 1200, w = 5, windup = 0.75, count = 7, spread = 0.95, bulletSpeed = 240, bulletDamage = 14, bulletLife = 6, bulletSize = 14, cooldown = 2.2, telegraphWidth = 58, telegraphLength = 520, interruptible = false},
+            slam  = {range = 760, w = 3, windup = 1.25, radius = 150, cooldown = 2.8, damage = 20, interruptible = false},
+            charge = {range = 420, w = 3, windup = 0.70, distance = 420, speed = 720, cooldown = 2.6, damage = 24, telegraphWidth = 56, interruptible = false}
         },
         animKey = 'plant',
         isBoss = true,

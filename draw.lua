@@ -398,14 +398,25 @@ function draw.renderWorld(state)
         for _, tg in ipairs(state.telegraphs) do
             local dur = tg.duration or 0.6
             local p = (dur > 0) and math.max(0, math.min(1, (tg.t or 0) / dur)) or 1
-            local alpha = 0.10 + 0.70 * p
             local intensity = (tg.intensity or 1) * (0.65 + 0.75 * p)
 
             if tg.shape == 'circle' then
                 local r = tg.radius or 0
                 if r > 0 then
-                    vfx.drawAreaField(tg.kind or 'telegraph', tg.x, tg.y, r, intensity, { alpha = alpha, alphaCap = 0.6, edgeSoft = 0.52 })
-                    love.graphics.setColor(1, 0.22, 0.22, 0.18 + 0.38 * p)
+                    local kind = tg.kind or 'telegraph'
+                    local col = {1, 0.22, 0.22}
+                    if kind == 'danger' then col = {1.0, 0.55, 0.22} end
+
+                    -- base field (subtle), then a radial fill to indicate cast progress (full = impact)
+                    vfx.drawAreaField(kind, tg.x, tg.y, r, intensity, { alpha = 0.06 + 0.18 * p, alphaCap = 0.55, edgeSoft = 0.52 })
+
+                    love.graphics.setColor(col[1], col[2], col[3], 0.08 + 0.22 * p)
+                    local fillR = r * 0.98 * p
+                    if fillR > 0.5 then
+                        love.graphics.circle('fill', tg.x, tg.y, fillR)
+                    end
+
+                    love.graphics.setColor(col[1], col[2], col[3], 0.22 + 0.48 * p)
                     love.graphics.setLineWidth(2)
                     love.graphics.circle('line', tg.x, tg.y, r)
                     love.graphics.setLineWidth(1)
@@ -419,13 +430,16 @@ function draw.renderWorld(state)
                     local ang = math.atan2(dy, dx)
                     local w = tg.width or 28
                     local col = tg.color or {1, 0.22, 0.22}
-                    local fillA = 0.08 + 0.42 * p
-                    local lineA = 0.18 + 0.60 * p
+                    local bgA = 0.05 + 0.10 * p
+                    local fillA = 0.14 + 0.34 * p
+                    local lineA = 0.22 + 0.62 * p
                     love.graphics.push()
                     love.graphics.translate(x1, y1)
                     love.graphics.rotate(ang)
-                    love.graphics.setColor(col[1], col[2], col[3], fillA)
+                    love.graphics.setColor(col[1], col[2], col[3], bgA)
                     love.graphics.rectangle('fill', 0, -w / 2, len, w, w * 0.35, w * 0.35)
+                    love.graphics.setColor(col[1], col[2], col[3], fillA)
+                    love.graphics.rectangle('fill', 0, -w / 2, len * p, w, w * 0.35, w * 0.35)
                     love.graphics.setColor(col[1], col[2], col[3], lineA)
                     love.graphics.setLineWidth(2)
                     love.graphics.rectangle('line', 0, -w / 2, len, w, w * 0.35, w * 0.35)
