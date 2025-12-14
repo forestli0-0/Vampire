@@ -181,10 +181,23 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
     local finalDmg = math.floor((wStats.damage or 0) * (state.player.stats.might or 1))
     local area = (wStats.area or 1) * (state.player.stats.area or 1)
 
+    local function getProjectileTuning(t)
+        local pt = state and state.projectileTuning
+        return (pt and pt[t]) or (pt and pt.default) or nil
+    end
+
+    local function getHitSizeScaleForType(t)
+        if not (state and state.weaponSprites and state.weaponSprites[t]) then return 1 end
+        return (state.weaponSpriteScale and state.weaponSpriteScale[t]) or 1
+    end
+
     if type == 'wand' or type == 'holy_wand' or type == 'fire_wand' or type == 'hellfire' or type == 'oil_bottle' or type == 'heavy_hammer' or type == 'dagger' or type == 'thousand_edge' or type == 'static_orb' or type == 'thunder_loop' then
         local angle = math.atan2(target.y - y, target.x - x)
         local spd = (wStats.speed or 0) * (state.player.stats.speed or 1)
-        local size = (wStats.size or 6) * area
+        local tune = getProjectileTuning(type)
+        local baseSize = wStats.size
+        if baseSize == nil then baseSize = (tune and tune.size) or 6 end
+        local size = baseSize * area
         local bullet = {
             type=type, x=x, y=y, vx=math.cos(angle)*spd, vy=math.sin(angle)*spd,
             life=wStats.life or 2, size=size, damage=finalDmg, effectType=effectType, weaponTags=weaponTags,
@@ -193,6 +206,7 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
             elements=wStats.elements, damageBreakdown=wStats.damageBreakdown,
             critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance
         }
+        bullet.hitSizeScale = getHitSizeScaleForType(type)
         table.insert(state.bullets, bullet)
         if state and state.augments and state.augments.dispatch then
             state.augments.dispatch(state, 'onProjectileSpawned', {weaponKey = type, bullet = bullet})
@@ -202,7 +216,11 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
         local vx = (math.random() - 0.5) * 200
         local vy = -spd
         local angle = math.atan2(vy, vx)
-        local bullet = {type='axe', x=x, y=y, vx=vx, vy=vy, life=3, size=12 * area, damage=finalDmg, rotation=angle, hitTargets={}, effectType=effectType, weaponTags=weaponTags, elements=wStats.elements, damageBreakdown=wStats.damageBreakdown, critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance}
+        local tune = getProjectileTuning('axe')
+        local baseSize = wStats.size
+        if baseSize == nil then baseSize = (tune and tune.size) or 12 end
+        local bullet = {type='axe', x=x, y=y, vx=vx, vy=vy, life=3, size=baseSize * area, damage=finalDmg, rotation=angle, hitTargets={}, effectType=effectType, weaponTags=weaponTags, elements=wStats.elements, damageBreakdown=wStats.damageBreakdown, critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance}
+        bullet.hitSizeScale = getHitSizeScaleForType('axe')
         table.insert(state.bullets, bullet)
         if state and state.augments and state.augments.dispatch then
             state.augments.dispatch(state, 'onProjectileSpawned', {weaponKey = type, bullet = bullet})
@@ -210,15 +228,19 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
     elseif type == 'death_spiral' then
         local count = 8 + (wStats.amount or 0)
         local spd = (wStats.speed or 300) * (state.player.stats.speed or 1)
+        local tune = getProjectileTuning('death_spiral')
+        local baseSize = wStats.size
+        if baseSize == nil then baseSize = (tune and tune.size) or 14 end
         for i = 1, count do
             local angle = (i - 1) / count * math.pi * 2
             local bullet = {
                 type='death_spiral', x=x, y=y,
                 vx=math.cos(angle)*spd, vy=math.sin(angle)*spd,
-                life=3, size=14 * area, damage=finalDmg,
+                life=3, size=baseSize * area, damage=finalDmg,
                 rotation=angle, angularVel=1.5, hitTargets={}, effectType=effectType, weaponTags=weaponTags, elements=wStats.elements, damageBreakdown=wStats.damageBreakdown,
                 critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance
             }
+            bullet.hitSizeScale = getHitSizeScaleForType('death_spiral')
             table.insert(state.bullets, bullet)
             if state and state.augments and state.augments.dispatch then
                 state.augments.dispatch(state, 'onProjectileSpawned', {weaponKey = type, bullet = bullet})

@@ -179,7 +179,7 @@ function state.init()
             desc = "Coats enemies in Oil.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'chemical'},
-            base = { damage=0, cd=2.0, speed=300, pierce=1, effectType='OIL', size=16, splashRadius=80, duration=6.0, critChance=0.05, critMultiplier=1.5, statusChance=0.8 },
+            base = { damage=0, cd=2.0, speed=300, pierce=1, effectType='OIL', size=12, splashRadius=80, duration=6.0, critChance=0.05, critMultiplier=1.5, statusChance=0.8 },
             onUpgrade = function(w) w.cd = w.cd * 0.95 end
         },
         fire_wand = {
@@ -205,7 +205,7 @@ function state.init()
             desc = "Shatters Frozen enemies for 3x Damage.",
             maxLevel = 5,
             tags = {'weapon', 'projectile', 'physical', 'heavy'},
-            base = { damage=40, cd=2.0, speed=220, knockback=100, effectType='HEAVY', elements={'IMPACT'}, damageBreakdown={IMPACT=1}, size=16, critChance=0.05, critMultiplier=1.5, statusChance=0.5 },
+            base = { damage=40, cd=2.0, speed=220, knockback=100, effectType='HEAVY', elements={'IMPACT'}, damageBreakdown={IMPACT=1}, size=12, critChance=0.05, critMultiplier=1.5, statusChance=0.5 },
             onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end,
             evolveInfo = { target='earthquake', require='armor' }
         },
@@ -1017,6 +1017,17 @@ function state.init()
         'wand','holy_wand','axe','death_spiral','fire_wand','oil_bottle','heavy_hammer','dagger','static_orb','garlic','ice_ring',
         'soul_eater','thousand_edge','hellfire','absolute_zero','thunder_loop','earthquake'
     }
+
+    -- Projectile sizing/scale tuning (single source of truth for "how big it should look/hit").
+    -- size: logical diameter before spriteScale; spriteScale: base magnification for rendering (and hitbox, via hitSizeScale).
+    state.projectileTuning = {
+        default = { size = 6, spriteScale = 5 },
+        -- axe = { size = 12, spriteScale = 2 },
+        -- death_spiral = { size = 14, spriteScale = 2 },
+        oil_bottle = { size = 6, spriteScale = 3 },
+        heavy_hammer = { size = 6, spriteScale = 3 }
+    }
+
     state.weaponSprites = {}
     state.weaponSpriteScale = {}
     for _, key in ipairs(weaponKeys) do
@@ -1024,11 +1035,10 @@ function state.init()
         if img then
             img:setFilter('nearest', 'nearest')
             state.weaponSprites[key] = img
-            state.weaponSpriteScale[key] = 5
+            local tune = (state.projectileTuning and state.projectileTuning[key]) or (state.projectileTuning and state.projectileTuning.default)
+            state.weaponSpriteScale[key] = (tune and tune.spriteScale) or 5
         end
     end
-    state.weaponSpriteScale['axe'] = 2
-    state.weaponSpriteScale['death_spiral'] = 2
     -- 状态特效贴图（3 帧横条）
     state.effectSprites = {}
     state.hitEffects = {}
