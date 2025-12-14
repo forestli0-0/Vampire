@@ -160,6 +160,18 @@ local function startRoom(state, r)
     state.doors = state.doors or {}
     clearList(state.doors)
 
+    -- QoL: entering a new room refreshes dash charges to keep the flow fast (Hades-like rooms pacing).
+    do
+        local p = state.player
+        local dash = p and p.dash
+        if dash then
+            local maxCharges = (p.stats and p.stats.dashCharges) or dash.maxCharges or 0
+            maxCharges = math.max(0, math.floor(maxCharges))
+            dash.charges = maxCharges
+            dash.rechargeTimer = 0
+        end
+    end
+
     local roomKind = r.nextRoomKind
     r.nextRoomKind = nil
     if roomKind == nil then roomKind = 'normal' end
@@ -284,6 +296,18 @@ local function startBossRoom(state, r)
     r._hadCombat = false
 
     clearList(state.enemyBullets)
+
+    -- QoL: refresh dash charges for the boss opener.
+    do
+        local p = state.player
+        local dash = p and p.dash
+        if dash then
+            local maxCharges = (p.stats and p.stats.dashCharges) or dash.maxCharges or 0
+            maxCharges = math.max(0, math.floor(maxCharges))
+            dash.charges = maxCharges
+            dash.rechargeTimer = 0
+        end
+    end
 
     local px, py = state.player.x, state.player.y
     enemies.spawnEnemy(state, 'boss_treant', false, px + 420, py)

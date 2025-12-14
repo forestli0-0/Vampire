@@ -890,6 +890,67 @@ function state.init()
                     end
                 }
             }
+        },
+        aug_greater_reflex = {
+            type = 'augment', name = "Greater Reflex",
+            desc = "Gain +1 Dash charge.",
+            maxLevel = 1,
+            triggers = {
+                {
+                    event = 'onUpgradeChosen',
+                    action = function(state, ctx)
+                        local opt = ctx and ctx.opt
+                        if not opt or opt.key ~= 'aug_greater_reflex' then return end
+                        local p = (ctx and ctx.player) or state.player
+                        if not p or not p.stats then return end
+                        p.stats.dashCharges = math.max(0, (p.stats.dashCharges or 0) + 1)
+                    end
+                }
+            }
+        },
+        aug_dash_strike = {
+            type = 'augment', name = "Dash Strike",
+            desc = "Dashing releases an impact shockwave that damages nearby enemies.",
+            maxLevel = 1,
+            triggers = {
+                {
+                    event = 'onDash',
+                    cooldown = 0.05,
+                    action = function(state, ctx)
+                        local ok, calc = pcall(require, 'calculator')
+                        if not ok or not calc then return end
+                        local p = (ctx and ctx.player) or state.player
+                        if not p then return end
+                        local radius = 95
+                        local r2 = radius * radius
+                        local might = (p.stats and p.stats.might) or 1
+                        local dmg = math.floor(14 * might + 0.5)
+                        if dmg <= 0 then return end
+                        local instance = calc.createInstance({
+                            damage = dmg,
+                            critChance = 0,
+                            critMultiplier = 1.5,
+                            statusChance = 0.15,
+                            elements = {'IMPACT'},
+                            damageBreakdown = {IMPACT = 1},
+                            weaponTags = {'augment', 'dash', 'area'},
+                            knock = true,
+                            knockForce = 18
+                        })
+                        for _, e in ipairs(state.enemies or {}) do
+                            local hp = e and (e.health or e.hp) or 0
+                            if e and hp and hp > 0 and not e.isDummy then
+                                local dx = e.x - p.x
+                                local dy = e.y - p.y
+                                if dx * dx + dy * dy <= r2 then
+                                    calc.applyHit(state, e, instance)
+                                end
+                            end
+                        end
+                        if state.spawnEffect then state.spawnEffect('impact_hit', p.x, p.y, 1.0) end
+                    end
+                }
+            }
         }
     }
 
