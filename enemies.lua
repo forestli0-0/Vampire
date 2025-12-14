@@ -151,6 +151,20 @@ local function applyArmorReduction(dmg, armor)
     return dmg * (1 - dr)
 end
 
+local function chooseWeighted(pool)
+    local total = 0
+    for _, it in ipairs(pool or {}) do
+        total = total + (it.w or 0)
+    end
+    if total <= 0 then return pool and pool[1] end
+    local r = math.random() * total
+    for _, it in ipairs(pool) do
+        r = r - (it.w or 0)
+        if r <= 0 then return it end
+    end
+    return pool[#pool]
+end
+
 function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effectData)
     if not effectType or not e then return end
     if type(effectType) ~= 'string' then return end
@@ -329,6 +343,19 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
     local size = def.size
     local speed = def.speed
 
+    local eliteMod = nil
+    local eliteDamageMult = 1
+    local eliteWindupMult = 1
+    local eliteBulletSpeedMult = 1
+    local shieldRegenDelay = nil
+    local shieldRegenRate = nil
+
+    local shootInterval = def.shootInterval
+    local bulletSpeed = def.bulletSpeed
+    local bulletDamage = def.bulletDamage
+    local bulletLife = def.bulletLife
+    local bulletSize = def.bulletSize
+
     local ang = math.random() * 6.28
     local d = def.spawnDistance or 500
     local x = spawnX or (state.player.x + math.cos(ang) * d)
@@ -343,7 +370,38 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
         hp = hp * 5
         shield = shield * 5
         size = size * 1.5
-        color = {1, 0, 0}
+
+        local mods = {}
+        table.insert(mods, {key = 'swift', w = 3})
+        table.insert(mods, {key = 'brutal', w = 3})
+        if shield > 0 then table.insert(mods, {key = 'warded', w = 2}) end
+        if def.shootInterval or (def.attacks and def.attacks.burst) then
+            table.insert(mods, {key = 'sniper', w = 2})
+        end
+        local pick = chooseWeighted(mods)
+        eliteMod = pick and pick.key or 'brutal'
+
+        if eliteMod == 'swift' then
+            speed = speed * 1.35
+            eliteWindupMult = 0.9
+            eliteDamageMult = 1.05
+            color = {0.25, 1.0, 0.95}
+        elseif eliteMod == 'warded' then
+            shield = shield * 1.6 + 40
+            eliteDamageMult = 1.10
+            shieldRegenDelay = SHIELD_REGEN_DELAY * 0.8
+            shieldRegenRate = SHIELD_REGEN_RATE * 1.35
+            color = {0.35, 0.65, 1.0}
+        elseif eliteMod == 'sniper' then
+            eliteDamageMult = 1.15
+            eliteBulletSpeedMult = 1.35
+            if shootInterval then shootInterval = shootInterval * 0.75 end
+            color = {0.85, 0.35, 1.0}
+        else
+            eliteMod = 'brutal'
+            eliteDamageMult = 1.35
+            color = {1.0, 0.25, 0.15}
+        end
     end
 
     table.insert(state.enemies, {
@@ -365,14 +423,20 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
         color = color,
         size = size,
         isElite = isElite,
+        eliteMod = eliteMod,
+        eliteDamageMult = eliteDamageMult,
+        eliteWindupMult = eliteWindupMult,
+        eliteBulletSpeedMult = eliteBulletSpeedMult,
+        shieldRegenDelay = shieldRegenDelay,
+        shieldRegenRate = shieldRegenRate,
         isBoss = def.isBoss or false,
         kind = type,
-        shootInterval = def.shootInterval,
-        shootTimer = def.shootInterval,
-        bulletSpeed = def.bulletSpeed,
-        bulletDamage = def.bulletDamage,
-        bulletLife = def.bulletLife,
-        bulletSize = def.bulletSize,
+        shootInterval = shootInterval,
+        shootTimer = shootInterval,
+        bulletSpeed = bulletSpeed,
+        bulletDamage = bulletDamage,
+        bulletLife = bulletLife,
+        bulletSize = bulletSize,
         facing = 1
     })
     if state.loadMoveAnimationFromFolder then
@@ -382,6 +446,9 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
     end
     local spawned = state.enemies[#state.enemies]
     ensureStatus(spawned)
+    if spawned and spawned.isElite and spawned.eliteMod and state and state.texts then
+        table.insert(state.texts, {x = spawned.x, y = spawned.y - 70, text = string.upper(spawned.eliteMod), color = {1, 1, 1}, life = 1.2})
+    end
     if state and state.augments and state.augments.dispatch then
         state.augments.dispatch(state, 'onEnemySpawned', {
             enemy = spawned,
@@ -483,6 +550,26 @@ function enemies.update(state, dt)
         local e = state.enemies[i]
         ensureStatus(e)
         local def = enemyDefs[e.kind] or enemyDefs.skeleton
+
+        -- Boss phase (simple HP thresholds) to create a readable escalation.
+        if e.isBoss or (def and def.isBoss) then
+            local maxHp = (e.maxHealth or e.maxHp or 1)
+            local hp = (e.health or e.hp or 0)
+            local ratio = (maxHp > 0) and (hp / maxHp) or 0
+            local phase = 1
+            if ratio <= 0.33 then phase = 3
+            elseif ratio <= 0.66 then phase = 2 end
+            if e.bossPhase == nil then
+                e.bossPhase = phase
+            elseif phase ~= e.bossPhase then
+                e.bossPhase = phase
+                if state and state.texts then
+                    table.insert(state.texts, {x = e.x, y = e.y - 120, text = "PHASE " .. phase, color = {1, 0.35, 0.25}, life = 1.4})
+                end
+                -- prevent long idle gaps when entering a new phase
+                if e.attackCooldown and e.attackCooldown > 0.6 then e.attackCooldown = 0.6 end
+            end
+        end
 
         if e.flashTimer and e.flashTimer > 0 then
             e.flashTimer = e.flashTimer - dt
@@ -749,9 +836,11 @@ function enemies.update(state, dt)
         end
 
         if e.maxShield and e.maxShield > 0 and not (e.status and e.status.shieldLocked) then
+            local delay = e.shieldRegenDelay or SHIELD_REGEN_DELAY
+            local rate = e.shieldRegenRate or SHIELD_REGEN_RATE
             e.shieldDelayTimer = (e.shieldDelayTimer or 0) + dt
-            if e.shieldDelayTimer >= SHIELD_REGEN_DELAY and e.shield < e.maxShield then
-                local regen = e.maxShield * SHIELD_REGEN_RATE * dt
+            if e.shieldDelayTimer >= delay and e.shield < e.maxShield then
+                local regen = e.maxShield * rate * dt
                 e.shield = math.min(e.maxShield, e.shield + regen)
             end
         end
@@ -815,10 +904,10 @@ function enemies.update(state, dt)
         end
 
         local attacks = def and def.attacks
-        if attacks and not stunned then
-            local atk = e.attack
 
-            -- tick active attack
+        -- tick active telegraphed attack
+        do
+            local atk = e.attack
             if atk and atk.type == 'charge' then
                 if atk.phase == 'windup' then
                     atk.timer = (atk.timer or 0) - dt * coldMult
@@ -852,65 +941,192 @@ function enemies.update(state, dt)
                             state.spawnEffect('blast_hit', sx, sy, s)
                         end
                         e.attack = nil
-                        e.attackCooldown = atk.cooldown or (attacks.slam and attacks.slam.cooldown) or 3.0
+                        e.attackCooldown = atk.cooldown or 3.0
+                    end
+                end
+            elseif atk and atk.type == 'burst' then
+                if atk.phase == 'windup' then
+                    atk.timer = (atk.timer or 0) - dt * coldMult
+                    if atk.timer <= 0 then
+                        local baseAng = atk.ang or angToTarget
+                        local count = math.max(1, math.floor(atk.count or 5))
+                        local spread = atk.spread or 0.8
+                        local spd = (atk.bulletSpeed or (e.bulletSpeed or 180))
+                        local dmg = (atk.bulletDamage or (e.bulletDamage or 10))
+                        local life = atk.bulletLife or (e.bulletLife or 5)
+                        local size = atk.bulletSize or (e.bulletSize or 10)
+                        local spriteKey = atk.spriteKey
+                        if not spriteKey and (e.kind == 'plant' or e.kind == 'boss_treant') then
+                            spriteKey = 'plant_bullet'
+                        end
+
+                        local dmgMult = 1 - getPunctureReduction(e)
+                        if dmgMult < 0.25 then dmgMult = 0.25 end
+                        local bulletDmg = dmg * dmgMult
+
+                        for k = 1, count do
+                            local t = (count == 1) and 0 or ((k - 1) / (count - 1) - 0.5)
+                            local ang = baseAng + t * spread
+                            table.insert(state.enemyBullets, {
+                                x = e.x, y = e.y,
+                                vx = math.cos(ang) * spd, vy = math.sin(ang) * spd,
+                                size = size,
+                                life = life,
+                                damage = bulletDmg,
+                                type = e.kind,
+                                rotation = ang,
+                                spriteKey = spriteKey
+                            })
+                        end
+                        e.attack = nil
+                        e.attackCooldown = atk.cooldown or 2.5
+                    end
+                end
+            end
+        end
+
+        -- start a new telegraphed attack if ready (multi-attack enemies pick by weights + range)
+        if attacks and not stunned and not e.attack and (e.attackCooldown or 0) <= 0 then
+            local dx = targetX - e.x
+            local dy = targetY - e.y
+            local distSq = dx * dx + dy * dy
+
+            local pool = {}
+            for key, cfg in pairs(attacks) do
+                if type(cfg) == 'table' then
+                    local minR = cfg.rangeMin or 0
+                    local maxR = cfg.range or cfg.rangeMax or cfg.maxRange or 999999
+                    if distSq >= minR * minR and distSq <= maxR * maxR then
+                        local w = cfg.w or cfg.weight or 1
+                        if e.isBoss then
+                            local phase = e.bossPhase or 1
+                            if key == 'burst' then
+                                if phase == 1 then w = w * 1.20
+                                elseif phase == 3 then w = w * 0.85 end
+                            elseif key == 'slam' then
+                                if phase == 2 then w = w * 1.15 end
+                            elseif key == 'charge' then
+                                if phase == 3 then w = w * 1.25 end
+                            end
+                        end
+                        if w > 0 then
+                            table.insert(pool, {key = key, cfg = cfg, w = w})
+                        end
                     end
                 end
             end
 
-            -- start a new attack if ready
-            if not e.attack and (e.attackCooldown or 0) <= 0 then
-                local dx = targetX - e.x
-                local dy = targetY - e.y
-                local distSq = dx * dx + dy * dy
+            local pick = (#pool > 0) and chooseWeighted(pool) or nil
+            if pick then
+                local key = pick.key
+                local cfg = pick.cfg or {}
+                local bossPhase = e.bossPhase or 1
+                local phaseK = math.max(0, bossPhase - 1)
+                local eliteDamageMult = (e.eliteDamageMult or 1)
+                local windupMult = (e.eliteWindupMult or 1)
 
-                local charge = attacks.charge
-                if charge then
-                    local range = charge.range or 320
-                    if distSq <= range * range then
-                        local windup = charge.windup or 0.55
-                        local distance = charge.distance or 260
-                        local spd = charge.speed or 520
-                        local width = charge.telegraphWidth or 36
-                        local damage = charge.damage or 18
-                        e.attack = {
-                            type = 'charge',
-                            phase = 'windup',
-                            timer = windup,
-                            dirX = math.cos(angToTarget),
-                            dirY = math.sin(angToTarget),
-                            distance = distance,
-                            speed = spd,
-                            width = width,
-                            damage = damage,
-                            cooldown = charge.cooldown or 2.5
-                        }
-                        if state.spawnTelegraphLine then
-                            local ex, ey = e.x, e.y
-                            state.spawnTelegraphLine(ex, ey, ex + math.cos(angToTarget) * distance, ey + math.sin(angToTarget) * distance, width, windup)
-                        end
+                local circleOpts = nil
+                if e.isBoss then circleOpts = {kind = 'danger', intensity = 1.35 + phaseK * 0.15}
+                elseif e.isElite then circleOpts = {kind = 'telegraph', intensity = 1.1} end
+
+                local lineOpts = nil
+                if e.isBoss then lineOpts = {color = {1.0, 0.55, 0.22}}
+                elseif e.isElite then lineOpts = {color = {1.0, 0.25, 0.25}} end
+
+                if key == 'charge' then
+                    local windup = math.max(0.4, (cfg.windup or 0.55) * windupMult)
+                    local distance = cfg.distance or 260
+                    local spd = cfg.speed or 520
+                    local width = cfg.telegraphWidth or 36
+                    local damage = (cfg.damage or 18) * eliteDamageMult
+                    local cooldown = cfg.cooldown or 2.5
+                    if e.isBoss then
+                        windup = math.max(0.45, windup * (1 - phaseK * 0.07))
+                        distance = distance * (1 + phaseK * 0.12)
+                        spd = spd * (1 + phaseK * 0.08)
+                        width = width * (1 + phaseK * 0.08)
+                        damage = damage * (1 + phaseK * 0.12)
+                        cooldown = math.max(1.2, cooldown * (1 - phaseK * 0.08))
                     end
-                end
-
-                local slam = attacks.slam
-                if not e.attack and slam then
-                    local range = slam.range or 420
-                    if distSq <= range * range then
-                        local windup = slam.windup or 0.85
-                        local radius = slam.radius or 110
-                        local damage = slam.damage or 16
-                        e.attack = {
-                            type = 'slam',
-                            phase = 'windup',
-                            timer = windup,
-                            x = targetX,
-                            y = targetY,
-                            radius = radius,
-                            damage = damage,
-                            cooldown = slam.cooldown or 3.0
-                        }
-                        if state.spawnTelegraphCircle then
-                            state.spawnTelegraphCircle(targetX, targetY, radius, windup)
-                        end
+                    e.attack = {
+                        type = 'charge',
+                        phase = 'windup',
+                        timer = windup,
+                        dirX = math.cos(angToTarget),
+                        dirY = math.sin(angToTarget),
+                        distance = distance,
+                        speed = spd,
+                        width = width,
+                        damage = damage,
+                        cooldown = cooldown
+                    }
+                    if state.spawnTelegraphLine then
+                        local ex, ey = e.x, e.y
+                        state.spawnTelegraphLine(ex, ey, ex + math.cos(angToTarget) * distance, ey + math.sin(angToTarget) * distance, width, windup, lineOpts)
+                    end
+                elseif key == 'slam' then
+                    local windup = math.max(0.45, (cfg.windup or 0.85) * windupMult)
+                    local radius = cfg.radius or 110
+                    local damage = (cfg.damage or 16) * eliteDamageMult
+                    local cooldown = cfg.cooldown or 3.0
+                    if e.isBoss then
+                        windup = math.max(0.5, windup * (1 - phaseK * 0.06))
+                        radius = radius * (1 + phaseK * 0.12)
+                        damage = damage * (1 + phaseK * 0.12)
+                        cooldown = math.max(1.4, cooldown * (1 - phaseK * 0.07))
+                    end
+                    e.attack = {
+                        type = 'slam',
+                        phase = 'windup',
+                        timer = windup,
+                        x = targetX,
+                        y = targetY,
+                        radius = radius,
+                        damage = damage,
+                        cooldown = cooldown
+                    }
+                    if state.spawnTelegraphCircle then
+                        state.spawnTelegraphCircle(targetX, targetY, radius, windup, circleOpts)
+                    end
+                elseif key == 'burst' then
+                    local windup = math.max(0.45, (cfg.windup or 0.6) * windupMult)
+                    local count = cfg.count or 5
+                    local spread = cfg.spread or 0.8
+                    local bulletSpeed = (cfg.bulletSpeed or (e.bulletSpeed or 180)) * (e.eliteBulletSpeedMult or 1)
+                    local bulletDamage = (cfg.bulletDamage or (e.bulletDamage or 10)) * eliteDamageMult
+                    local bulletLife = cfg.bulletLife or (e.bulletLife or 5)
+                    local bulletSize = cfg.bulletSize or (e.bulletSize or 10)
+                    local cooldown = cfg.cooldown or 2.5
+                    local len = cfg.telegraphLength or cfg.distance or 360
+                    local width = cfg.telegraphWidth or 46
+                    if e.isBoss then
+                        windup = math.max(0.55, windup * (1 - phaseK * 0.05))
+                        count = count + phaseK * 2
+                        spread = spread * (1 + phaseK * 0.16)
+                        bulletSpeed = bulletSpeed * (1 + phaseK * 0.06)
+                        bulletDamage = bulletDamage * (1 + phaseK * 0.10)
+                        len = len * (1 + phaseK * 0.05)
+                        width = width * (1 + phaseK * 0.10)
+                        cooldown = math.max(1.2, cooldown * (1 - phaseK * 0.10))
+                    end
+                    e.attack = {
+                        type = 'burst',
+                        phase = 'windup',
+                        timer = windup,
+                        ang = angToTarget, -- lock direction for fairness/readability
+                        count = count,
+                        spread = spread,
+                        bulletSpeed = bulletSpeed,
+                        bulletDamage = bulletDamage,
+                        bulletLife = bulletLife,
+                        bulletSize = bulletSize,
+                        cooldown = cooldown,
+                        width = width,
+                        length = len
+                    }
+                    if state.spawnTelegraphLine then
+                        local ex, ey = e.x, e.y
+                        state.spawnTelegraphLine(ex, ey, ex + math.cos(angToTarget) * len, ey + math.sin(angToTarget) * len, width, windup, lineOpts)
                     end
                 end
             end
@@ -925,12 +1141,12 @@ function enemies.update(state, dt)
                     local spread = blastRed * 0.7
                     ang = ang + (math.random() - 0.5) * spread * 2
                 end
-                local spd = e.bulletSpeed or 180
+                local spd = (e.bulletSpeed or 180) * (e.eliteBulletSpeedMult or 1)
                 local spriteKey = nil
-                if e.kind == 'plant' then spriteKey = 'plant_bullet' end
+                if e.kind == 'plant' or e.kind == 'boss_treant' then spriteKey = 'plant_bullet' end
                 local dmgMult = 1 - getPunctureReduction(e)
                 if dmgMult < 0.25 then dmgMult = 0.25 end
-                local bulletDmg = (e.bulletDamage or 10) * dmgMult
+                local bulletDmg = (e.bulletDamage or 10) * dmgMult * (e.eliteDamageMult or 1)
                 table.insert(state.enemyBullets, {
                     x = e.x, y = e.y,
                     vx = math.cos(ang) * spd, vy = math.sin(ang) * spd,
@@ -996,7 +1212,7 @@ function enemies.update(state, dt)
         if not inChargeDash and pDist < (playerRadius + enemyRadius) and not e.noContactDamage then
             local dmgMult = 1 - getPunctureReduction(e)
             if dmgMult < 0.25 then dmgMult = 0.25 end
-            local baseContact = (def and def.contactDamage) or 10
+            local baseContact = ((def and def.contactDamage) or 10) * (e.eliteDamageMult or 1)
             player.hurt(state, baseContact * dmgMult)
         end
 

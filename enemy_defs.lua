@@ -145,11 +145,17 @@ local enemyDefs = {
         size = 48,
         color = {0.9, 0.25, 0.25},
         spawnDistance = 620,
-        shootInterval = 1.6,
         bulletSpeed = 220,
         bulletDamage = 16,
         bulletLife = 6,
         bulletSize = 14,
+        contactDamage = 14,
+        attacks = {
+            -- 3 readable boss moves: cone burst (ranged), slam (AoE), charge (line dash)
+            burst = {rangeMin = 260, range = 1200, w = 5, windup = 0.75, count = 7, spread = 0.95, bulletSpeed = 240, bulletDamage = 14, bulletLife = 6, bulletSize = 14, cooldown = 2.2, telegraphWidth = 58, telegraphLength = 520},
+            slam  = {range = 760, w = 3, windup = 0.95, radius = 150, cooldown = 2.8, damage = 20},
+            charge = {range = 420, w = 3, windup = 0.70, distance = 420, speed = 720, cooldown = 2.6, damage = 24, telegraphWidth = 56}
+        },
         animKey = 'plant',
         isBoss = true,
         noDrops = true,
