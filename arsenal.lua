@@ -195,10 +195,20 @@ function arsenal.adjustRank(state, modKey, delta)
     state.applyPersistentMods()
 end
 
-function arsenal.startRun(state)
+function arsenal.startRun(state, opts)
+    opts = opts or {}
     state.applyPersistentMods()
     if not state.inventory.weapons or not next(state.inventory.weapons) then
-        weapons.addWeapon(state, 'wand')
+        local startKey = 'wand'
+        if not opts.skipStartingWeapon then
+            startKey = (state.profile and state.profile.modTargetWeapon) or startKey
+        end
+
+        local def = state.catalog and state.catalog[startKey]
+        if not def or def.type ~= 'weapon' or def.evolvedOnly then
+            startKey = 'wand'
+        end
+        weapons.addWeapon(state, startKey)
     end
     state.gameState = 'PLAYING'
 end
@@ -215,6 +225,7 @@ function arsenal.keypressed(state, key)
             local weaponKey = list[a.weaponIdx]
             state.profile.modTargetWeapon = weaponKey
             setMessage(state, "Weapon: " .. tostring((state.catalog[weaponKey] and state.catalog[weaponKey].name) or weaponKey))
+            if state.saveProfile then state.saveProfile(state.profile) end
         end
         return true
     end

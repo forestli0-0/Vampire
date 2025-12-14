@@ -46,7 +46,7 @@ function love.load()
     -- weapons.addWeapon(state, 'heavy_hammer')
 
     if state.pendingScenarioId then
-        arsenal.startRun(state)
+        arsenal.startRun(state, {skipStartingWeapon = true})
         testScenarios.apply(state, state.pendingScenarioId)
         state.activeScenarioId = state.pendingScenarioId
         state.activeScenarioSeed = state.pendingScenarioSeed
