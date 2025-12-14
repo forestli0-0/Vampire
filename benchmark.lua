@@ -89,6 +89,7 @@ function benchmark.toggle(state)
         state.pendingLevelUps = 0
         state.pendingUpgradeRequests = {}
         state.activeUpgradeRequest = nil
+        state.pendingWeaponSwap = nil
         state.doors = {}
         state.player.level = 1
         state.player.xp = 0
@@ -103,6 +104,7 @@ function benchmark.toggle(state)
         state.pendingLevelUps = 0
         state.pendingUpgradeRequests = {}
         state.activeUpgradeRequest = nil
+        state.pendingWeaponSwap = nil
         state.doors = {}
         state.upgradeOptions = {}
         state.player.level = 1

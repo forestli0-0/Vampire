@@ -155,9 +155,8 @@ function love.keypressed(key)
     -- 等级界面：按数字选择升级
     if debugmenu.keypressed(state, key) then return end
     if state.gameState == 'LEVEL_UP' then
-        local idx = tonumber(key)
-        if idx and idx >= 1 and idx <= #state.upgradeOptions then
-            upgrades.applyUpgrade(state, state.upgradeOptions[idx])
+        local function finalizeLevelUp()
+            state.pendingWeaponSwap = nil
             if state.pendingLevelUps > 0 then
                 state.pendingLevelUps = state.pendingLevelUps - 1
                 local nextReq = nil
@@ -172,6 +171,38 @@ function love.keypressed(key)
                 state.pendingUpgradeRequests = {}
                 state.gameState = 'PLAYING'
             end
+        end
+
+        if state.pendingWeaponSwap and state.pendingWeaponSwap.opt then
+            if key == '0' or key == 'escape' or key == 'backspace' then
+                state.pendingWeaponSwap = nil
+                return
+            end
+            local idx = tonumber(key)
+            if idx then
+                local weaponKeys = upgrades.getWeaponKeys(state)
+                local oldKey = weaponKeys[idx]
+                if oldKey then
+                    state.inventory.weapons[oldKey] = nil
+                    upgrades.applyUpgrade(state, state.pendingWeaponSwap.opt)
+                    finalizeLevelUp()
+                end
+            end
+            return
+        end
+
+        local idx = tonumber(key)
+        if idx and idx >= 1 and idx <= #state.upgradeOptions then
+            local opt = state.upgradeOptions[idx]
+            if opt and opt.type == 'weapon' and not opt.evolveFrom and not state.inventory.weapons[opt.key] then
+                local maxWeapons = upgrades.getMaxWeapons(state)
+                if maxWeapons > 0 and upgrades.countWeapons(state) >= maxWeapons then
+                    state.pendingWeaponSwap = {opt = opt}
+                    return
+                end
+            end
+            upgrades.applyUpgrade(state, opt)
+            finalizeLevelUp()
         end
     end
 end

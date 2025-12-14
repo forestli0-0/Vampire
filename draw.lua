@@ -959,43 +959,70 @@ function draw.renderUI(state)
         love.graphics.setColor(0,0,0,0.9)
         love.graphics.rectangle('fill', 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
         love.graphics.setFont(state.titleFont)
-        love.graphics.printf("LEVEL UP! Choose One:", 0, 100, love.graphics.getWidth(), "center")
 
-        love.graphics.setFont(state.font)
-        for i, opt in ipairs(state.upgradeOptions) do
-            local y = 200 + (i-1) * 100
-            love.graphics.setColor(0.3, 0.3, 0.3)
-            love.graphics.rectangle('fill', 200, y, 400, 80)
-            love.graphics.setColor(1,1,1)
-            love.graphics.print(i .. ". " .. opt.name, 220, y+10)
-            love.graphics.setColor(0.7,0.7,0.7)
-            love.graphics.print(opt.desc, 220, y+35)
+        if state.pendingWeaponSwap and state.pendingWeaponSwap.opt then
+            local swapOpt = state.pendingWeaponSwap.opt
+            love.graphics.printf("WEAPON SWAP! Choose a weapon to replace:", 0, 90, love.graphics.getWidth(), "center")
+            love.graphics.setFont(state.font)
+            love.graphics.setColor(0.9, 0.9, 0.9)
+            love.graphics.printf("New: " .. tostring(swapOpt.name or swapOpt.key), 0, 140, love.graphics.getWidth(), "center")
 
-            if opt.type == 'weapon' and opt.def and opt.def.base then
-                local w = state.inventory.weapons[opt.key]
-                local base = opt.def.base
-                local crit = (w and w.critChance) or base.critChance or 0
-                local critMult = (w and w.critMultiplier) or base.critMultiplier or 1.5
-                local status = (w and w.statusChance) or base.statusChance or 0
-                local amount = (w and w.amount) or base.amount or 0
-                
-                local statStr = string.format("Crit: %d%% (x%.1f)  Status: %d%%", crit*100, critMult, status*100)
-                if amount > 0 then
-                    statStr = statStr .. string.format("  Multi: +%d", amount)
-                end
-                love.graphics.setColor(0.8, 0.8, 0.5)
-                love.graphics.print(statStr, 220, y+55)
+            local weaponKeys = {}
+            for k, _ in pairs(state.inventory.weapons or {}) do table.insert(weaponKeys, k) end
+            table.sort(weaponKeys)
+
+            for i, key in ipairs(weaponKeys) do
+                local y = 210 + (i - 1) * 100
+                love.graphics.setColor(0.3, 0.3, 0.3)
+                love.graphics.rectangle('fill', 200, y, 400, 80)
+                love.graphics.setColor(1, 1, 1)
+                local def = state.catalog[key] or {}
+                local inv = state.inventory.weapons[key] or {}
+                local name = def.name or key
+                love.graphics.print(string.format("%d. %s  (Lv%d)", i, name, inv.level or 1), 220, y + 18)
             end
 
-            local curLv = 0
-            if opt.type == 'weapon' and state.inventory.weapons[opt.key] then curLv = state.inventory.weapons[opt.key].level end
-            if opt.type == 'passive' and state.inventory.passives[opt.key] then curLv = state.inventory.passives[opt.key] end
-            if opt.type == 'mod' and state.inventory.mods and state.inventory.mods[opt.key] then curLv = state.inventory.mods[opt.key] end
-            if opt.type == 'augment' and state.inventory.augments and state.inventory.augments[opt.key] then curLv = state.inventory.augments[opt.key] end
-            love.graphics.print("Current Lv: " .. curLv, 500, y+10)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.printf("Press 1-3 to replace, or 0 to cancel", 0, 550, love.graphics.getWidth(), "center")
+        else
+            love.graphics.printf("LEVEL UP! Choose One:", 0, 100, love.graphics.getWidth(), "center")
+
+            love.graphics.setFont(state.font)
+            for i, opt in ipairs(state.upgradeOptions) do
+                local y = 200 + (i-1) * 100
+                love.graphics.setColor(0.3, 0.3, 0.3)
+                love.graphics.rectangle('fill', 200, y, 400, 80)
+                love.graphics.setColor(1,1,1)
+                love.graphics.print(i .. ". " .. opt.name, 220, y+10)
+                love.graphics.setColor(0.7,0.7,0.7)
+                love.graphics.print(opt.desc, 220, y+35)
+
+                if opt.type == 'weapon' and opt.def and opt.def.base then
+                    local w = state.inventory.weapons[opt.key]
+                    local base = opt.def.base
+                    local crit = (w and w.critChance) or base.critChance or 0
+                    local critMult = (w and w.critMultiplier) or base.critMultiplier or 1.5
+                    local status = (w and w.statusChance) or base.statusChance or 0
+                    local amount = (w and w.amount) or base.amount or 0
+                    
+                    local statStr = string.format("Crit: %d%% (x%.1f)  Status: %d%%", crit*100, critMult, status*100)
+                    if amount > 0 then
+                        statStr = statStr .. string.format("  Multi: +%d", amount)
+                    end
+                    love.graphics.setColor(0.8, 0.8, 0.5)
+                    love.graphics.print(statStr, 220, y+55)
+                end
+
+                local curLv = 0
+                if opt.type == 'weapon' and state.inventory.weapons[opt.key] then curLv = state.inventory.weapons[opt.key].level end
+                if opt.type == 'passive' and state.inventory.passives[opt.key] then curLv = state.inventory.passives[opt.key] end
+                if opt.type == 'mod' and state.inventory.mods and state.inventory.mods[opt.key] then curLv = state.inventory.mods[opt.key] end
+                if opt.type == 'augment' and state.inventory.augments and state.inventory.augments[opt.key] then curLv = state.inventory.augments[opt.key] end
+                love.graphics.print("Current Lv: " .. curLv, 500, y+10)
+            end
+            love.graphics.setColor(1,1,1)
+            love.graphics.printf("Press 1, 2, or 3 to select", 0, 550, love.graphics.getWidth(), "center")
         end
-        love.graphics.setColor(1,1,1)
-        love.graphics.printf("Press 1, 2, or 3 to select", 0, 550, love.graphics.getWidth(), "center")
     end
 end
 

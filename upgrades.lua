@@ -3,6 +3,29 @@ local logger = require('logger')
 
 local upgrades = {}
 
+function upgrades.getMaxWeapons(state)
+    local max = (state and state.maxWeaponsPerRun) or 6
+    max = tonumber(max) or 6
+    return math.max(0, math.floor(max))
+end
+
+function upgrades.countWeapons(state)
+    local n = 0
+    for _, _ in pairs(state.inventory.weapons or {}) do
+        n = n + 1
+    end
+    return n
+end
+
+function upgrades.getWeaponKeys(state)
+    local keys = {}
+    for k, _ in pairs(state.inventory.weapons or {}) do
+        table.insert(keys, k)
+    end
+    table.sort(keys)
+    return keys
+end
+
 local function dispatch(state, eventName, ctx)
     if state and state.augments and state.augments.dispatch then
         state.augments.dispatch(state, eventName, ctx or {})
@@ -51,11 +74,7 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
     end
 
     local function countWeapons()
-        local n = 0
-        for _, _ in pairs(state.inventory.weapons or {}) do
-            n = n + 1
-        end
-        return n
+        return upgrades.countWeapons(state)
     end
 
     local allowedTypes = request and request.allowedTypes
@@ -170,10 +189,15 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
         preferExistingChance = 0.55
     end
 
+    local maxWeapons = upgrades.getMaxWeapons(state)
+    local weaponsOwned = countWeapons()
+    if maxWeapons > 0 and weaponsOwned >= maxWeapons then
+        preferExistingChance = math.min(0.92, preferExistingChance + 0.25)
+    end
+
     -- Early feel: ensure at least one "new route" option (weapon/augment) when possible.
     if #state.upgradeOptions < 3 then
-        local weaponsOwned = countWeapons()
-        if typeAllowed('weapon') and weaponsOwned < 2 and not hasType(state.upgradeOptions, 'weapon') then
+        if typeAllowed('weapon') and weaponsOwned < math.min(2, math.max(1, maxWeapons)) and not hasType(state.upgradeOptions, 'weapon') then
             local forcedWeapon = takeRandomOfType(poolNew, 'weapon')
             if forcedWeapon then
                 table.insert(state.upgradeOptions, forcedWeapon)

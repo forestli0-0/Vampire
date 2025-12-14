@@ -817,6 +817,7 @@ function state.init()
     state.inventory = { weapons = {}, passives = {}, mods = {}, modOrder = {}, augments = {}, augmentOrder = {} }
     state.augmentState = {}
     state.maxAugmentsPerRun = 4
+    state.maxWeaponsPerRun = 3
 
     state.profile = state.loadProfile()
     state.applyPersistentMods()
@@ -830,6 +831,7 @@ function state.init()
     state.chests = {}
     state.doors = {}
     state.upgradeOptions = {}
+    state.pendingWeaponSwap = nil
     state.pendingUpgradeRequests = {}
     state.activeUpgradeRequest = nil
     state.chainLinks = {}
