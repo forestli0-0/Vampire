@@ -838,6 +838,10 @@ function state.init()
     state.directorState = { event60 = false, event120 = false }
     state.shakeAmount = 0
 
+    -- Run structure: 'rooms' (Hades-like room flow) or 'survival' (timed director).
+    state.runMode = 'rooms'
+    state.rooms = { enabled = true, phase = 'init', roomIndex = 0, bossRoom = 8 }
+
     -- 资源加载：先尝试真实素材，缺失时生成占位
     local function genBeep(freq, duration)
         duration = duration or 0.1

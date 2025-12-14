@@ -15,6 +15,7 @@ local benchmark = require('benchmark')
 local arsenal = require('arsenal')
 local bloom = require('bloom')
 local vfx = require('vfx')
+local rooms = require('rooms')
 local testmode = require('testmode')
 local testScenarios = require('test_scenarios')
 
@@ -90,7 +91,11 @@ function love.update(dt)
     weapons.update(state, dt)
     projectiles.updatePlayerBullets(state, dt)
     projectiles.updateEnemyBullets(state, dt)
-    director.update(state, dt)
+    if state.runMode == 'rooms' and not state.testArena and not state.scenarioNoDirector and not state.benchmarkMode then
+        rooms.update(state, dt)
+    else
+        director.update(state, dt)
+    end
     enemies.update(state, dt)
     -- 根据移动状态控制玩家动画
     if state.playerAnim then

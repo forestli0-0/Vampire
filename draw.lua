@@ -862,6 +862,24 @@ function draw.renderUI(state)
     local timeStr = string.format("%02d:%02d", minutes, seconds)
     love.graphics.printf(timeStr, 0, 20, love.graphics.getWidth(), "center")
 
+    if state.runMode == 'rooms' and state.rooms and (state.rooms.roomIndex or 0) > 0 then
+        local r = state.rooms
+        local room = r.roomIndex or 0
+        local wave = r.waveIndex or 0
+        local waves = r.wavesTotal or 0
+        local label = string.format("ROOM %d", room)
+        if (r.phase or '') == 'boss' then
+            label = string.format("ROOM %d  BOSS", room)
+        elseif (r.phase or '') == 'reward' then
+            label = string.format("ROOM %d  CLEAR", room)
+        elseif waves > 0 then
+            label = string.format("ROOM %d  WAVE %d/%d", room, math.max(1, wave), waves)
+        end
+        love.graphics.setColor(1, 1, 1, 0.95)
+        love.graphics.printf(label, 0, 40, love.graphics.getWidth(), "center")
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+
     if state.gameState == 'GAME_CLEAR' then
         local w, h = love.graphics.getWidth(), love.graphics.getHeight()
         love.graphics.setColor(0,0,0,0.8)
