@@ -143,7 +143,9 @@ function projectiles.updatePlayerBullets(state, dt)
             if b.type == 'wand' or b.type == 'holy_wand' or b.type == 'fire_wand' or b.type == 'hellfire' or b.type == 'oil_bottle' or b.type == 'heavy_hammer' or b.type == 'dagger' or b.type == 'thousand_edge' or b.type == 'static_orb' or b.type == 'thunder_loop' or b.type == 'debug_effect' or b.type == 'augment_shard' then
                 b.x = b.x + b.vx * dt
                 b.y = b.y + b.vy * dt
-                b.rotation = math.atan2(b.vy, b.vx)
+                if b.type ~= 'oil_bottle' then
+                    b.rotation = math.atan2(b.vy, b.vx)
+                end
             elseif b.type == 'axe' then
                 b.x = b.x + b.vx * dt
                 b.y = b.y + b.vy * dt

@@ -201,7 +201,7 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
         local bullet = {
             type=type, x=x, y=y, vx=math.cos(angle)*spd, vy=math.sin(angle)*spd,
             life=wStats.life or 2, size=size, damage=finalDmg, effectType=effectType, weaponTags=weaponTags,
-            pierce=wStats.pierce or 1, rotation=angle,
+            pierce=wStats.pierce or 1, rotation=(type == 'oil_bottle') and 0 or angle,
             effectDuration=wStats.duration, splashRadius=wStats.splashRadius, effectRange=wStats.staticRange, chain=wStats.chain, allowRepeat=wStats.allowRepeat,
             elements=wStats.elements, damageBreakdown=wStats.damageBreakdown,
             critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance

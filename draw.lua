@@ -666,10 +666,19 @@ function draw.renderWorld(state)
                 end
                 local sw, sh = sprite:getWidth(), sprite:getHeight()
                 local scale = ((b.size or sw) / sw) * ((state.weaponSpriteScale and state.weaponSpriteScale[b.type]) or 1)
+                local sx = scale
+                local sy = scale
                 love.graphics.push()
                 love.graphics.translate(b.x, b.y)
-                if b.rotation then love.graphics.rotate(b.rotation) end
-                love.graphics.draw(sprite, 0, 0, 0, scale, scale, sw/2, sh/2)
+                local rot = b.rotation
+                if b.type == 'oil_bottle' then
+                    rot = 0
+                elseif b.type == 'heavy_hammer' and (b.vx or 0) < 0 then
+                    rot = (rot or 0) + math.pi
+                    sx = -sx
+                end
+                if rot then love.graphics.rotate(rot) end
+                love.graphics.draw(sprite, 0, 0, 0, sx, sy, sw/2, sh/2)
                 love.graphics.pop()
             else
                 if b.type == 'axe' then love.graphics.setColor(0,1,1) else love.graphics.setColor(1,1,0) end
