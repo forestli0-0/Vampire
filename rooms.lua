@@ -46,6 +46,8 @@ local function ensureState(state)
     r.rewardCycle = r.rewardCycle or {'weapon', 'passive', 'mod', 'augment'}
     r.roomRewardType = r.roomRewardType or nil
     r.nextRewardType = r.nextRewardType or nil
+    r.roomKind = r.roomKind or 'normal'
+    r.nextRoomKind = r.nextRoomKind or nil
     r._hadCombat = r._hadCombat or false
     return r
 end
@@ -104,6 +106,15 @@ local function buildEnemyPool(roomIndex)
     return pool
 end
 
+local function chooseEliteKind(roomIndex)
+    if (roomIndex or 0) < 4 then return 'skeleton' end
+    local candidates = {'skeleton', 'bat', 'plant', 'shield_lancer'}
+    if (roomIndex or 0) >= 6 then
+        table.insert(candidates, 'armored_brute')
+    end
+    return candidates[math.random(#candidates)] or 'skeleton'
+end
+
 local function spawnWave(state, r)
     local roomIndex = r.roomIndex or 1
     local waveIndex = r.waveIndex or 1
@@ -117,13 +128,17 @@ local function spawnWave(state, r)
     local px, py = state.player.x, state.player.y
     local spawnR = 380 + math.random() * 220
 
+    local eliteCount = (r.roomKind == 'elite') and 1 or 0
+    eliteCount = math.min(eliteCount, count)
     for _ = 1, count do
-        local kind = chooseWeighted(pool) or 'skeleton'
+        local isElite = (eliteCount > 0)
+        if isElite then eliteCount = eliteCount - 1 end
+        local kind = isElite and chooseEliteKind(roomIndex) or (chooseWeighted(pool) or 'skeleton')
         local ang = math.random() * 6.283185307179586
         local dist = spawnR + math.random() * 120
         local x = px + math.cos(ang) * dist
         local y = py + math.sin(ang) * dist
-        enemies.spawnEnemy(state, kind, false, x, y)
+        enemies.spawnEnemy(state, kind, isElite, x, y)
     end
 
     r._hadCombat = true
@@ -139,6 +154,11 @@ local function startRoom(state, r)
     r.rewardChest = nil
     state.doors = state.doors or {}
     clearList(state.doors)
+
+    local roomKind = r.nextRoomKind
+    r.nextRoomKind = nil
+    if roomKind == nil then roomKind = 'normal' end
+    r.roomKind = roomKind
 
     local rewardType = r.nextRewardType
     r.nextRewardType = nil
@@ -156,7 +176,7 @@ local function startRoom(state, r)
     table.insert(state.texts, {
         x = state.player.x,
         y = state.player.y - 100,
-        text = string.format("ROOM %d", r.roomIndex),
+        text = string.format("ROOM %d%s", r.roomIndex, (roomKind == 'elite') and " (ELITE)" or ""),
         color = {1, 1, 1},
         life = 1.2
     })
@@ -185,17 +205,20 @@ local function spawnRewardChest(state, r)
         h = 20,
         kind = 'room_reward',
         room = r.roomIndex,
-        rewardType = rewardType
+        rewardType = rewardType,
+        roomKind = r.roomKind,
+        bonusLevelUps = (r.roomKind == 'elite') and 1 or nil
     }
     table.insert(state.chests, chest)
     r.rewardChest = chest
 
     local rewardLabel = ''
     if rewardType then rewardLabel = ' (' .. string.upper(tostring(rewardType)) .. ')' end
+    local clearLabel = (r.roomKind == 'elite') and 'ELITE CLEAR!' or 'ROOM CLEAR!'
     table.insert(state.texts, {
         x = cx,
         y = cy - 100,
-        text = "ROOM CLEAR!" .. rewardLabel,
+        text = clearLabel .. rewardLabel,
         color = {0.8, 1, 0.8},
         life = 1.8
     })
@@ -213,11 +236,17 @@ local function spawnDoors(state, r)
     end
     local leftType, rightType = pickTwoDistinct(cycle)
 
+    local leftKind, rightKind = 'normal', 'normal'
+    local nextRoomIndex = (r.roomIndex or 0) + 1
+    if nextRoomIndex >= 3 and nextRoomIndex < (r.bossRoom or 8) then
+        if math.random() < 0.5 then leftKind = 'elite' else rightKind = 'elite' end
+    end
+
     local offset = 150
     local w, h = 54, 86
     local size = 70
-    table.insert(state.doors, {x = cx - offset, y = cy, w = w, h = h, size = size, kind = 'door', rewardType = leftType})
-    table.insert(state.doors, {x = cx + offset, y = cy, w = w, h = h, size = size, kind = 'door', rewardType = rightType})
+    table.insert(state.doors, {x = cx - offset, y = cy, w = w, h = h, size = size, kind = 'door', rewardType = leftType, roomKind = leftKind})
+    table.insert(state.doors, {x = cx + offset, y = cy, w = w, h = h, size = size, kind = 'door', rewardType = rightType, roomKind = rightKind})
 
     table.insert(state.texts, {
         x = cx,
@@ -236,6 +265,8 @@ local function startBossRoom(state, r)
     r.rewardChest = nil
     r.roomRewardType = nil
     r.nextRewardType = nil
+    r.roomKind = 'boss'
+    r.nextRoomKind = nil
     state.doors = state.doors or {}
     clearList(state.doors)
     r._hadCombat = false
@@ -335,13 +366,15 @@ function rooms.update(state, dt)
             if d and util.checkCollision(p, d) then
                 local rewardType = d.rewardType
                 r.nextRewardType = rewardType
+                r.nextRoomKind = d.roomKind or 'normal'
                 clearList(state.doors)
 
                 local suffix = rewardType and (" (" .. string.upper(tostring(rewardType)) .. ")") or ""
+                local kindLabel = (r.nextRoomKind == 'elite') and " ELITE" or ""
                 table.insert(state.texts, {
                     x = p.x,
                     y = p.y - 110,
-                    text = "NEXT ROOM" .. suffix,
+                    text = "NEXT ROOM" .. kindLabel .. suffix,
                     color = {0.85, 0.95, 1},
                     life = 1.2
                 })

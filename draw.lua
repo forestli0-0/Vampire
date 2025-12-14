@@ -396,9 +396,19 @@ function draw.renderWorld(state)
             love.graphics.rectangle('fill', x - w/2, y - h/2, w, h, 8, 8)
             love.graphics.setColor(0, 0, 0, 0.45)
             love.graphics.rectangle('line', x - w/2, y - h/2, w, h, 8, 8)
+            if d.roomKind == 'elite' then
+                love.graphics.setColor(1, 0.2, 0.2, 0.9)
+                love.graphics.setLineWidth(3)
+                love.graphics.rectangle('line', x - w/2 - 3, y - h/2 - 3, w + 6, h + 6, 10, 10)
+                love.graphics.setLineWidth(1)
+            end
             love.graphics.setColor(1, 1, 1, 0.95)
             local label = d.rewardType and string.upper(tostring(d.rewardType)) or "?"
             love.graphics.printf(label, x - 80, y - h/2 - 18, 160, "center")
+            if d.roomKind == 'elite' then
+                love.graphics.setColor(1, 0.2, 0.2, 0.95)
+                love.graphics.printf("ELITE", x - 80, y + h/2 + 2, 160, "center")
+            end
         end
         love.graphics.setColor(1, 1, 1)
     end
@@ -893,15 +903,16 @@ function draw.renderUI(state)
         local room = r.roomIndex or 0
         local wave = r.waveIndex or 0
         local waves = r.wavesTotal or 0
+        local kindSuffix = ((r.roomKind or '') == 'elite') and "  ELITE" or ""
         local label = string.format("ROOM %d", room)
         if (r.phase or '') == 'boss' then
             label = string.format("ROOM %d  BOSS", room)
         elseif (r.phase or '') == 'reward' then
-            label = string.format("ROOM %d  CLEAR", room)
+            label = string.format("ROOM %d%s  CLEAR", room, kindSuffix)
         elseif (r.phase or '') == 'doors' then
             label = string.format("ROOM %d  CHOOSE NEXT", room)
         elseif waves > 0 then
-            label = string.format("ROOM %d  WAVE %d/%d", room, math.max(1, wave), waves)
+            label = string.format("ROOM %d%s  WAVE %d/%d", room, kindSuffix, math.max(1, wave), waves)
         end
         love.graphics.setColor(1, 1, 1, 0.95)
         love.graphics.printf(label, 0, 40, love.graphics.getWidth(), "center")
