@@ -48,6 +48,11 @@ local function ensureState(state)
     r.nextRewardType = r.nextRewardType or nil
     r.roomKind = r.roomKind or 'normal'
     r.nextRoomKind = r.nextRoomKind or nil
+
+    -- Reward pacing knobs (Hades-like defaults for rooms mode)
+    if r.xpGivesUpgrades == nil then r.xpGivesUpgrades = false end
+    if r.eliteDropsChests == nil then r.eliteDropsChests = false end
+    if r.eliteRoomBonusUpgrades == nil then r.eliteRoomBonusUpgrades = 1 end
     r._hadCombat = r._hadCombat or false
     return r
 end
@@ -207,8 +212,15 @@ local function spawnRewardChest(state, r)
         room = r.roomIndex,
         rewardType = rewardType,
         roomKind = r.roomKind,
-        bonusLevelUps = (r.roomKind == 'elite') and 1 or nil
+        bonusLevelUps = nil
     }
+    if r.roomKind == 'elite' then
+        local bonus = tonumber(r.eliteRoomBonusUpgrades) or 0
+        bonus = math.max(0, math.floor(bonus))
+        if bonus > 0 then
+            chest.bonusLevelUps = bonus
+        end
+    end
     table.insert(state.chests, chest)
     r.rewardChest = chest
 

@@ -891,7 +891,22 @@ function enemies.update(state, dt)
             end
             if not e.noDrops then
                 if e.isElite then
-                    table.insert(state.chests, {x=e.x, y=e.y, w=20, h=20})
+                    local dropChest = true
+                    if state.runMode == 'rooms' and state.rooms and state.rooms.eliteDropsChests == false then
+                        dropChest = false
+                    end
+                    if dropChest then
+                        table.insert(state.chests, {x=e.x, y=e.y, w=20, h=20})
+                    else
+                        -- rooms mode: elites are rewarded via room clear choice; keep kill drops light.
+                        if math.random() < 0.35 then
+                            local kinds = {'chicken', 'magnet', 'bomb'}
+                            local kind = kinds[math.random(#kinds)]
+                            table.insert(state.floorPickups, {x=e.x, y=e.y, size=14, kind=kind})
+                        else
+                            table.insert(state.gems, {x=e.x, y=e.y, value=3})
+                        end
+                    end
                 else
                     if math.random() < 0.01 then
                         local kinds = {'chicken','magnet','bomb'}

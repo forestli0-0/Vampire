@@ -843,7 +843,16 @@ function state.init()
 
     -- Run structure: 'rooms' (Hades-like room flow) or 'survival' (timed director).
     state.runMode = 'rooms'
-    state.rooms = { enabled = true, phase = 'init', roomIndex = 0, bossRoom = 8 }
+    state.rooms = {
+        enabled = true,
+        phase = 'init',
+        roomIndex = 0,
+        bossRoom = 8,
+        -- reward pacing defaults (rooms mode): upgrades mainly come from room rewards + elites, not XP spam.
+        xpGivesUpgrades = false,
+        eliteDropsChests = false,
+        eliteRoomBonusUpgrades = 1
+    }
 
     -- 资源加载：先尝试真实素材，缺失时生成占位
     local function genBeep(freq, duration)

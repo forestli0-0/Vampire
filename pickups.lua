@@ -37,7 +37,13 @@ local function addXp(state, amount)
         if state and state.augments and state.augments.dispatch then
             state.augments.dispatch(state, 'onLevelUp', {level = p.level, player = p})
         end
-        upgrades.queueLevelUp(state, 'xp')
+        local giveUpgrade = true
+        if state.runMode == 'rooms' and state.rooms and state.rooms.xpGivesUpgrades == false then
+            giveUpgrade = false
+        end
+        if giveUpgrade then
+            upgrades.queueLevelUp(state, 'xp')
+        end
         logger.levelUp(state, p.level)
     end
 end
