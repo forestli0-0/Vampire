@@ -1,4 +1,5 @@
 local enemies = require('enemies')
+local util = require('util')
 
 local rooms = {}
 
@@ -43,8 +44,31 @@ local function ensureState(state)
     r.rewardChest = r.rewardChest or nil
     r.bossRoom = r.bossRoom or 8
     r.rewardCycle = r.rewardCycle or {'weapon', 'passive', 'mod', 'augment'}
+    r.roomRewardType = r.roomRewardType or nil
+    r.nextRewardType = r.nextRewardType or nil
     r._hadCombat = r._hadCombat or false
     return r
+end
+
+local function pickTwoDistinct(list)
+    if type(list) ~= 'table' or #list <= 0 then return nil, nil end
+    if #list == 1 then return list[1], list[1] end
+
+    local a = list[math.random(#list)]
+    local b = list[math.random(#list)]
+    local guard = 0
+    while b == a and guard < 12 do
+        b = list[math.random(#list)]
+        guard = guard + 1
+    end
+    if b == a then
+        local idx = 1
+        for i, v in ipairs(list) do
+            if v == a then idx = i break end
+        end
+        b = list[(idx % #list) + 1]
+    end
+    return a, b
 end
 
 local function chooseWeighted(pool)
@@ -113,6 +137,19 @@ local function startRoom(state, r)
     if r.roomIndex >= 6 then r.wavesTotal = 4 end
     r.timer = 0
     r.rewardChest = nil
+    state.doors = state.doors or {}
+    clearList(state.doors)
+
+    local rewardType = r.nextRewardType
+    r.nextRewardType = nil
+    if rewardType == nil then
+        local cycle = r.rewardCycle
+        if type(cycle) == 'table' and #cycle > 0 then
+            rewardType = cycle[((r.roomIndex or 1) - 1) % #cycle + 1]
+        end
+    end
+    r.roomRewardType = rewardType
+
     r._hadCombat = false
     r.phase = 'spawning'
 
@@ -134,10 +171,12 @@ local function spawnRewardChest(state, r)
 
     local cx = r.roomCenterX or state.player.x
     local cy = r.roomCenterY or state.player.y
-    local rewardType = nil
-    local cycle = r.rewardCycle
-    if type(cycle) == 'table' and #cycle > 0 then
-        rewardType = cycle[((r.roomIndex or 1) - 1) % #cycle + 1]
+    local rewardType = r.roomRewardType
+    if rewardType == nil then
+        local cycle = r.rewardCycle
+        if type(cycle) == 'table' and #cycle > 0 then
+            rewardType = cycle[((r.roomIndex or 1) - 1) % #cycle + 1]
+        end
     end
     local chest = {
         x = cx,
@@ -162,12 +201,43 @@ local function spawnRewardChest(state, r)
     })
 end
 
+local function spawnDoors(state, r)
+    state.doors = state.doors or {}
+    clearList(state.doors)
+
+    local cx = r.roomCenterX or state.player.x
+    local cy = r.roomCenterY or state.player.y
+    local cycle = r.rewardCycle
+    if type(cycle) ~= 'table' or #cycle <= 0 then
+        cycle = {'weapon', 'passive', 'mod', 'augment'}
+    end
+    local leftType, rightType = pickTwoDistinct(cycle)
+
+    local offset = 150
+    local w, h = 54, 86
+    local size = 70
+    table.insert(state.doors, {x = cx - offset, y = cy, w = w, h = h, size = size, kind = 'door', rewardType = leftType})
+    table.insert(state.doors, {x = cx + offset, y = cy, w = w, h = h, size = size, kind = 'door', rewardType = rightType})
+
+    table.insert(state.texts, {
+        x = cx,
+        y = cy - 120,
+        text = "CHOOSE NEXT ROOM",
+        color = {0.9, 0.9, 1},
+        life = 1.4
+    })
+end
+
 local function startBossRoom(state, r)
     r.phase = 'boss'
     r.waveIndex = 1
     r.wavesTotal = 1
     r.timer = 0
     r.rewardChest = nil
+    r.roomRewardType = nil
+    r.nextRewardType = nil
+    state.doors = state.doors or {}
+    clearList(state.doors)
     r._hadCombat = false
 
     clearList(state.enemyBullets)
@@ -243,8 +313,44 @@ function rooms.update(state, dt)
             return
         end
         r.rewardChest = nil
-        r.timer = 0.25
-        r.phase = 'between_rooms'
+
+        -- if the next room is the boss room, skip branching and move on.
+        local nextRoom = (r.roomIndex or 0) + 1
+        if nextRoom >= (r.bossRoom or 8) then
+            r.timer = 0.25
+            r.phase = 'between_rooms'
+            return
+        end
+
+        r.phase = 'doors'
+        spawnDoors(state, r)
+        return
+    end
+
+    if r.phase == 'doors' then
+        clearList(state.enemyBullets)
+
+        local p = state.player or {}
+        for _, d in ipairs(state.doors or {}) do
+            if d and util.checkCollision(p, d) then
+                local rewardType = d.rewardType
+                r.nextRewardType = rewardType
+                clearList(state.doors)
+
+                local suffix = rewardType and (" (" .. string.upper(tostring(rewardType)) .. ")") or ""
+                table.insert(state.texts, {
+                    x = p.x,
+                    y = p.y - 110,
+                    text = "NEXT ROOM" .. suffix,
+                    color = {0.85, 0.95, 1},
+                    life = 1.2
+                })
+
+                r.timer = 0.25
+                r.phase = 'between_rooms'
+                return
+            end
+        end
         return
     end
 

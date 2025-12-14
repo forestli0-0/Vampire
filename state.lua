@@ -828,6 +828,7 @@ function state.init()
     state.magnetTimer = 60
     state.texts = {}
     state.chests = {}
+    state.doors = {}
     state.upgradeOptions = {}
     state.pendingUpgradeRequests = {}
     state.activeUpgradeRequest = nil

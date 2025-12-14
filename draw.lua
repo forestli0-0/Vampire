@@ -377,6 +377,32 @@ function draw.renderWorld(state)
         end
     end
 
+    -- 房间出口门（分支奖励）
+    if state.doors then
+        local colors = {
+            weapon = {1.0, 0.55, 0.5},
+            passive = {0.55, 1.0, 0.55},
+            mod = {0.55, 0.8, 1.0},
+            augment = {1.0, 0.9, 0.45}
+        }
+        for _, d in ipairs(state.doors) do
+            local col = colors[d.rewardType] or {1, 1, 1}
+            local w = d.w or 54
+            local h = d.h or 86
+            local x = d.x or 0
+            local y = d.y or 0
+
+            love.graphics.setColor(col[1], col[2], col[3], 0.75)
+            love.graphics.rectangle('fill', x - w/2, y - h/2, w, h, 8, 8)
+            love.graphics.setColor(0, 0, 0, 0.45)
+            love.graphics.rectangle('line', x - w/2, y - h/2, w, h, 8, 8)
+            love.graphics.setColor(1, 1, 1, 0.95)
+            local label = d.rewardType and string.upper(tostring(d.rewardType)) or "?"
+            love.graphics.printf(label, x - 80, y - h/2 - 18, 160, "center")
+        end
+        love.graphics.setColor(1, 1, 1)
+    end
+
     -- 地面道具
     for _, item in ipairs(state.floorPickups) do
         local sprite = state.pickupSprites and state.pickupSprites[item.kind]
@@ -872,6 +898,8 @@ function draw.renderUI(state)
             label = string.format("ROOM %d  BOSS", room)
         elseif (r.phase or '') == 'reward' then
             label = string.format("ROOM %d  CLEAR", room)
+        elseif (r.phase or '') == 'doors' then
+            label = string.format("ROOM %d  CHOOSE NEXT", room)
         elseif waves > 0 then
             label = string.format("ROOM %d  WAVE %d/%d", room, math.max(1, wave), waves)
         end
