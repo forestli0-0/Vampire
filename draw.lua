@@ -164,6 +164,12 @@ local function drawOutlineRect(x, y, size, t)
     love.graphics.rectangle('fill', x - size / 2 - t, y - size / 2 - t, size + t * 2, size + t * 2)
 end
 
+local function clamp01(v)
+    if v < 0 then return 0 end
+    if v > 1 then return 1 end
+    return v
+end
+
 local function drawStatsPanel(state)
     if not state or state.gameState ~= 'PLAYING' then return end
 
@@ -382,6 +388,130 @@ local function drawStatsPanel(state)
         end
         if ty > y + panelH - lineH then break end
     end
+end
+
+local function drawPetPanel(state)
+    if not state or state.gameState ~= 'PLAYING' then return end
+
+    local ps = state.pets or {}
+    local pet = (ps.list and ps.list[1]) or nil
+    local lostKey = ps.lostKey
+
+    if not pet and not lostKey then return end
+
+    local w, _ = love.graphics.getWidth(), love.graphics.getHeight()
+    local panelW = 240
+    local x = w - panelW - 10
+    local y = 60
+    local padding = 8
+    local lineH = 16
+
+    local title = "PET"
+    local lines = {}
+    local bar = nil
+    local extra = nil
+
+    if pet then
+        local def = state.catalog and state.catalog[pet.key]
+        local name = (def and def.name) or pet.name or pet.key
+        local module = pet.module or 'default'
+        local mode = (pet.mode == 'hold') and "HOLD" or "FOLLOW"
+        local lvl = pet.level or ps.runLevel or 1
+
+        table.insert(lines, string.format("%s  Lv%d", name, lvl))
+        table.insert(lines, string.format("Module: %s    Mode: %s", tostring(module), mode))
+
+        local hp = pet.hp or 0
+        local maxHp = pet.maxHp or 1
+        local hpRatio = (maxHp > 0) and clamp01(hp / maxHp) or 0
+        bar = {label = string.format("HP %d/%d", math.floor(hp), math.floor(maxHp)), ratio = hpRatio, kind = 'hp'}
+
+        if pet.downed then
+            local bleedout = (ps.bleedoutTime or 10.0) - (pet.downedTimer or 0)
+            if bleedout < 0 then bleedout = 0 end
+            extra = {kind = 'downed', bleedout = bleedout}
+            local hold = ps.reviveHoldTime or 1.1
+            local prog = (hold > 0) and clamp01((pet.reviveProgress or 0) / hold) or 0
+            extra.reviveRatio = prog
+        else
+            local cd = pet.abilityCooldown or 3.0
+            local t = pet.abilityTimer or 0
+            local ratio = 0
+            if cd > 0 then
+                ratio = clamp01(1 - (t / cd))
+            end
+            extra = {kind = 'ability', ratio = ratio, time = math.max(0, t)}
+        end
+    else
+        title = "PET LOST"
+        local def = state.catalog and state.catalog[lostKey]
+        local name = (def and def.name) or tostring(lostKey)
+        table.insert(lines, name)
+        table.insert(lines, "Find an EVENT room to revive")
+    end
+
+    local panelH = padding * 2 + (#lines + 1) * lineH + 26
+    if extra and extra.kind == 'downed' then
+        panelH = panelH + 22
+    end
+
+    love.graphics.setColor(0, 0, 0, 0.6)
+    love.graphics.rectangle('fill', x, y, panelW, panelH, 6, 6)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print(title, x + padding, y + padding)
+
+    local ty = y + padding + lineH
+    for _, line in ipairs(lines) do
+        love.graphics.setColor(0.9, 0.9, 0.95, 1)
+        love.graphics.print(line, x + padding, ty)
+        ty = ty + lineH
+    end
+
+    -- HP bar
+    if bar then
+        local barX, barY = x + padding, ty + 2
+        local barW, barH = panelW - padding * 2, 8
+        love.graphics.setColor(0.1, 0.1, 0.1, 0.75)
+        love.graphics.rectangle('fill', barX, barY, barW, barH)
+
+        local fillCol = {0.75, 0.95, 1.0}
+        if pet and pet.key == 'pet_corrosive' then fillCol = {0.55, 1.0, 0.55} end
+        if pet and pet.key == 'pet_guardian' then fillCol = {0.8, 0.9, 1.0} end
+        if pet and pet.downed then fillCol = {1.0, 0.35, 0.35} end
+
+        love.graphics.setColor(fillCol[1], fillCol[2], fillCol[3], 0.9)
+        love.graphics.rectangle('fill', barX, barY, barW * bar.ratio, barH)
+
+        love.graphics.setColor(1, 1, 1, 0.95)
+        love.graphics.print(bar.label, barX, barY + 10)
+        ty = barY + 10 + lineH
+    end
+
+    -- Extra status (ability / downed)
+    if extra and extra.kind == 'ability' then
+        local barX, barY = x + padding, ty + 2
+        local barW, barH = panelW - padding * 2, 6
+        love.graphics.setColor(0.1, 0.1, 0.1, 0.65)
+        love.graphics.rectangle('fill', barX, barY, barW, barH)
+        love.graphics.setColor(0.9, 0.85, 0.45, 0.9)
+        love.graphics.rectangle('fill', barX, barY, barW * clamp01(extra.ratio or 0), barH)
+        love.graphics.setColor(0.85, 0.85, 0.85, 0.95)
+        love.graphics.print(string.format("Ability %.1fs", extra.time or 0), barX, barY + 8)
+    elseif extra and extra.kind == 'downed' then
+        love.graphics.setColor(1, 0.45, 0.45, 0.95)
+        love.graphics.print(string.format("DOWN  Bleedout %.1fs", extra.bleedout or 0), x + padding, ty + 2)
+
+        local barX, barY = x + padding, ty + 20
+        local barW, barH = panelW - padding * 2, 6
+        love.graphics.setColor(0.1, 0.1, 0.1, 0.65)
+        love.graphics.rectangle('fill', barX, barY, barW, barH)
+        love.graphics.setColor(0.55, 1.0, 0.55, 0.9)
+        love.graphics.rectangle('fill', barX, barY, barW * clamp01(extra.reviveRatio or 0), barH)
+        love.graphics.setColor(0.85, 0.85, 0.85, 0.95)
+        love.graphics.print("Hold E to revive", barX, barY + 8)
+    end
+
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 function draw.renderWorld(state)
@@ -1106,6 +1236,7 @@ function draw.renderUI(state)
     end
 
     drawStatsPanel(state)
+    drawPetPanel(state)
 
       -- HUD
       love.graphics.setColor(0,0,1)
