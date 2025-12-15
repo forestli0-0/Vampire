@@ -377,9 +377,11 @@ function state.init()
             onUpgrade = function(w) end
         },
         oil_bottle = {
-            type = 'weapon', name = "Oil Bottle",
+            -- RESERVED for specialized Pet content in future.
+            type = 'reserved', name = "Oil Bottle",
             desc = "Coats enemies in Oil.",
             maxLevel = 5,
+            hidden = true,
             behavior = 'SHOOT_NEAREST',
             behaviorParams = {rotate = false},
             tags = {'weapon', 'projectile', 'chemical'},
