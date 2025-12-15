@@ -4,6 +4,20 @@
 
 ---
 
+## 0) 关卡层级结构（Level Hierarchy）
+
+游戏通关流程（Run）由以下层级组成：
+
+1. **章节（Biome）**：视觉主题与敌人池的集合（例如：森林、工厂、虚空）。
+   - 每个 Run 包含 **3 个**章节。
+2. **关卡/中型地图（Stage）**：玩家当前所在的物理空间。
+   - 每个章节包含 **3 个关卡**（Stage 1-1、1-2、1-3 Boss）。
+   - Stage 1-1 & 1-2 是探索图；Stage 1-3 是 Boss 竞技场。
+3. **区域（Sector）**：构成关卡的最小物理单元（类似 Warframe 的 Tile）。
+   - 一个 Stage 由 **3~5 个**相连的 Sector 组成（例如：出生点 -> 走廊 -> 十字路口 -> 终点）。
+
+> 术语映射（便于落到代码）：现阶段 `world.lua` 生成的“rooms/房间”更接近 **Sector**；`mission.lua` 的 `zone` 也基本等价于 Sector。未来在“Stage”层做拼装与推进，在“Biome”层切换 tileset/敌人池/氛围参数。
+
 ## 1) Warframe 的核心做法（抽象成可落地规则）
 
 1. **Tileset（模块库）**
@@ -64,4 +78,3 @@
 - 依然可以复用：
   - `world.lua` 的碰撞/导航
   - `mission.lua` 的区域触发遭遇（只要给每个区域定义 bounds + spawn 点）
-
