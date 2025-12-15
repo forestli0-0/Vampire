@@ -455,7 +455,11 @@ function calculator.applyDamage(state, enemy, instance, opts)
                 perOpts.bypassShield = true
             end
 
+            -- Viral is applied here in 'amt'
             local amt = (baseAmt or 0) * mult * (perOpts.viralMultiplier or 1)
+            -- Prevent double application in enemies.damageEnemy
+            perOpts.viralMultiplier = 1
+            
             if amt <= 0 then return end
 
             local remain = amt
@@ -523,6 +527,8 @@ function calculator.applyDamage(state, enemy, instance, opts)
         if amt > 0 then
             local perOpts = {}
             for k, v in pairs(opts) do perOpts[k] = v end
+            -- Prevent double application
+            perOpts.viralMultiplier = 1
             
             -- 1. Shield Logic (Untyped)
             local shieldHit = 0
