@@ -842,11 +842,16 @@ function enemies.update(state, dt)
                         local r2 = radius * radius
                         applyDotTick(state, e, 'ELECTRIC', tick)
                         local shown = 0
+                        local world = state.world
+                        local useLos = world and world.enabled and world.segmentHitsWall
                         for _, o in ipairs(state.enemies) do
                             if o ~= e and o.health > 0 then
                                 local dx = o.x - e.x
                                 local dy = o.y - e.y
                                 if dx*dx + dy*dy <= r2 then
+                                    if useLos and world:segmentHitsWall(e.x, e.y, o.x, o.y) then
+                                        goto continue_static_chain
+                                    end
                                     ensureStatus(o)
                                     local applied = false
                                     if (o.status.staticSplashCd or 0) <= 0 then
@@ -860,6 +865,7 @@ function enemies.update(state, dt)
                                     end
                                 end
                             end
+                            ::continue_static_chain::
                         end
                     end
                 end
@@ -1416,36 +1422,73 @@ function enemies.update(state, dt)
                 state.augments.dispatch(state, 'onKill', {enemy = e, player = state.player, lastDamage = e.lastDamage})
             end
             if e.isBoss then
-                local rewardCurrency = 100
-                local newModKey = nil
-                if state.profile and state.catalog then
-                    state.profile.ownedMods = state.profile.ownedMods or {}
-                    local locked = {}
-                    for key, def in pairs(state.catalog) do
-                        if def.type == 'mod' and not state.profile.ownedMods[key] then
-                            table.insert(locked, key)
+                local exploreMode = (state.runMode == 'explore') or (state.world and state.world.enabled)
+                if exploreMode then
+                    state.chests = state.chests or {}
+                    table.insert(state.chests, {x = e.x, y = e.y, w = 26, h = 26, kind = 'boss_reward', rewardCurrency = 100})
+                    state.directorState = state.directorState or {}
+                    state.directorState.bossDefeated = true
+                    if state.enemyBullets then
+                        for k = #state.enemyBullets, 1, -1 do table.remove(state.enemyBullets, k) end
+                    end
+                    if state.texts then
+                        table.insert(state.texts, {x = e.x, y = e.y - 110, text = "BOSS DOWN! CLAIM REWARD", color = {1, 0.85, 0.35}, life = 2.2})
+                    end
+                    logger.kill(state, e)
+                    table.remove(state.enemies, i)
+                    goto continue_enemy
+                else
+                    local rewardCurrency = 100
+                    local newModKey = nil
+                    if state.profile and state.catalog then
+                        state.profile.ownedMods = state.profile.ownedMods or {}
+                        local locked = {}
+                        for key, def in pairs(state.catalog) do
+                            if def.type == 'mod' and not state.profile.ownedMods[key] then
+                                table.insert(locked, key)
+                            end
                         end
+                        if #locked > 0 then
+                            newModKey = locked[math.random(#locked)]
+                            state.profile.ownedMods[newModKey] = true
+                        end
+                        state.profile.currency = (state.profile.currency or 0) + rewardCurrency
+                        if state.saveProfile then state.saveProfile(state.profile) end
                     end
-                    if #locked > 0 then
-                        newModKey = locked[math.random(#locked)]
-                        state.profile.ownedMods[newModKey] = true
-                    end
-                    state.profile.currency = (state.profile.currency or 0) + rewardCurrency
-                    if state.saveProfile then state.saveProfile(state.profile) end
+                    state.victoryRewards = {
+                        currency = rewardCurrency,
+                        newModKey = newModKey,
+                        newModName = (newModKey and state.catalog and state.catalog[newModKey] and state.catalog[newModKey].name) or nil
+                    }
+                    state.gameState = 'GAME_CLEAR'
+                    state.directorState = state.directorState or {}
+                    state.directorState.bossDefeated = true
+                    logger.kill(state, e)
+                    table.remove(state.enemies, i)
+                    goto continue_enemy
                 end
-                state.victoryRewards = {
-                    currency = rewardCurrency,
-                    newModKey = newModKey,
-                    newModName = (newModKey and state.catalog and state.catalog[newModKey] and state.catalog[newModKey].name) or nil
-                }
-                state.gameState = 'GAME_CLEAR'
-                state.directorState = state.directorState or {}
-                state.directorState.bossDefeated = true
-                logger.kill(state, e)
-                table.remove(state.enemies, i)
-                goto continue_enemy
             end
             if not e.noDrops then
+                local exploreMode = (state.runMode == 'explore') or (state.world and state.world.enabled)
+                if exploreMode then
+                    local gain = e.isElite and 6 or 1
+                    if not e.isElite and math.random() < 0.12 then gain = gain + 1 end
+                    if state.gainGold then
+                        state.gainGold(gain, {source = 'kill', enemy = e, x = e.x, y = e.y - 20, life = 0.55})
+                    else
+                        state.runCurrency = (state.runCurrency or 0) + gain
+                        table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 0.55})
+                    end
+
+                    if e.isElite and state.floorPickups then
+                        local pet = pets.getActive(state)
+                        if pet and not pet.downed and (pet.module or 'default') == 'default' then
+                            if math.random() < 0.35 then
+                                table.insert(state.floorPickups, {x = e.x + 26, y = e.y + 8, size = 14, kind = 'pet_module_chip'})
+                            end
+                        end
+                    end
+                else
                 local roomsMode = (state.runMode == 'rooms')
                 local useXp = true
                 if roomsMode and state.rooms and state.rooms.useXp == false then
@@ -1501,6 +1544,7 @@ function enemies.update(state, dt)
                             table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 0.55})
                         end
                     end
+                end
                 end
             end
             logger.kill(state, e)

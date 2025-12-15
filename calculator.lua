@@ -352,6 +352,8 @@ local function spawnVoltStaticChain(state, enemy, instance, procCount)
 
     local function findNearest(fromX, fromY, visited)
         local best, bestD2 = nil, (range * range)
+        local world = state.world
+        local useLos = world and world.enabled and world.segmentHitsWall
         for _, o in ipairs(state.enemies) do
             if o and o ~= enemy and not o.isDummy then
                 local hp = (o.health or o.hp or 0)
@@ -360,8 +362,10 @@ local function spawnVoltStaticChain(state, enemy, instance, procCount)
                     local dy = (o.y or 0) - fromY
                     local d2 = dx * dx + dy * dy
                     if d2 > 0 and d2 <= bestD2 then
-                        bestD2 = d2
-                        best = o
+                        if not (useLos and world:segmentHitsWall(fromX, fromY, o.x, o.y)) then
+                            bestD2 = d2
+                            best = o
+                        end
                     end
                 end
             end

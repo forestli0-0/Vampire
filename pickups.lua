@@ -10,6 +10,9 @@ function pickups.updateMagnetSpawns(state, dt)
     if state.runMode == 'rooms' then
         return
     end
+    if state.runMode == 'explore' or (state.world and state.world.enabled) then
+        return
+    end
     state.magnetTimer = state.magnetTimer - dt
     if state.magnetTimer <= 0 then
         local dist = math.random(450, 750)
@@ -120,6 +123,43 @@ function pickups.updateChests(state, dt)
             end
 
             if not cancel then
+                -- Boss reward chest: ends the run and grants meta rewards (no in-run upgrades).
+                if c and c.kind == 'boss_reward' then
+                    local rewardCurrency = tonumber(c.rewardCurrency) or 100
+                    local newModKey = nil
+                    if state.profile and state.catalog then
+                        state.profile.ownedMods = state.profile.ownedMods or {}
+                        local locked = {}
+                        for key, def in pairs(state.catalog) do
+                            if def.type == 'mod' and not state.profile.ownedMods[key] then
+                                table.insert(locked, key)
+                            end
+                        end
+                        if #locked > 0 then
+                            newModKey = locked[math.random(#locked)]
+                            state.profile.ownedMods[newModKey] = true
+                        end
+                        state.profile.currency = (state.profile.currency or 0) + rewardCurrency
+                        if state.saveProfile then state.saveProfile(state.profile) end
+                    end
+                    state.victoryRewards = {
+                        currency = rewardCurrency,
+                        newModKey = newModKey,
+                        newModName = (newModKey and state.catalog and state.catalog[newModKey] and state.catalog[newModKey].name) or nil
+                    }
+                    state.gameState = 'GAME_CLEAR'
+                    state.directorState = state.directorState or {}
+                    state.directorState.bossDefeated = true
+                    if state and state.augments and state.augments.dispatch then
+                        ctx = ctx or {kind = 'chest', amount = 1, player = p, chest = c}
+                        ctx.bossReward = true
+                        state.augments.dispatch(state, 'postPickup', ctx)
+                    end
+                    logger.pickup(state, 'boss_reward')
+                    table.remove(state.chests, i)
+                    goto continue_chest
+                end
+
                 -- Room-mode economy: reward run currency on room reward chests (shop spend).
                 if state and not state.benchmarkMode and c and c.kind == 'room_reward' then
                     local room = tonumber(c.room) or (state.rooms and state.rooms.roomIndex) or 1
@@ -170,6 +210,7 @@ function pickups.updateChests(state, dt)
                 table.remove(state.chests, i)
             end
         end
+        ::continue_chest::
     end
 end
 
