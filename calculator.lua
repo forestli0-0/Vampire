@@ -54,6 +54,23 @@ local function getTypeModifier(dmgType, defenseType)
     return 1
 end
 
+local function getEffectiveArmor(e)
+    local armor = (e and e.armor) or 0
+    if e and e.status then
+        if e.status.heatTimer and e.status.heatTimer > 0 then armor = armor * 0.5 end
+        -- Corrosive stripping is usually applied to baseArmor in enemies.lua, checking if we need to account for it here.
+        -- In enemies.lua applyStatus('CORROSIVE'), it modifies e.armor directly. So e.armor IS the current armor.
+    end
+    if armor < 0 then armor = 0 end
+    return armor
+end
+
+local function applyArmorReduction(dmg, armor)
+    if not armor or armor <= 0 then return dmg end
+    local dr = armor / (armor + 300)
+    return dmg * (1 - dr)
+end
+
 local function combineElements(elements, damageByType)
     if not elements or #elements == 0 then return elements, damageByType end
     local out = {}
@@ -438,7 +455,7 @@ function calculator.applyDamage(state, enemy, instance, opts)
                 perOpts.bypassShield = true
             end
 
-            local amt = (baseAmt or 0) * mult
+            local amt = (baseAmt or 0) * mult * (perOpts.viralMultiplier or 1)
             if amt <= 0 then return end
 
             local remain = amt
@@ -464,14 +481,28 @@ function calculator.applyDamage(state, enemy, instance, opts)
 
             if remain > 0 then
                 local mHealth = getTypeModifier(key, enemy.healthType or 'FLESH')
-                local mArmor = 1
+                
+                -- Refactor: Handle Armor in Calculator
+                local finalAmt = remain
+                
+                -- 1. Type Modifier for Armor (if present)
                 if not perOpts.ignoreArmor and (enemy.armor or 0) > 0 then
-                    mArmor = getTypeModifier(key, enemy.armorType or 'FERRITE_ARMOR')
+                     local mArmorType = getTypeModifier(key, enemy.armorType or 'FERRITE_ARMOR')
+                     finalAmt = finalAmt * mArmorType
+                     
+                     -- 2. Armor DR
+                     local effArmor = getEffectiveArmor(enemy)
+                     finalAmt = applyArmorReduction(finalAmt, effArmor)
                 end
-                local effRemain = remain * mHealth * mArmor
-                local finalAmt = math.floor(effRemain + 0.5)
+
+                -- 3. Health Type Modifier
+                finalAmt = finalAmt * mHealth
+                
+                finalAmt = math.floor(finalAmt + 0.5)
+                
                 if finalAmt > 0 then
                     perOpts.bypassShield = true
+                    perOpts.ignoreArmor = true -- IMPORTANT: We applied it here, so tell enemies.damageEnemy to ignore it
                     perOpts.noText = true
                     perOpts.noFlash = true
                     perOpts.noSfx = true
@@ -487,14 +518,53 @@ function calculator.applyDamage(state, enemy, instance, opts)
         end
     else
         local base = instance.damage or 0
-        local amt = math.floor(base * mult + 0.5)
+        local amt = math.floor(base * mult * (opts.viralMultiplier or 1) + 0.5)
+        
         if amt > 0 then
             local perOpts = {}
             for k, v in pairs(opts) do perOpts[k] = v end
-            perOpts.noText = true
-            perOpts.noFlash = true
-            perOpts.noSfx = true
-            totalApplied, totalShield, totalHealth = enemies.damageEnemy(state, enemy, amt, false, 0, isCrit, perOpts)
+            
+            -- 1. Shield Logic (Untyped)
+            local shieldHit = 0
+            if not perOpts.bypassShield and enemy.shield and enemy.shield > 0 then
+                -- Untyped damage vs Shield: 1.0 modifier (unless we want to default to Impact/etc? No, keep 1.0)
+                -- Shield Mult from options (e.g. Magnetic status) still applies
+                local mShield = 1.0 * (perOpts.shieldMult or 1) 
+                local effShield = amt * mShield
+                shieldHit = math.min(enemy.shield, effShield)
+                enemy.shield = enemy.shield - shieldHit
+                local consumed = mShield > 0 and (shieldHit / mShield) or 0
+                amt = math.max(0, amt - consumed)
+                enemy.shieldDelayTimer = 0
+                if perOpts.lockShield and enemy.status then
+                    enemy.status.shieldLocked = true
+                end
+            end
+
+            if shieldHit > 0 then
+                totalShield = totalShield + shieldHit
+                totalApplied = totalApplied + shieldHit
+            end
+            
+            -- 2. Armor and Health Logic
+            if amt > 0 then
+                if not perOpts.ignoreArmor and (enemy.armor or 0) > 0 then
+                     local effArmor = getEffectiveArmor(enemy)
+                     amt = applyArmorReduction(amt, effArmor)
+                     amt = math.floor(amt + 0.5)
+                end
+                
+                if amt > 0 then
+                    perOpts.bypassShield = true
+                    perOpts.ignoreArmor = true
+                    perOpts.noText = true
+                    perOpts.noFlash = true
+                    perOpts.noSfx = true
+                    local applied, _, hp = enemies.damageEnemy(state, enemy, amt, false, 0, isCrit, perOpts)
+                    totalApplied = totalApplied + (applied or 0)
+                    totalHealth = totalHealth + (hp or 0)
+                end
+            end
         end
     end
 

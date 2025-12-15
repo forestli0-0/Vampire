@@ -86,6 +86,11 @@ scenarios.list = {
         name = 'Oil + Fire + Gas fields',
         desc = 'Oil Bottle + Fire Wand interactions.'
     },
+    {
+        id = 'damage_showcase',
+        name = 'Damage 2.0 Showcase',
+        desc = 'Shield Lancer (Blue) & Armored Brute (Yellow) & Boss (Mix).'
+    },
 }
 
 function scenarios.apply(state, id)
@@ -150,6 +155,34 @@ function scenarios.apply(state, id)
 
         local x, y = aroundPlayer(state, 160, 0)
         spawnDummy(state, 'dummy_pole', x, y)
+        return true
+    end
+
+    if id == 'damage_showcase' then
+        state.testArena = true
+        state.scenarioNoDirector = true
+        state.debug = state.debug or {}
+        state.debug.selectedDummy = 'dummy_pole'
+
+        setWeaponLevel(state, 'wand', 1)
+        
+        -- Skeleton (Flesh)
+        local x1, y1 = aroundPlayer(state, 120, -120)
+        enemies.spawnEnemy(state, 'skeleton', false, x1, y1, {suppressSpawnText=true})
+        
+        -- Shield Lancer (Shield + Flesh)
+        local x2, y2 = aroundPlayer(state, 240, -60)
+        enemies.spawnEnemy(state, 'shield_lancer', false, x2, y2, {suppressSpawnText=true})
+        
+        -- Armored Brute (Armor + Flesh)
+        local x3, y3 = aroundPlayer(state, 240, 60)
+        enemies.spawnEnemy(state, 'armored_brute', false, x3, y3, {suppressSpawnText=true})
+        
+        -- Boss (Shield + Armor + Flesh)
+        local x4, y4 = aroundPlayer(state, 120, 120)
+        -- Spawning boss as regular enemy (not elite) but with boss type stats
+        enemies.spawnEnemy(state, 'boss_treant', false, x4, y4, {suppressSpawnText=true})
+
         return true
     end
 
