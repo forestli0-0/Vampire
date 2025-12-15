@@ -102,44 +102,47 @@ local function updateQuakes(state, dt)
         local q = state.quakeEffects[i]
         q.t = (q.t or 0) + dt
         local dur = q.duration or 1
+        
         if q.t < 0 then
             q.lastRadius = 0
-            goto continue
-        end
-        local progress = math.max(0, math.min(1, q.t / dur))
-        local currR = (q.radius or 220) * progress
-        local lastR = q.lastRadius or 0
-        q.lastRadius = currR
-        local currR2 = currR * currR
-        local lastR2 = lastR * lastR
-        q.hit = q.hit or {}
-        local instance = calculator.createInstance({
-            damage = q.damage or 0,
-            critChance = q.critChance,
-            critMultiplier = q.critMultiplier,
-            statusChance = q.statusChance,
-            effectType = q.effectType or 'HEAVY',
-            effectData = {duration = q.stun or 0.6},
-            weaponTags = q.tags,
-            knock = false,
-            knockForce = q.knock
-        })
-        local cx, cy = q.x or state.player.x, q.y or state.player.y
-        for _, e in ipairs(state.enemies) do
-            if not q.hit[e] then
-                local dx = e.x - cx
-                local dy = e.y - cy
-                local d2 = dx*dx + dy*dy
-                if d2 <= currR2 and d2 >= lastR2 then
-                    calculator.applyHit(state, e, instance)
-                    q.hit[e] = true
+        else
+            local progress = math.max(0, math.min(1, q.t / dur))
+            local currR = (q.radius or 220) * progress
+            local lastR = q.lastRadius or 0
+            q.lastRadius = currR
+            local currR2 = currR * currR
+            local lastR2 = lastR * lastR
+            q.hit = q.hit or {}
+            
+            local instance = calculator.createInstance({
+                damage = q.damage or 0,
+                critChance = q.critChance,
+                critMultiplier = q.critMultiplier,
+                statusChance = q.statusChance,
+                effectType = q.effectType or 'HEAVY',
+                effectData = {duration = q.stun or 0.6},
+                weaponTags = q.tags,
+                knock = false,
+                knockForce = q.knock
+            })
+            
+            local cx, cy = q.x or state.player.x, q.y or state.player.y
+            for _, e in ipairs(state.enemies) do
+                if not q.hit[e] then
+                    local dx = e.x - cx
+                    local dy = e.y - cy
+                    local d2 = dx*dx + dy*dy
+                    if d2 <= currR2 and d2 >= lastR2 then
+                        calculator.applyHit(state, e, instance)
+                        q.hit[e] = true
+                    end
                 end
             end
+            
+            if q.t >= dur then
+                table.remove(state.quakeEffects, i)
+            end
         end
-        if q.t >= dur then
-            table.remove(state.quakeEffects, i)
-        end
-        ::continue::
     end
 end
 
@@ -205,72 +208,54 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
     local finalDmg = math.floor((wStats.damage or 0) * (state.player.stats.might or 1))
     local area = (wStats.area or 1) * (state.player.stats.area or 1)
 
-    local function getProjectileTuning(t)
-        local pt = state and state.projectileTuning
-        return (pt and pt[t]) or (pt and pt.default) or nil
+    -- Default generic projectile spawning logic, behaviors can override or use this
+    local angle = 0
+    if target then
+        angle = math.atan2(target.y - y, target.x - x)
+    elseif wStats.rotation then
+         angle = wStats.rotation
     end
-
+    
+    local spd = (wStats.speed or 0) * (state.player.stats.speed or 1)
+    
+    -- Helper for hit scaling
     local function getHitSizeScaleForType(t)
         if not (state and state.weaponSprites and state.weaponSprites[t]) then return 1 end
         return (state.weaponSpriteScale and state.weaponSpriteScale[t]) or 1
     end
-
-    if type == 'wand' or type == 'holy_wand' or type == 'fire_wand' or type == 'hellfire' or type == 'oil_bottle' or type == 'heavy_hammer' or type == 'dagger' or type == 'thousand_edge' or type == 'static_orb' or type == 'thunder_loop' then
-        local angle = math.atan2(target.y - y, target.x - x)
-        local spd = (wStats.speed or 0) * (state.player.stats.speed or 1)
-        local tune = getProjectileTuning(type)
-        local baseSize = wStats.size
-        if baseSize == nil then baseSize = (tune and tune.size) or 6 end
-        local size = baseSize * area
-        local bullet = {
-            type=type, x=x, y=y, vx=math.cos(angle)*spd, vy=math.sin(angle)*spd,
-            life=wStats.life or 2, size=size, damage=finalDmg, effectType=effectType, weaponTags=weaponTags,
-            pierce=wStats.pierce or 1, rotation=(type == 'oil_bottle') and 0 or angle,
-            effectDuration=wStats.duration, splashRadius=wStats.splashRadius, effectRange=wStats.staticRange, chain=wStats.chain, allowRepeat=wStats.allowRepeat,
-            elements=wStats.elements, damageBreakdown=wStats.damageBreakdown,
-            critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance
-        }
-        bullet.hitSizeScale = getHitSizeScaleForType(type)
-        table.insert(state.bullets, bullet)
-        if state and state.augments and state.augments.dispatch then
-            state.augments.dispatch(state, 'onProjectileSpawned', {weaponKey = type, bullet = bullet})
-        end
-    elseif type == 'axe' then
-        local spd = (wStats.speed or 0) * (state.player.stats.speed or 1)
-        local vx = (math.random() - 0.5) * 200
-        local vy = -spd
-        local angle = math.atan2(vy, vx)
-        local tune = getProjectileTuning('axe')
-        local baseSize = wStats.size
-        if baseSize == nil then baseSize = (tune and tune.size) or 12 end
-        local bullet = {type='axe', x=x, y=y, vx=vx, vy=vy, life=3, size=baseSize * area, damage=finalDmg, rotation=angle, hitTargets={}, effectType=effectType, weaponTags=weaponTags, elements=wStats.elements, damageBreakdown=wStats.damageBreakdown, critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance}
-        bullet.hitSizeScale = getHitSizeScaleForType('axe')
-        table.insert(state.bullets, bullet)
-        if state and state.augments and state.augments.dispatch then
-            state.augments.dispatch(state, 'onProjectileSpawned', {weaponKey = type, bullet = bullet})
-        end
+    
+    local hitScale = getHitSizeScaleForType(type)
+    
+    -- Special spawning logic for specific types that need complex init is gradually being moved to behaviors,
+    -- but for now, we keep a generic projectile spawner for simple projectiles.
+    
+    -- NOTE: Most complex logic is now handled by behaviors invoking specific projectile configs
+    
+    if type == 'axe' then
+         local vx = (math.random() - 0.5) * 200
+         local vy = -spd
+         local spin = math.atan2(vy, vx)
+         local size = (wStats.size or 12) * area
+          local bullet = {type='axe', x=x, y=y, vx=vx, vy=vy, life=3, size=size, damage=finalDmg, rotation=spin, hitTargets={}, effectType=effectType, weaponTags=weaponTags, elements=wStats.elements, damageBreakdown=wStats.damageBreakdown, critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance, hitSizeScale=hitScale}
+         table.insert(state.bullets, bullet)
+         return
     elseif type == 'death_spiral' then
-        local count = 8 + (wStats.amount or 0)
-        local spd = (wStats.speed or 300) * (state.player.stats.speed or 1)
-        local tune = getProjectileTuning('death_spiral')
-        local baseSize = wStats.size
-        if baseSize == nil then baseSize = (tune and tune.size) or 14 end
-        for i = 1, count do
-            local angle = (i - 1) / count * math.pi * 2
+         -- Handled by behavior, but if called here directly:
+          local count = 8 + (wStats.amount or 0)
+          local baseSize = (wStats.size or 14) * area
+          for i = 1, count do
+            local spin = (i - 1) / count * math.pi * 2
             local bullet = {
                 type='death_spiral', x=x, y=y,
-                vx=math.cos(angle)*spd, vy=math.sin(angle)*spd,
-                life=3, size=baseSize * area, damage=finalDmg,
-                rotation=angle, angularVel=1.5, hitTargets={}, effectType=effectType, weaponTags=weaponTags, elements=wStats.elements, damageBreakdown=wStats.damageBreakdown,
-                critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance
+                vx=math.cos(spin)*spd, vy=math.sin(spin)*spd,
+                life=3, size=baseSize, damage=finalDmg,
+                rotation=spin, angularVel=1.5, hitTargets={}, effectType=effectType, weaponTags=weaponTags, elements=wStats.elements, damageBreakdown=wStats.damageBreakdown,
+                critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance, hitSizeScale=hitScale
             }
-            bullet.hitSizeScale = getHitSizeScaleForType('death_spiral')
             table.insert(state.bullets, bullet)
-            if state and state.augments and state.augments.dispatch then
-                state.augments.dispatch(state, 'onProjectileSpawned', {weaponKey = type, bullet = bullet})
-            end
         end
-    elseif type == 'absolute_zero' then
+        return
+     elseif type == 'absolute_zero' then
         local radius = (wStats.radius or 0) * area
         local bullet = {
             type='absolute_zero', x=x, y=y, vx=0, vy=0,
@@ -282,10 +267,178 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
             critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance
         }
         table.insert(state.bullets, bullet)
-        if state and state.augments and state.augments.dispatch then
-            state.augments.dispatch(state, 'onProjectileSpawned', {weaponKey = type, bullet = bullet})
+        return
+    end
+
+    -- Generic Projectile Fallback
+    local baseSize = wStats.size or 6
+    local size = baseSize * area
+    local bullet = {
+        type=type, x=x, y=y, vx=math.cos(angle)*spd, vy=math.sin(angle)*spd,
+        life=wStats.life or 2, size=size, damage=finalDmg, effectType=effectType, weaponTags=weaponTags,
+        pierce=wStats.pierce or 1, rotation=angle,
+        effectDuration=wStats.duration, splashRadius=wStats.splashRadius, effectRange=wStats.staticRange, chain=wStats.chain, allowRepeat=wStats.allowRepeat,
+        elements=wStats.elements, damageBreakdown=wStats.damageBreakdown,
+        critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance,
+        hitSizeScale=hitScale
+    }
+    table.insert(state.bullets, bullet)
+    if state and state.augments and state.augments.dispatch then
+        state.augments.dispatch(state, 'onProjectileSpawned', {weaponKey = type, bullet = bullet})
+    end
+end
+
+
+-- =========================================================================================
+-- STRATEGY PATTERN BEHAVIORS
+-- =========================================================================================
+
+local Behaviors = {}
+
+function Behaviors.SHOOT_NEAREST(state, weaponKey, w, stats, params, sx, sy)
+    local range = math.max(1, math.floor(stats.range or 600))
+    local losOpts = state.world and state.world.enabled and {requireLOS = true} or nil
+    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
+    
+    if t then
+        if state.playSfx then state.playSfx('shoot') end
+        local shots = getProjectileCount(stats)
+        local baseAngle = math.atan2(t.y - sy, t.x - sx)
+        local spread = 0.12 -- Could be parameterized
+        local dist = range
+        
+        for i = 1, shots do
+            local ang = baseAngle + (i - (shots + 1) / 2) * spread
+            local target = {x = sx + math.cos(ang) * dist, y = sy + math.sin(ang) * dist}
+            weapons.spawnProjectile(state, weaponKey, sx, sy, target, stats)
+        end
+        return true -- Fired
+    end
+    return false
+end
+
+function Behaviors.SHOOT_DIRECTIONAL(state, weaponKey, w, stats, params, sx, sy)
+    local range = math.max(1, math.floor(stats.range or 550))
+    local losOpts = state.world and state.world.enabled and {requireLOS = true} or nil
+    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
+    
+    if t then
+        local shots = getProjectileCount(stats)
+        local baseAngle = math.atan2(t.y - sy, t.x - sx)
+        local spread = 0.08
+        local dist = range
+        for i = 1, shots do
+            local ang = baseAngle + (i - (shots + 1) / 2) * spread
+            local target = {x = sx + math.cos(ang) * dist, y = sy + math.sin(ang) * dist}
+            weapons.spawnProjectile(state, weaponKey, sx, sy, target, stats)
+        end
+        return true
+    end
+    return false
+end
+
+function Behaviors.SHOOT_RANDOM(state, weaponKey, w, stats, params, sx, sy)
+    if state.playSfx then state.playSfx('shoot') end
+    local shots = getProjectileCount(stats)
+    for i = 1, shots do
+        weapons.spawnProjectile(state, weaponKey, sx, sy, nil, stats)
+    end
+    return true
+end
+
+function Behaviors.SHOOT_RADIAL(state, weaponKey, w, stats, params, sx, sy)
+    if state.playSfx then state.playSfx('shoot') end
+    -- Note: spawnProjectile has legacy handling for death_spiral, but we can move it here fully if desired.
+    -- For now, delegating to spawnProjectile which handles the radial loop for 'death_spiral' type internally
+    weapons.spawnProjectile(state, weaponKey, sx, sy, nil, stats) 
+    return true
+end
+
+function Behaviors.AURA(state, weaponKey, w, stats, params, sx, sy)
+    local hit = false
+    local actualDmg = math.floor((stats.damage or 0) * (state.player.stats.might or 1))
+    local actualRadius = (stats.radius or 0) * (stats.area or 1) * (state.player.stats.area or 1)
+    local weaponDef = state.catalog[weaponKey]
+    local effectType = weaponDef.effectType or stats.effectType
+    local lifesteal = stats.lifesteal
+    local effectData = nil
+    
+    if weaponKey == 'ice_ring' then
+         effectData = {duration = stats.duration or weaponDef.base.duration}
+    end
+
+    local instance = calculator.createInstance({
+        damage = actualDmg,
+        critChance = stats.critChance,
+        critMultiplier = stats.critMultiplier,
+        statusChance = stats.statusChance,
+        effectType = effectType,
+        effectData = effectData,
+        elements = stats.elements,
+        damageBreakdown = stats.damageBreakdown,
+        weaponTags = weaponDef.tags,
+        knock = true,
+        knockForce = stats.knockback or 0
+    })
+
+    for _, e in ipairs(state.enemies) do
+        local d = math.sqrt((sx - e.x)^2 + (sy - e.y)^2)
+        if d < actualRadius then
+            calculator.applyHit(state, e, instance)
+            if lifesteal and actualDmg > 0 then
+                 local shooter = findOwnerActor(state, w.owner)
+                 if shooter and shooter.hp and shooter.maxHp then
+                    local heal = math.max(1, math.floor(actualDmg * lifesteal))
+                    shooter.hp = math.min(shooter.maxHp, shooter.hp + heal)
+                 end
+            end
+            hit = true
         end
     end
+    
+    return hit
+end
+
+function Behaviors.SPAWN(state, weaponKey, w, stats, params, sx, sy)
+    local spawnType = (params and params.type) or weaponKey
+    if spawnType == 'absolute_zero' and state.playSfx then state.playSfx('freeze') end
+    weapons.spawnProjectile(state, spawnType, sx, sy, nil, stats)
+    return true
+end
+
+function Behaviors.GLOBAL(state, weaponKey, w, stats, params, sx, sy)
+    if weaponKey == 'earthquake' then
+         local dmg = math.floor((stats.damage or 0) * (state.player.stats.might or 1))
+         local stunDuration = stats.duration or 0.6
+         local knock = stats.knockback or 0
+         local areaScale = (stats.area or 1) * (state.player.stats.area or 1)
+         local quakeRadius = 220 * math.sqrt(areaScale)
+         local weaponDef = state.catalog[weaponKey]
+         
+         if state.playSfx then state.playSfx('hit') end
+         state.shakeAmount = math.max(state.shakeAmount or 0, 6)
+         
+         local waves = {1.0, 0.7, 0.5}
+         local delay = 0
+         for _, factor in ipairs(waves) do
+             table.insert(state.quakeEffects, {
+                 t = -delay,
+                 duration = 1.2,
+                 radius = quakeRadius,
+                 x = sx, y = sy,
+                 damage = math.floor(dmg * factor),
+                 stun = stunDuration,
+                 knock = knock,
+                 effectType = weaponDef.effectType or stats.effectType or 'HEAVY',
+                 tags = weaponDef.tags,
+                 critChance = stats.critChance,
+                 critMultiplier = stats.critMultiplier,
+                 statusChance = stats.statusChance
+             })
+             delay = delay + 0.5
+         end
+    end
+    return true
 end
 
 function weapons.update(state, dt)
@@ -299,204 +452,21 @@ function weapons.update(state, dt)
             else
                 local sx, sy = shooter.x, shooter.y
                 local computedStats = weapons.calculateStats(state, key) or w.stats
-                local weaponDef = state.catalog[key] or {}
                 local actualCD = (computedStats.cd or w.stats.cd) * (state.player.stats.cooldown or 1)
-                local losOpts = nil
-                if state.world and state.world.enabled then
-                    losOpts = {requireLOS = true}
-                end
-
-                if key == 'wand' then
-                    local range = math.max(1, math.floor(computedStats.range or 600))
-                    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
-                    if t then
-                        if state.playSfx then state.playSfx('shoot') end
-                        local shots = getProjectileCount(computedStats)
-                        local baseAngle = math.atan2(t.y - sy, t.x - sx)
-                        local spread = 0.12
-                        local dist = range
-                        for i = 1, shots do
-                            local ang = baseAngle + (i - (shots + 1) / 2) * spread
-                            local target = {x = sx + math.cos(ang) * dist, y = sy + math.sin(ang) * dist}
-                            weapons.spawnProjectile(state, 'wand', sx, sy, target, computedStats)
-                        end
+                
+                -- Strategy Lookup
+                local def = state.catalog[key]
+                local behaviorName = def and def.behavior
+                local behaviorFunc = behaviorName and Behaviors[behaviorName]
+                
+                if behaviorFunc then
+                    local fired = behaviorFunc(state, key, w, computedStats, def.behaviorParams, sx, sy)
+                    if fired then
                         w.timer = actualCD
                     end
-                elseif key == 'holy_wand' then
-                    local range = math.max(1, math.floor(computedStats.range or 700))
-                    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
-                    if t then
-                        if state.playSfx then state.playSfx('shoot') end
-                        local shots = getProjectileCount(computedStats)
-                        local baseAngle = math.atan2(t.y - sy, t.x - sx)
-                        local spread = 0.1
-                        local dist = range
-                        for i = 1, shots do
-                            local ang = baseAngle + (i - (shots + 1) / 2) * spread
-                            local target = {x = sx + math.cos(ang) * dist, y = sy + math.sin(ang) * dist}
-                            weapons.spawnProjectile(state, 'holy_wand', sx, sy, target, computedStats)
-                        end
-                        w.timer = actualCD
-                    end
-                elseif key == 'fire_wand' or key == 'hellfire' then
-                    local range = math.max(1, math.floor(computedStats.range or 700))
-                    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
-                    if t then
-                        if state.playSfx then state.playSfx('shoot') end
-                        local shots = getProjectileCount(computedStats)
-                        for i = 1, shots do
-                            weapons.spawnProjectile(state, key, sx, sy, t, computedStats)
-                        end
-                        w.timer = actualCD
-                    end
-                elseif key == 'oil_bottle' then
-                    local range = math.max(1, math.floor(computedStats.range or 700))
-                    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
-                    if t then
-                        if state.playSfx then state.playSfx('shoot') end
-                        local shots = getProjectileCount(computedStats)
-                        for i = 1, shots do
-                            weapons.spawnProjectile(state, 'oil_bottle', sx, sy, t, computedStats)
-                        end
-                        w.timer = actualCD
-                    end
-                elseif key == 'dagger' or key == 'thousand_edge' then
-                    local range = math.max(1, math.floor(computedStats.range or 550))
-                    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
-                    if t then
-                        local shots = getProjectileCount(computedStats)
-                        local baseAngle = math.atan2(t.y - sy, t.x - sx)
-                        local spread = 0.08
-                        local dist = range
-                        for i = 1, shots do
-                            local ang = baseAngle + (i - (shots + 1) / 2) * spread
-                            local target = {x = sx + math.cos(ang) * dist, y = sy + math.sin(ang) * dist}
-                            weapons.spawnProjectile(state, key, sx, sy, target, computedStats)
-                        end
-                        w.timer = actualCD
-                    end
-                elseif key == 'static_orb' or key == 'thunder_loop' then
-                    local range = math.max(1, math.floor(computedStats.range or 650))
-                    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
-                    if t then
-                        if state.playSfx then state.playSfx('shoot') end
-                        local shots = getProjectileCount(computedStats)
-                        for i = 1, shots do
-                            weapons.spawnProjectile(state, key, sx, sy, t, computedStats)
-                        end
-                        w.timer = actualCD
-                    end
-                elseif key == 'heavy_hammer' then
-                    local range = math.max(1, math.floor(computedStats.range or 550))
-                    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
-                    if t then
-                        if state.playSfx then state.playSfx('shoot') end
-                        local shots = getProjectileCount(computedStats)
-                        for i = 1, shots do
-                            weapons.spawnProjectile(state, 'heavy_hammer', sx, sy, t, computedStats)
-                        end
-                        w.timer = actualCD
-                    end
-                elseif key == 'axe' then
-                    if state.playSfx then state.playSfx('shoot') end
-                    local shots = getProjectileCount(computedStats)
-                    for i = 1, shots do
-                        weapons.spawnProjectile(state, 'axe', sx, sy, nil, computedStats)
-                    end
-                    w.timer = actualCD
-                elseif key == 'death_spiral' then
-                    if state.playSfx then state.playSfx('shoot') end
-                    weapons.spawnProjectile(state, 'death_spiral', sx, sy, nil, computedStats)
-                    w.timer = actualCD
-                elseif key == 'garlic' or key == 'soul_eater' then
-                    local hit = false
-                    local actualDmg = math.floor((computedStats.damage or 0) * (state.player.stats.might or 1))
-                    local actualRadius = (computedStats.radius or 0) * (computedStats.area or 1) * (state.player.stats.area or 1)
-                    local effectType = weaponDef.effectType or computedStats.effectType
-                    local lifesteal = computedStats.lifesteal
-                    local instance = calculator.createInstance({
-                        damage = actualDmg,
-                        critChance = computedStats.critChance,
-                        critMultiplier = computedStats.critMultiplier,
-                        statusChance = computedStats.statusChance,
-                        effectType = effectType,
-                        elements = computedStats.elements,
-                        damageBreakdown = computedStats.damageBreakdown,
-                        weaponTags = weaponDef.tags,
-                        knock = true,
-                        knockForce = computedStats.knockback or 0
-                    })
-                    for _, e in ipairs(state.enemies) do
-                        local d = math.sqrt((sx - e.x)^2 + (sy - e.y)^2)
-                        if d < actualRadius then
-                            calculator.applyHit(state, e, instance)
-                            if lifesteal and actualDmg > 0 and shooter.hp and shooter.maxHp then
-                                local heal = math.max(1, math.floor(actualDmg * lifesteal))
-                                shooter.hp = math.min(shooter.maxHp, shooter.hp + heal)
-                            end
-                            hit = true
-                        end
-                    end
-                    if hit then w.timer = actualCD end
-                elseif key == 'ice_ring' then
-                    local hit = false
-                    local actualDmg = math.floor((computedStats.damage or 0) * (state.player.stats.might or 1))
-                    local actualRadius = (computedStats.radius or 0) * (computedStats.area or 1) * (state.player.stats.area or 1)
-                    local effectType = weaponDef.effectType or computedStats.effectType
-                    local effectData = {duration = computedStats.duration or weaponDef.base.duration}
-                    local instance = calculator.createInstance({
-                        damage = actualDmg,
-                        critChance = computedStats.critChance,
-                        critMultiplier = computedStats.critMultiplier,
-                        statusChance = computedStats.statusChance,
-                        effectType = effectType,
-                        effectData = effectData,
-                        elements = computedStats.elements,
-                        damageBreakdown = computedStats.damageBreakdown,
-                        weaponTags = weaponDef.tags,
-                        knock = true,
-                        knockForce = computedStats.knockback or 0
-                    })
-                    for _, e in ipairs(state.enemies) do
-                        local d = math.sqrt((sx - e.x)^2 + (sy - e.y)^2)
-                        if d < actualRadius then
-                            calculator.applyHit(state, e, instance)
-                            hit = true
-                        end
-                    end
-                    if hit then w.timer = actualCD end
-                elseif key == 'absolute_zero' then
-                    if state.playSfx then state.playSfx('freeze') end
-                    weapons.spawnProjectile(state, 'absolute_zero', sx, sy, nil, computedStats)
-                    w.timer = actualCD
-                elseif key == 'earthquake' then
-                    local dmg = math.floor((computedStats.damage or 0) * (state.player.stats.might or 1))
-                    local stunDuration = computedStats.duration or 0.6
-                    local knock = computedStats.knockback or 0
-                    local areaScale = (computedStats.area or 1) * (state.player.stats.area or 1)
-                    local quakeRadius = 220 * math.sqrt(areaScale)
-                    if state.playSfx then state.playSfx('hit') end
-                    state.shakeAmount = math.max(state.shakeAmount or 0, 6)
-                    local waves = {1.0, 0.7, 0.5}
-                    local delay = 0
-                    for _, factor in ipairs(waves) do
-                        table.insert(state.quakeEffects, {
-                            t = -delay,
-                            duration = 1.2,
-                            radius = quakeRadius,
-                            x = sx, y = sy,
-                            damage = math.floor(dmg * factor),
-                            stun = stunDuration,
-                            knock = knock,
-                            effectType = weaponDef.effectType or computedStats.effectType or 'HEAVY',
-                            tags = weaponDef.tags,
-                            critChance = computedStats.critChance,
-                            critMultiplier = computedStats.critMultiplier,
-                            statusChance = computedStats.statusChance
-                        })
-                        delay = delay + 0.5
-                    end
-                    w.timer = actualCD
+                else
+                    -- Fallback or un-migrated weapons could go here, or simple warning
+                    -- For now, all known weapons should have tags.
                 end
             end
         end

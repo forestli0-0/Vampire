@@ -856,23 +856,26 @@ function enemies.update(state, dt)
                                 local dx = o.x - e.x
                                 local dy = o.y - e.y
                                 if dx*dx + dy*dy <= r2 then
+                                    local blocked = false
                                     if useLos and world:segmentHitsWall(e.x, e.y, o.x, o.y) then
-                                        goto continue_static_chain
+                                        blocked = true
                                     end
-                                    ensureStatus(o)
-                                    local applied = false
-                                    if (o.status.staticSplashCd or 0) <= 0 then
-                                        applyDotTick(state, o, 'ELECTRIC', tick, {noText=true})
-                                        o.status.staticSplashCd = 0.25
-                                        applied = true
-                                    end
-                                    if applied and shown < 6 then
-                                        table.insert(state.chainLinks, {x1=e.x, y1=e.y, x2=o.x, y2=o.y})
-                                        shown = shown + 1
+                                    
+                                    if not blocked then
+                                        ensureStatus(o)
+                                        local applied = false
+                                        if (o.status.staticSplashCd or 0) <= 0 then
+                                            applyDotTick(state, o, 'ELECTRIC', tick, {noText=true})
+                                            o.status.staticSplashCd = 0.25
+                                            applied = true
+                                        end
+                                        if applied and shown < 6 then
+                                            table.insert(state.chainLinks, {x1=e.x, y1=e.y, x2=o.x, y2=o.y})
+                                            shown = shown + 1
+                                        end
                                     end
                                 end
                             end
-                            ::continue_static_chain::
                         end
                     end
                 end
@@ -1424,141 +1427,143 @@ function enemies.update(state, dt)
         if e.health <= 0 then
             if e.isDummy then
                 resetDummy(e)
-                goto continue_enemy
-            end
-            if state and state.augments and state.augments.dispatch then
-                state.augments.dispatch(state, 'onKill', {enemy = e, player = state.player, lastDamage = e.lastDamage})
-            end
-            if e.isBoss then
-                local exploreMode = (state.runMode == 'explore') or (state.world and state.world.enabled)
-                if exploreMode then
-                    state.chests = state.chests or {}
-                    table.insert(state.chests, {x = e.x, y = e.y, w = 26, h = 26, kind = 'boss_reward', rewardCurrency = 100})
-                    state.directorState = state.directorState or {}
-                    state.directorState.bossDefeated = true
-                    if state.enemyBullets then
-                        for k = #state.enemyBullets, 1, -1 do table.remove(state.enemyBullets, k) end
-                    end
-                    if state.texts then
-                        table.insert(state.texts, {x = e.x, y = e.y - 110, text = "BOSS DOWN! CLAIM REWARD", color = {1, 0.85, 0.35}, life = 2.2})
-                    end
-                    logger.kill(state, e)
-                    table.remove(state.enemies, i)
-                    goto continue_enemy
-                else
-                    local rewardCurrency = 100
-                    local newModKey = nil
-                    if state.profile and state.catalog then
-                        state.profile.ownedMods = state.profile.ownedMods or {}
-                        local locked = {}
-                        for key, def in pairs(state.catalog) do
-                            if def.type == 'mod' and not state.profile.ownedMods[key] then
-                                table.insert(locked, key)
-                            end
-                        end
-                        if #locked > 0 then
-                            newModKey = locked[math.random(#locked)]
-                            state.profile.ownedMods[newModKey] = true
-                        end
-                        state.profile.currency = (state.profile.currency or 0) + rewardCurrency
-                        if state.saveProfile then state.saveProfile(state.profile) end
-                    end
-                    state.victoryRewards = {
-                        currency = rewardCurrency,
-                        newModKey = newModKey,
-                        newModName = (newModKey and state.catalog and state.catalog[newModKey] and state.catalog[newModKey].name) or nil
-                    }
-                    state.gameState = 'GAME_CLEAR'
-                    state.directorState = state.directorState or {}
-                    state.directorState.bossDefeated = true
-                    logger.kill(state, e)
-                    table.remove(state.enemies, i)
-                    goto continue_enemy
-                end
-            end
-            if not e.noDrops then
-                local exploreMode = (state.runMode == 'explore') or (state.world and state.world.enabled)
-                if exploreMode then
-                    local gain = e.isElite and 6 or 1
-                    if not e.isElite and math.random() < 0.12 then gain = gain + 1 end
-                    if state.gainGold then
-                        state.gainGold(gain, {source = 'kill', enemy = e, x = e.x, y = e.y - 20, life = 0.55})
-                    else
-                        state.runCurrency = (state.runCurrency or 0) + gain
-                        table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 0.55})
-                    end
-
-                    if e.isElite and state.floorPickups then
-                        local pet = pets.getActive(state)
-                        if pet and not pet.downed and (pet.module or 'default') == 'default' then
-                            if math.random() < 0.35 then
-                                table.insert(state.floorPickups, {x = e.x + 26, y = e.y + 8, size = 14, kind = 'pet_module_chip'})
-                            end
-                        end
-                    end
-                else
-                local roomsMode = (state.runMode == 'rooms')
-                local useXp = true
-                if roomsMode and state.rooms and state.rooms.useXp == false then
-                    useXp = false
+            else
+                if state and state.augments and state.augments.dispatch then
+                    state.augments.dispatch(state, 'onKill', {enemy = e, player = state.player, lastDamage = e.lastDamage})
                 end
 
-                if e.isElite then
-                    local dropChest = true
-                    if roomsMode and state.rooms and state.rooms.eliteDropsChests == false then
-                        dropChest = false
-                    end
-                    if dropChest then
-                        table.insert(state.chests, {x=e.x, y=e.y, w=20, h=20})
+                local isBossDefeated = false
+                if e.isBoss then
+                    local exploreMode = (state.runMode == 'explore') or (state.world and state.world.enabled)
+                    if exploreMode then
+                        state.chests = state.chests or {}
+                        table.insert(state.chests, {x = e.x, y = e.y, w = 26, h = 26, kind = 'boss_reward', rewardCurrency = 100})
+                        state.directorState = state.directorState or {}
+                        state.directorState.bossDefeated = true
+                        if state.enemyBullets then
+                            for k = #state.enemyBullets, 1, -1 do table.remove(state.enemyBullets, k) end
+                        end
+                        if state.texts then
+                            table.insert(state.texts, {x = e.x, y = e.y - 110, text = "BOSS DOWN! CLAIM REWARD", color = {1, 0.85, 0.35}, life = 2.2})
+                        end
+                        logger.kill(state, e)
+                        table.remove(state.enemies, i)
+                        isBossDefeated = true
                     else
-                        if useXp then
-                            -- rooms mode: elites are rewarded via room clear choice; keep kill drops light.
-                            if math.random() < 0.35 then
-                                local kinds = roomsMode and {'magnet'} or {'chicken', 'magnet'}
-                                local kind = kinds[math.random(#kinds)]
-                                table.insert(state.floorPickups, {x=e.x, y=e.y, size=14, kind=kind})
-                            else
-                                table.insert(state.gems, {x=e.x, y=e.y, value=3})
+                        -- Standard Boss Logic
+                        local rewardCurrency = 100
+                        local newModKey = nil
+                        if state.profile and state.catalog then
+                            state.profile.ownedMods = state.profile.ownedMods or {}
+                            local locked = {}
+                            for key, def in pairs(state.catalog) do
+                                if def.type == 'mod' and not state.profile.ownedMods[key] then
+                                    table.insert(locked, key)
+                                end
                             end
-                        else
-                            -- rooms mode (Hades-like): enemies drop small gold (no chicken/bomb).
-                            local room = tonumber(state.rooms and state.rooms.roomIndex) or 1
-                            local gain = 4 + math.max(0, math.min(6, room))
+                            if #locked > 0 then
+                                newModKey = locked[math.random(#locked)]
+                                state.profile.ownedMods[newModKey] = true
+                            end
+                            state.profile.currency = (state.profile.currency or 0) + rewardCurrency
+                            if state.saveProfile then state.saveProfile(state.profile) end
+                        end
+                        state.victoryRewards = {
+                            currency = rewardCurrency,
+                            newModKey = newModKey,
+                            newModName = (newModKey and state.catalog and state.catalog[newModKey] and state.catalog[newModKey].name) or nil
+                        }
+                        state.gameState = 'GAME_CLEAR'
+                        state.directorState = state.directorState or {}
+                        state.directorState.bossDefeated = true
+                        logger.kill(state, e)
+                        table.remove(state.enemies, i)
+                        isBossDefeated = true
+                    end
+                end
+
+                if not isBossDefeated then
+                    if not e.noDrops then
+                        local exploreMode = (state.runMode == 'explore') or (state.world and state.world.enabled)
+                        if exploreMode then
+                            local gain = e.isElite and 6 or 1
+                            if not e.isElite and math.random() < 0.12 then gain = gain + 1 end
                             if state.gainGold then
-                                state.gainGold(gain, {source = 'kill', enemy = e, x = e.x, y = e.y - 20, life = 0.65})
+                                state.gainGold(gain, {source = 'kill', enemy = e, x = e.x, y = e.y - 20, life = 0.55})
                             else
                                 state.runCurrency = (state.runCurrency or 0) + gain
-                                table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 0.65})
+                                table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 0.55})
+                            end
+        
+                            if e.isElite and state.floorPickups then
+                                local pet = pets.getActive(state)
+                                if pet and not pet.downed and (pet.module or 'default') == 'default' then
+                                    if math.random() < 0.35 then
+                                        table.insert(state.floorPickups, {x = e.x + 26, y = e.y + 8, size = 14, kind = 'pet_module_chip'})
+                                    end
+                                end
+                            end
+                        else
+                            local roomsMode = (state.runMode == 'rooms')
+                            local useXp = true
+                            if roomsMode and state.rooms and state.rooms.useXp == false then
+                                useXp = false
+                            end
+            
+                            if e.isElite then
+                                local dropChest = true
+                                if roomsMode and state.rooms and state.rooms.eliteDropsChests == false then
+                                    dropChest = false
+                                end
+                                if dropChest then
+                                    table.insert(state.chests, {x=e.x, y=e.y, w=20, h=20})
+                                else
+                                    if useXp then
+                                        if math.random() < 0.35 then
+                                            local kinds = roomsMode and {'magnet'} or {'chicken', 'magnet'}
+                                            local kind = kinds[math.random(#kinds)]
+                                            table.insert(state.floorPickups, {x=e.x, y=e.y, size=14, kind=kind})
+                                        else
+                                            table.insert(state.gems, {x=e.x, y=e.y, value=3})
+                                        end
+                                    else
+                                        local room = tonumber(state.rooms and state.rooms.roomIndex) or 1
+                                        local gain = 4 + math.max(0, math.min(6, room))
+                                        if state.gainGold then
+                                            state.gainGold(gain, {source = 'kill', enemy = e, x = e.x, y = e.y - 20, life = 0.65})
+                                        else
+                                            state.runCurrency = (state.runCurrency or 0) + gain
+                                            table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 0.65})
+                                        end
+                                    end
+                                end
+                            else
+                                if useXp then
+                                    if math.random() < 0.01 then
+                                        local kinds = roomsMode and {'magnet'} or {'chicken', 'magnet'}
+                                        local kind = kinds[math.random(#kinds)]
+                                        table.insert(state.floorPickups, {x=e.x, y=e.y, size=14, kind=kind})
+                                    else
+                                        table.insert(state.gems, {x=e.x, y=e.y, value=1})
+                                    end
+                                else
+                                    local gain = 1
+                                    if math.random() < 0.12 then gain = 2 end
+                                    if state.gainGold then
+                                        state.gainGold(gain, {source = 'kill', enemy = e, x = e.x, y = e.y - 20, life = 0.55})
+                                    else
+                                        state.runCurrency = (state.runCurrency or 0) + gain
+                                        table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 0.55})
+                                    end
+                                end
                             end
                         end
                     end
-                else
-                    if useXp then
-                        if math.random() < 0.01 then
-                            local kinds = roomsMode and {'magnet'} or {'chicken', 'magnet'}
-                            local kind = kinds[math.random(#kinds)]
-                            table.insert(state.floorPickups, {x=e.x, y=e.y, size=14, kind=kind})
-                        else
-                            table.insert(state.gems, {x=e.x, y=e.y, value=1})
-                        end
-                    else
-                        -- rooms mode (Hades-like): enemies drop small gold (no chicken/bomb).
-                        local gain = 1
-                        if math.random() < 0.12 then gain = 2 end
-                        if state.gainGold then
-                            state.gainGold(gain, {source = 'kill', enemy = e, x = e.x, y = e.y - 20, life = 0.55})
-                        else
-                            state.runCurrency = (state.runCurrency or 0) + gain
-                            table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 0.55})
-                        end
-                    end
-                end
+                    logger.kill(state, e)
+                    table.remove(state.enemies, i)
                 end
             end
-            logger.kill(state, e)
-            table.remove(state.enemies, i)
         end
-        ::continue_enemy::
     end
 end
 
