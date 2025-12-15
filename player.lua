@@ -2,6 +2,12 @@ local logger = require('logger')
 
 local player = {}
 
+local function clamp(v, lo, hi)
+    if v < lo then return lo end
+    if v > hi then return hi end
+    return v
+end
+
 local function getMoveInput()
     local dx, dy = 0, 0
     if love.keyboard.isDown('w') then dy = -1 end
@@ -164,6 +170,7 @@ function player.updateMovement(state, dt)
 
     local dx, dy = getMoveInput()
     local moving = dx ~= 0 or dy ~= 0
+    local world = state.world
 
     if dash and (dash.timer or 0) > 0 then
         local speed = dash.speed
@@ -174,8 +181,14 @@ function player.updateMovement(state, dt)
             speed = (duration > 0) and (distance / duration) or 0
         end
 
-        p.x = p.x + (dash.dx or 0) * speed * dt
-        p.y = p.y + (dash.dy or 0) * speed * dt
+        local mx = (dash.dx or 0) * speed * dt
+        local my = (dash.dy or 0) * speed * dt
+        if world and world.enabled and world.moveCircle then
+            p.x, p.y = world:moveCircle(p.x, p.y, (p.size or 20) / 2, mx, my)
+        else
+            p.x = p.x + mx
+            p.y = p.y + my
+        end
         dash.timer = dash.timer - dt
         if dash.timer < 0 then dash.timer = 0 end
         moving = true
@@ -210,8 +223,14 @@ function player.updateMovement(state, dt)
         end
     elseif moving then
         local len = math.sqrt(dx * dx + dy * dy)
-        p.x = p.x + (dx / len) * p.stats.moveSpeed * dt
-        p.y = p.y + (dy / len) * p.stats.moveSpeed * dt
+        local mx = (dx / len) * p.stats.moveSpeed * dt
+        local my = (dy / len) * p.stats.moveSpeed * dt
+        if world and world.enabled and world.moveCircle then
+            p.x, p.y = world:moveCircle(p.x, p.y, (p.size or 20) / 2, mx, my)
+        else
+            p.x = p.x + mx
+            p.y = p.y + my
+        end
     end
 
     if dash and (dash.timer or 0) <= 0 then
@@ -225,8 +244,17 @@ function player.updateMovement(state, dt)
     local mdx, mdy = p.x - ox, p.y - oy
     p.movedDist = math.sqrt(mdx * mdx + mdy * mdy)
 
-    state.camera.x = p.x - love.graphics.getWidth() / 2
-    state.camera.y = p.y - love.graphics.getHeight() / 2
+    local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
+    local camX = p.x - sw / 2
+    local camY = p.y - sh / 2
+    if world and world.enabled and world.pixelW and world.pixelH then
+        local maxCamX = math.max(0, world.pixelW - sw)
+        local maxCamY = math.max(0, world.pixelH - sh)
+        camX = clamp(camX, 0, maxCamX)
+        camY = clamp(camY, 0, maxCamY)
+    end
+    state.camera.x = camX
+    state.camera.y = camY
 end
 
 function player.hurt(state, dmg)

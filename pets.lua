@@ -466,8 +466,15 @@ function pets.update(state, dt)
         if d > 2 then
             local spd = pet.speed or 190
             local step = math.min(d, spd * dt)
-            pet.x = pet.x + dx / d * step
-            pet.y = pet.y + dy / d * step
+            local mx = dx / d * step
+            local my = dy / d * step
+            local world = state.world
+            if world and world.enabled and world.moveCircle then
+                pet.x, pet.y = world:moveCircle(pet.x, pet.y, (pet.size or 18) / 2, mx, my)
+            else
+                pet.x = pet.x + mx
+                pet.y = pet.y + my
+            end
             if dx > 1 then pet.facing = 1 elseif dx < -1 then pet.facing = -1 end
         end
     end

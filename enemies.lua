@@ -428,6 +428,17 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
     local x = spawnX or (state.player.x + math.cos(ang) * d)
     local y = spawnY or (state.player.y + math.sin(ang) * d)
 
+    local world = state.world
+    if world and world.enabled then
+        if spawnX == nil and spawnY == nil then
+            local ts = world.tileSize or 32
+            local maxCells = math.max(8, math.floor(d / ts))
+            local minCells = math.max(6, maxCells - 4)
+            x, y = world:sampleSpawn(state.player.x, state.player.y, minCells, maxCells, 42)
+        end
+        x, y = world:adjustToWalkable(x, y, 16)
+    end
+
     local hpScale = 1 + math.min((state.gameTimer or 0), 300) / 300 -- cap at ~2x at 5min
     if hpScale > 2.5 then hpScale = 2.5 end
     hp = hp * hpScale
@@ -993,6 +1004,14 @@ function enemies.update(state, dt)
             end
         end
         local angToTarget = math.atan2(targetY - e.y, targetX - e.x)
+        local world = state.world
+        local moveAng = angToTarget
+        if world and world.enabled and not (e.status.radiationTimer and e.status.radiationTimer > 0) then
+            local ndx, ndy = world:getFlowDir(e.x, e.y)
+            if ndx and ndy and not (ndx == 0 and ndy == 0) then
+                moveAng = math.atan2(ndy, ndx)
+            end
+        end
 
         -- Telegraph-based attacks (reusable templates via enemy_defs.lua: def.attacks)
         if e.attackCooldown == nil then e.attackCooldown = 0 end
@@ -1290,16 +1309,26 @@ function enemies.update(state, dt)
             e.facing = dxToTarget >= 0 and 1 or -1
         end
         if stunned then
-            e.x = e.x + pushX * dt
-            e.y = e.y + pushY * dt
+            if world and world.enabled and world.moveCircle then
+                e.x, e.y = world:moveCircle(e.x, e.y, (e.size or 16) / 2, pushX * dt, pushY * dt)
+            else
+                e.x = e.x + pushX * dt
+                e.y = e.y + pushY * dt
+            end
         elseif e.attack and e.attack.type == 'charge' and e.attack.phase == 'dash' then
             local atk = e.attack
             local remaining = atk.remaining or 0
             local step = (atk.speed or 0) * dt
             if step > remaining then step = remaining end
             if step > 0 then
-                e.x = e.x + (atk.dirX or 0) * step
-                e.y = e.y + (atk.dirY or 0) * step
+                local mx = (atk.dirX or 0) * step
+                local my = (atk.dirY or 0) * step
+                if world and world.enabled and world.moveCircle then
+                    e.x, e.y = world:moveCircle(e.x, e.y, (e.size or 16) / 2, mx, my)
+                else
+                    e.x = e.x + mx
+                    e.y = e.y + my
+                end
                 atk.remaining = remaining - step
             end
 
@@ -1335,8 +1364,14 @@ function enemies.update(state, dt)
         elseif e.attack and e.attack.phase == 'windup' then
             -- windup: hold position (telegraph fairness)
         else
-            e.x = e.x + (math.cos(angToTarget) * e.speed + pushX) * dt
-            e.y = e.y + (math.sin(angToTarget) * e.speed + pushY) * dt
+            local vx = (math.cos(moveAng) * e.speed + pushX)
+            local vy = (math.sin(moveAng) * e.speed + pushY)
+            if world and world.enabled and world.moveCircle then
+                e.x, e.y = world:moveCircle(e.x, e.y, (e.size or 16) / 2, vx * dt, vy * dt)
+            else
+                e.x = e.x + vx * dt
+                e.y = e.y + vy * dt
+            end
         end
 
         local pDist = math.sqrt((p.x - e.x)^2 + (p.y - e.y)^2)

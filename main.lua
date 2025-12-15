@@ -19,6 +19,7 @@ local rooms = require('rooms')
 local testmode = require('testmode')
 local testScenarios = require('test_scenarios')
 local pets = require('pets')
+local world = require('world')
 
 -- 游戏启动时的初始化（状态、日志、默认武器等）
 function love.load()
@@ -87,6 +88,7 @@ function love.update(dt)
 
     -- 核心更新顺序：玩家 → 武器 → 子弹 → 刷怪
     player.updateMovement(state, dt)
+    world.update(state, dt)
     pets.update(state, dt)
     if state.augments and state.augments.update then
         state.augments.update(state, dt)

@@ -1,5 +1,6 @@
 local weapons = require('weapons')
 local pets = require('pets')
+local world = require('world')
 
 local arsenal = {}
 
@@ -258,6 +259,38 @@ end
 function arsenal.startRun(state, opts)
     opts = opts or {}
     state.applyPersistentMods()
+
+    if opts.runMode then
+        state.runMode = opts.runMode
+    end
+
+    if state.runMode == 'explore' then
+        state.rooms = state.rooms or {}
+        state.rooms.enabled = false
+        state.world = world.new({
+            tileSize = 32,
+            w = 160,
+            h = 160,
+            roomCount = 28,
+            roomMin = 6,
+            roomMax = 14,
+            corridorWidth = 2,
+            navRefresh = 0.35
+        })
+        if state.player and state.world then
+            state.player.x, state.player.y = state.world.spawnX, state.world.spawnY
+            local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
+            local maxCamX = math.max(0, (state.world.pixelW or 0) - sw)
+            local maxCamY = math.max(0, (state.world.pixelH or 0) - sh)
+            state.camera = state.camera or {x = 0, y = 0}
+            state.camera.x = math.max(0, math.min((state.player.x or 0) - sw / 2, maxCamX))
+            state.camera.y = math.max(0, math.min((state.player.y or 0) - sh / 2, maxCamY))
+        end
+    else
+        state.world = nil
+        if state.rooms then state.rooms.enabled = true end
+    end
+
     if not state.inventory.weapons or not next(state.inventory.weapons) then
         local startKey = 'wand'
         if not opts.skipStartingWeapon then
@@ -334,6 +367,9 @@ function arsenal.keypressed(state, key)
         return true
     elseif key == 'return' or key == 'kpenter' then
         arsenal.startRun(state)
+        return true
+    elseif key == 'f' then
+        arsenal.startRun(state, {runMode = 'explore'})
         return true
     end
 
@@ -429,7 +465,7 @@ function arsenal.draw(state)
     end
 
     love.graphics.setColor(0.9, 0.9, 0.9)
-    love.graphics.printf("Up/Down: select   E: equip/unequip   Left/Right: rank   Tab/Backspace: weapon   P/O: pet   M: module   Enter: start run", 0, h - 60, w, "center")
+    love.graphics.printf("Up/Down: select   E: equip/unequip   Left/Right: rank   Tab/Backspace: weapon   P/O: pet   Enter: rooms run   F: explore (proc map)", 0, h - 60, w, "center")
 
     if a.message then
         love.graphics.setColor(1, 0.8, 0.3)

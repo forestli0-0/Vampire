@@ -552,6 +552,31 @@ function draw.renderWorld(state)
         end
     end
 
+    -- Procedural world walls (tilemap prototype)
+    local world = state.world
+    if world and world.enabled and world.tiles and world.w and world.h and world.tileSize then
+        local ts = world.tileSize
+        local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
+        local camX, camY = state.camera.x or 0, state.camera.y or 0
+
+        local minCx = math.max(1, math.floor(camX / ts) + 1)
+        local maxCx = math.min(world.w, math.floor((camX + sw) / ts) + 1)
+        local minCy = math.max(1, math.floor(camY / ts) + 1)
+        local maxCy = math.min(world.h, math.floor((camY + sh) / ts) + 1)
+
+        love.graphics.setColor(0.10, 0.10, 0.11, 1.0)
+        for cy = minCy, maxCy do
+            local row = (cy - 1) * world.w
+            local y = (cy - 1) * ts
+            for cx = minCx, maxCx do
+                if world.tiles[row + cx] == 1 then
+                    love.graphics.rectangle('fill', (cx - 1) * ts, y, ts, ts)
+                end
+            end
+        end
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+
     -- 大蒜圈 / 灵魂吞噬者圈（统一用 shader 范围场，避免占位素材 + bloom 过曝）
     if state.inventory.weapons.garlic or state.inventory.weapons.soul_eater then
         local key = state.inventory.weapons.soul_eater and 'soul_eater' or 'garlic'

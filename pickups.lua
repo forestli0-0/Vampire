@@ -17,9 +17,15 @@ function pickups.updateMagnetSpawns(state, dt)
         local px, py = state.player.x, state.player.y
         local kinds = {'magnet', 'chicken'}
         local kind = kinds[math.random(#kinds)]
+        local x = px + math.cos(ang) * dist
+        local y = py + math.sin(ang) * dist
+        local world = state.world
+        if world and world.enabled and world.adjustToWalkable then
+            x, y = world:adjustToWalkable(x, y, 14)
+        end
         table.insert(state.floorPickups, {
-            x = px + math.cos(ang) * dist,
-            y = py + math.sin(ang) * dist,
+            x = x,
+            y = y,
             size = 14,
             kind = kind
         })
