@@ -2,6 +2,7 @@ local util = require('util')
 local upgrades = require('upgrades')
 local logger = require('logger')
 local pets = require('pets')
+local campaign = require('campaign')
 
 local pickups = {}
 
@@ -121,10 +122,34 @@ function pickups.updateChests(state, dt)
                     cancel = true
                 end
             end
-
+ 
             if not cancel then
+                -- Stage exit (campaign): advances to the next stage.
+                if c and c.kind == 'stage_exit' and state.runMode == 'explore' and state.campaign then
+                    logger.pickup(state, 'stage_exit')
+                    table.remove(state.chests, i)
+                    campaign.advanceStage(state)
+                    return
+                end
+
                 -- Boss reward chest: ends the run and grants meta rewards (no in-run upgrades).
                 if c and c.kind == 'boss_reward' then
+                    if state.runMode == 'explore' and state.campaign and not campaign.isFinalBoss(state) then
+                        local rewardCurrency = tonumber(c.rewardCurrency) or 100
+                        if state.gainGold then
+                            state.gainGold(rewardCurrency, {source = 'boss_stage', chest = c, x = p.x, y = p.y - 70, life = 1.2})
+                        else
+                            state.runCurrency = (state.runCurrency or 0) + rewardCurrency
+                            if state.texts then
+                                table.insert(state.texts, {x = p.x, y = p.y - 70, text = "+" .. tostring(rewardCurrency) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 1.2})
+                            end
+                        end
+                        logger.pickup(state, 'boss_reward')
+                        table.remove(state.chests, i)
+                        campaign.advanceStage(state)
+                        return
+                    end
+
                     local rewardCurrency = tonumber(c.rewardCurrency) or 100
                     local newModKey = nil
                     if state.profile and state.catalog then

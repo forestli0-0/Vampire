@@ -2,6 +2,7 @@ local weapons = require('weapons')
 local pets = require('pets')
 local world = require('world')
 local mission = require('mission')
+local campaign = require('campaign')
 
 local arsenal = {}
 
@@ -268,29 +269,11 @@ function arsenal.startRun(state, opts)
     if state.runMode == 'explore' then
         state.rooms = state.rooms or {}
         state.rooms.enabled = false
-        state.world = world.new({
-            tileSize = 32,
-            w = 160,
-            h = 160,
-            roomCount = 28,
-            roomMin = 6,
-            roomMax = 14,
-            corridorWidth = 2,
-            navRefresh = 0.35
-        })
-        if state.player and state.world then
-            state.player.x, state.player.y = state.world.spawnX, state.world.spawnY
-            local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
-            local maxCamX = math.max(0, (state.world.pixelW or 0) - sw)
-            local maxCamY = math.max(0, (state.world.pixelH or 0) - sh)
-            state.camera = state.camera or {x = 0, y = 0}
-            state.camera.x = math.max(0, math.min((state.player.x or 0) - sw / 2, maxCamX))
-            state.camera.y = math.max(0, math.min((state.player.y or 0) - sh / 2, maxCamY))
-        end
-        mission.start(state)
+        campaign.startRun(state)
     else
         state.world = nil
         state.mission = nil
+        state.campaign = nil
         if state.rooms then state.rooms.enabled = true end
     end
 

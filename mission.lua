@@ -260,7 +260,9 @@ local function processSpawnQueues(state, dt)
 
     for _, z in ipairs(m.zones) do
         local q = z and z.spawnQueue
-        if q and #q > 0 then
+        if q and #q == 0 then
+            z.spawnQueue = nil
+        elseif q and #q > 0 then
             for i = #q, 1, -1 do
                 local s = q[i]
                 s.t = (s.t or 0) - dt
@@ -288,7 +290,31 @@ function mission.start(state)
     end
 
     local startId = pickStartZone(world)
-    local bossId = pickBossZone(world, startId)
+    local stageType = (state and state.campaign and state.campaign.stageType) or 'boss'
+    local bossId = nil
+    local exitId = nil
+    if stageType == 'boss' then
+        bossId = pickBossZone(world, startId)
+    else
+        exitId = pickBossZone(world, startId)
+        if exitId == startId and (world.rooms and #world.rooms > 1) then
+            -- pick the farthest room excluding start, if possible
+            local sr = world.rooms[startId]
+            local bestId, bestD2 = nil, -1
+            for i, r in ipairs(world.rooms) do
+                if i ~= startId then
+                    local dx = (r.cx or 0) - (sr.cx or 0)
+                    local dy = (r.cy or 0) - (sr.cy or 0)
+                    local d2 = dx * dx + dy * dy
+                    if d2 > bestD2 then
+                        bestD2 = d2
+                        bestId = i
+                    end
+                end
+            end
+            exitId = bestId or exitId
+        end
+    end
 
     local zones = {}
     for i, r in ipairs(world.rooms) do
@@ -298,7 +324,8 @@ function mission.start(state)
             spawned = false,
             cleared = false,
             isStart = (i == startId),
-            isBoss = (i == bossId)
+            isBoss = (bossId ~= nil) and (i == bossId) or false,
+            isExit = (exitId ~= nil) and (i == exitId) or false
         }
     end
     if zones[startId] and not zones[startId].isBoss then
@@ -310,12 +337,18 @@ function mission.start(state)
         zones = zones,
         startId = startId,
         bossId = bossId,
+        exitId = exitId,
+        stageType = stageType,
         currentZoneId = nil,
         clearedCount = 0
     }
 
-    if state.texts and world.rooms[bossId] then
-        table.insert(state.texts, {x = state.player.x, y = state.player.y - 110, text = "OBJECTIVE: FIND THE BOSS", color = {0.95, 0.95, 1.0}, life = 2.2})
+    if state.texts then
+        if stageType == 'boss' then
+            table.insert(state.texts, {x = state.player.x, y = state.player.y - 110, text = "OBJECTIVE: DEFEAT THE BOSS", color = {0.95, 0.95, 1.0}, life = 2.2})
+        else
+            table.insert(state.texts, {x = state.player.x, y = state.player.y - 110, text = "OBJECTIVE: REACH EXTRACTION", color = {0.95, 0.95, 1.0}, life = 2.2})
+        end
     end
 end
 
@@ -358,6 +391,8 @@ function mission.update(state, dt)
     local zid, z = findZoneAt(state, pcx, pcy)
     m.currentZoneId = zid
 
+    local stageType = (m and m.stageType) or (state.campaign and state.campaign.stageType) or 'boss'
+
     -- "无感刷新"：玩家接近房间时就预先刷怪（通常发生在走廊里，看不到房间内部）。
     local preSpawnRange = computeZonePreSpawnRangePx(state)
     for id, zone in ipairs(m.zones or {}) do
@@ -396,6 +431,16 @@ function mission.update(state, dt)
                 m.clearedCount = (m.clearedCount or 0) + 1
                 if state.texts and m.currentZoneId == id then
                     table.insert(state.texts, {x = state.player.x, y = state.player.y - 110, text = "CLEARED", color = {0.75, 1.0, 0.75}, life = 1.2})
+                end
+
+                if stageType ~= 'boss' and zone.isExit and not zone.exitChestSpawned then
+                    zone.exitChestSpawned = true
+                    state.chests = state.chests or {}
+                    local wx, wy = world:cellToWorld((zone.room and zone.room.cx) or 1, (zone.room and zone.room.cy) or 1)
+                    table.insert(state.chests, {x = wx, y = wy, w = 26, h = 26, kind = 'stage_exit'})
+                    if state.texts and m.currentZoneId == id then
+                        table.insert(state.texts, {x = wx, y = wy - 90, text = "EXTRACTION READY", color = {0.85, 0.95, 1.0}, life = 2.0})
+                    end
                 end
             end
         end
