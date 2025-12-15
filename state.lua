@@ -179,6 +179,46 @@ function state.applyPersistentMods()
     end
 end
 
+function state.gainGold(amount, ctx)
+    if state.benchmarkMode then return 0 end
+    local base = tonumber(amount) or 0
+    base = math.floor(base)
+    if base <= 0 then return 0 end
+
+    ctx = ctx or {}
+    ctx.kind = ctx.kind or 'gold'
+    ctx.amount = base
+    ctx.player = ctx.player or state.player
+    ctx.t = ctx.t or state.gameTimer or 0
+
+    if state and state.augments and state.augments.dispatch then
+        state.augments.dispatch(state, 'onPickup', ctx)
+        if ctx.cancel then
+            state.augments.dispatch(state, 'pickupCancelled', ctx)
+            return 0
+        end
+    end
+
+    local amt = math.max(0, math.floor(ctx.amount or base))
+    if amt <= 0 then return 0 end
+
+    state.runCurrency = (state.runCurrency or 0) + amt
+
+    if ctx.showText ~= false and state.texts then
+        local p = ctx.player or state.player or {}
+        local x = ctx.x or p.x or 0
+        local y = ctx.y or (p.y and (p.y - 60)) or 0
+        table.insert(state.texts, {x = x, y = y, text = "+" .. tostring(amt) .. " GOLD", color = {0.95, 0.9, 0.45}, life = ctx.life or 0.9})
+    end
+
+    if state and state.augments and state.augments.dispatch then
+        ctx.amount = amt
+        state.augments.dispatch(state, 'postPickup', ctx)
+    end
+
+    return amt
+end
+
 function state.init()
     math.randomseed(os.time())
 
@@ -560,6 +600,23 @@ function state.init()
         },
 
         -- Mechanics Augments (per-run, change play patterns)
+        aug_gilded_instinct = {
+            type = 'augment', name = "Gilded Instinct",
+            desc = "Gain more GOLD from kills and room rewards.",
+            maxLevel = 3,
+            triggers = {
+                {
+                    event = 'onPickup',
+                    requires = {pickupKind = 'gold'},
+                    action = function(state, ctx, level)
+                        local amt = tonumber(ctx and ctx.amount) or 0
+                        if amt <= 0 then return end
+                        local mult = 1 + 0.25 * math.max(1, level or 1)
+                        ctx.amount = math.max(1, math.floor(amt * mult + 0.5))
+                    end
+                }
+            }
+        },
         aug_kinetic_discharge = {
             type = 'augment', name = "Kinetic Discharge",
             desc = "Moving charges up. Every distance traveled releases an electric pulse.",
@@ -1179,6 +1236,7 @@ function state.init()
         roomIndex = 0,
         bossRoom = 8,
         -- reward pacing defaults (rooms mode): upgrades mainly come from room rewards + elites, not XP spam.
+        useXp = false,          -- legacy VS-style XP orb loop (off by default for Hades-like rooms pacing)
         xpGivesUpgrades = false,
         eliteDropsChests = false,
         eliteRoomBonusUpgrades = 1
@@ -1684,7 +1742,6 @@ function state.init()
     end
     loadPickup('chicken')
     loadPickup('magnet')
-    loadPickup('bomb')
     loadPickup('gem', 0.01) -- adjust this scale if the gem sprite looks too big/small
 
     -- 敌人子弹贴图

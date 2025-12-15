@@ -730,15 +730,6 @@ function draw.renderWorld(state)
                 love.graphics.line(item.x - 6, item.y + 6, item.x - 2, item.y + 6)
                 love.graphics.line(item.x + 2, item.y + 6, item.x + 6, item.y + 6)
                 love.graphics.setLineWidth(1)
-            elseif item.kind == 'bomb' then
-                if isGlow then love.graphics.setBlendMode("alpha") end -- Bomb body shouldn't glow too much
-                love.graphics.setColor(0.2, 0.2, 0.2)
-                love.graphics.circle('fill', item.x, item.y, 8)
-                if isGlow then love.graphics.setBlendMode("add") end
-                
-                -- Fuse
-                love.graphics.setColor(1, 0.5, 0)
-                love.graphics.line(item.x, item.y - 8, item.x + 4, item.y - 12)
             elseif item.kind == 'shop_terminal' then
                 love.graphics.setColor(0.35, 0.95, 1.0, 0.95)
                 love.graphics.circle('line', item.x, item.y, 12)
@@ -1200,14 +1191,13 @@ end
 function draw.renderUI(state)
     love.graphics.setFont(state.font)
 
-    -- 屏幕边缘指示道具方向（磁铁/炸弹/鸡腿/宝箱）
+    -- 屏幕边缘指示道具方向（磁铁/鸡腿/宝箱）
     do
         local w, h = love.graphics.getWidth(), love.graphics.getHeight()
         local cx, cy = w / 2, h / 2
         local colors = {
             magnet = {0,0.8,1},
             chest = {1,0.84,0},
-            bomb = {1,0.2,0.2},
             chicken = {1,0.7,0.2}
         }
         local function drawArrow(wx, wy, kind)
@@ -1235,7 +1225,7 @@ function draw.renderUI(state)
             drawArrow(c.x, c.y, 'chest')
         end
         for _, item in ipairs(state.floorPickups) do
-            if item.kind == 'magnet' or item.kind == 'bomb' or item.kind == 'chicken' then
+            if item.kind == 'magnet' or item.kind == 'chicken' then
                 drawArrow(item.x, item.y, item.kind)
             end
         end
@@ -1244,18 +1234,29 @@ function draw.renderUI(state)
     drawStatsPanel(state)
     drawPetPanel(state)
 
-      -- HUD
-      love.graphics.setColor(0,0,1)
-    local xpRatio = 0
-    if state.player.xpToNextLevel and state.player.xpToNextLevel > 0 then
-        xpRatio = math.min(1, (state.player.xp or 0) / state.player.xpToNextLevel)
+    -- HUD
+    local showXpHud = true
+    if state.runMode == 'rooms' and state.rooms and state.rooms.useXp == false then
+        showXpHud = false
     end
-    love.graphics.rectangle('fill', 0, 0, love.graphics.getWidth() * xpRatio, 10)
-      local hpRatio = math.min(1, math.max(0, state.player.hp / state.player.maxHp))
-      love.graphics.setColor(1,0,0)
+
+    if showXpHud then
+        love.graphics.setColor(0, 0, 1)
+        local xpRatio = 0
+        if state.player.xpToNextLevel and state.player.xpToNextLevel > 0 then
+            xpRatio = math.min(1, (state.player.xp or 0) / state.player.xpToNextLevel)
+        end
+        love.graphics.rectangle('fill', 0, 0, love.graphics.getWidth() * xpRatio, 10)
+    end
+
+    local hpRatio = math.min(1, math.max(0, state.player.hp / state.player.maxHp))
+    love.graphics.setColor(1, 0, 0)
     love.graphics.rectangle('fill', 10, 20, 150 * hpRatio, 15)
-    love.graphics.setColor(1,1,1)
-    love.graphics.print("LV "..state.player.level, 10, 40)
+    love.graphics.setColor(1, 1, 1)
+
+    if showXpHud then
+        love.graphics.print("LV " .. state.player.level, 10, 40)
+    end
 
     do
         local p = state.player or {}

@@ -109,6 +109,8 @@
 - `arsenal.lua`：开局选择宠物（`P/O`）+ 选择模块（`M`），并随开局生成。
 - `rooms.lua` + `pickups.lua`：特殊房 `shop/event` 支持宠物换宠/复活；`shop` 使用 `shop_terminal` 打开购买菜单，`event` 产出 `pet_contract` / `pet_revive`。
 - 跑内经济：清房宝箱会给予跑内 `GOLD`，用于商店消费（与局外 `Credits` 分离）。
+- 掉落与节奏：`rooms` 默认关闭经验宝石循环，击杀改为掉落少量 `GOLD`（为商店服务）；炸弹清屏移除，`survival` 仍保留鸡腿/磁铁作为拾取节奏。
+- 新增增强卡：`Gilded Instinct`（提高 `GOLD` 获取率），用于构筑一条“经济流”。
 - `draw.lua`：宠物占位绘制 + 倒地复活条；特殊房道具表现。
 
 ### 下一步（把“宠物”变成真正的路线）

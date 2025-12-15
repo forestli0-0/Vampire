@@ -1402,30 +1402,60 @@ function enemies.update(state, dt)
                 goto continue_enemy
             end
             if not e.noDrops then
+                local roomsMode = (state.runMode == 'rooms')
+                local useXp = true
+                if roomsMode and state.rooms and state.rooms.useXp == false then
+                    useXp = false
+                end
+
                 if e.isElite then
                     local dropChest = true
-                    if state.runMode == 'rooms' and state.rooms and state.rooms.eliteDropsChests == false then
+                    if roomsMode and state.rooms and state.rooms.eliteDropsChests == false then
                         dropChest = false
                     end
                     if dropChest then
                         table.insert(state.chests, {x=e.x, y=e.y, w=20, h=20})
                     else
-                        -- rooms mode: elites are rewarded via room clear choice; keep kill drops light.
-                        if math.random() < 0.35 then
-                            local kinds = {'chicken', 'magnet', 'bomb'}
-                            local kind = kinds[math.random(#kinds)]
-                            table.insert(state.floorPickups, {x=e.x, y=e.y, size=14, kind=kind})
+                        if useXp then
+                            -- rooms mode: elites are rewarded via room clear choice; keep kill drops light.
+                            if math.random() < 0.35 then
+                                local kinds = roomsMode and {'magnet'} or {'chicken', 'magnet'}
+                                local kind = kinds[math.random(#kinds)]
+                                table.insert(state.floorPickups, {x=e.x, y=e.y, size=14, kind=kind})
+                            else
+                                table.insert(state.gems, {x=e.x, y=e.y, value=3})
+                            end
                         else
-                            table.insert(state.gems, {x=e.x, y=e.y, value=3})
+                            -- rooms mode (Hades-like): enemies drop small gold (no chicken/bomb).
+                            local room = tonumber(state.rooms and state.rooms.roomIndex) or 1
+                            local gain = 4 + math.max(0, math.min(6, room))
+                            if state.gainGold then
+                                state.gainGold(gain, {source = 'kill', enemy = e, x = e.x, y = e.y - 20, life = 0.65})
+                            else
+                                state.runCurrency = (state.runCurrency or 0) + gain
+                                table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 0.65})
+                            end
                         end
                     end
                 else
-                    if math.random() < 0.01 then
-                        local kinds = {'chicken','magnet','bomb'}
-                        local kind = kinds[math.random(#kinds)]
-                        table.insert(state.floorPickups, {x=e.x, y=e.y, size=14, kind=kind})
+                    if useXp then
+                        if math.random() < 0.01 then
+                            local kinds = roomsMode and {'magnet'} or {'chicken', 'magnet'}
+                            local kind = kinds[math.random(#kinds)]
+                            table.insert(state.floorPickups, {x=e.x, y=e.y, size=14, kind=kind})
+                        else
+                            table.insert(state.gems, {x=e.x, y=e.y, value=1})
+                        end
                     else
-                        table.insert(state.gems, {x=e.x, y=e.y, value=1})
+                        -- rooms mode (Hades-like): enemies drop small gold (no chicken/bomb).
+                        local gain = 1
+                        if math.random() < 0.12 then gain = 2 end
+                        if state.gainGold then
+                            state.gainGold(gain, {source = 'kill', enemy = e, x = e.x, y = e.y - 20, life = 0.55})
+                        else
+                            state.runCurrency = (state.runCurrency or 0) + gain
+                            table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 0.55})
+                        end
                     end
                 end
             end

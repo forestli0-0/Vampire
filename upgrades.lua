@@ -217,7 +217,13 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
         table.insert(state.upgradeOptions, takeRandom(evolvePool))
     end
 
-    local runLevel = (state.player and state.player.level) or 1
+    local runLevel = 1
+    if state and state.runMode == 'rooms' and state.rooms then
+        runLevel = tonumber(state.rooms.roomIndex) or 1
+    else
+        runLevel = (state.player and state.player.level) or 1
+    end
+    runLevel = math.max(1, math.floor(runLevel))
     local preferExistingChance = 0.7
     if runLevel <= 6 then
         preferExistingChance = 0.35
