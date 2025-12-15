@@ -237,7 +237,7 @@ function World:generate(opts)
         self.tiles[i] = 1
     end
 
-    local targetRooms = math.max(6, math.floor(opts.roomCount or 28))
+    local targetRooms = math.max(1, math.floor(opts.roomCount or 28))
     local minSize = math.max(4, math.floor(opts.roomMin or 6))
     local maxSize = math.max(minSize, math.floor(opts.roomMax or 14))
     local margin = math.max(0, math.floor(opts.roomMargin or 2))

@@ -1,4 +1,5 @@
 local enemies = require('enemies')
+local biomes = require('biomes')
 
 local mission = {}
 
@@ -40,18 +41,10 @@ local function pickBossZone(world, startId)
 end
 
 local function buildEnemyPool(state)
-    local t = state.gameTimer or 0
-    local pool = {}
-    local function add(key, weight)
-        for _ = 1, (weight or 1) do pool[#pool + 1] = key end
-    end
-    add('skeleton', 7)
-    if t >= 20 then add('bat', 3) end
-    if t >= 40 then add('plant', 2) end
-    if t >= 90 then add('shield_lancer', 3) end
-    if t >= 150 then add('armored_brute', 2) end
-    if #pool == 0 then pool[1] = 'skeleton' end
-    return pool
+    local c = state and state.campaign
+    local biomeDef = (c and c.biomeDef) or (c and biomes.get(c.biome)) or biomes.get(1)
+    local tier = math.max(1, math.min(2, math.floor((c and c.stageInBiome) or 1)))
+    return biomes.buildEnemyPool(biomeDef, tier)
 end
 
 local function distanceToRoomRectPx(world, room, x, y)
@@ -250,7 +243,9 @@ local function buildSpawnQueueBoss(state, zoneId, room)
     if state.spawnTelegraphCircle then
         state.spawnTelegraphCircle(sx, sy, 54, delay, {kind = 'danger', intensity = 1.25})
     end
-    return {{kind = 'boss_treant', isElite = false, x = sx, y = sy, t = delay, isBoss = true}}
+    local c = state and state.campaign
+    local bossKey = (c and c.biomeDef and c.biomeDef.boss) or 'boss_treant'
+    return {{kind = bossKey, isElite = false, x = sx, y = sy, t = delay, isBoss = true}}
 end
 
 local function processSpawnQueues(state, dt)
@@ -349,6 +344,14 @@ function mission.start(state)
         else
             table.insert(state.texts, {x = state.player.x, y = state.player.y - 110, text = "OBJECTIVE: REACH EXTRACTION", color = {0.95, 0.95, 1.0}, life = 2.2})
         end
+    end
+
+    -- Safety: if generation produced only a single room in an explore stage, make extraction available immediately.
+    if stageType ~= 'boss' and exitId and exitId == startId and zones[startId] and zones[startId].isExit then
+        zones[startId].exitChestSpawned = true
+        state.chests = state.chests or {}
+        local wx, wy = world:cellToWorld((zones[startId].room and zones[startId].room.cx) or world.spawnCx or 1, (zones[startId].room and zones[startId].room.cy) or world.spawnCy or 1)
+        table.insert(state.chests, {x = wx, y = wy, w = 26, h = 26, kind = 'stage_exit'})
     end
 end
 

@@ -1,5 +1,6 @@
 local world = require('world')
 local mission = require('mission')
+local biomes = require('biomes')
 
 local campaign = {}
 
@@ -19,7 +20,11 @@ end
 local function stageLabel(c)
     local biome = tonumber(c and c.biome) or 1
     local stage = tonumber(c and c.stageInBiome) or 1
+    local biomeName = (c and c.biomeDef and c.biomeDef.name) or nil
     local t = "STAGE " .. tostring(biome) .. "-" .. tostring(stage)
+    if biomeName then
+        t = tostring(biomeName) .. "  " .. t
+    end
     if (c and c.stageType) == 'boss' then
         t = t .. "  BOSS"
     end
@@ -60,29 +65,24 @@ local function centerCameraOnPlayer(state)
     state.camera.y = clamp((state.player.y or 0) - sh / 2, 0, maxCamY)
 end
 
-local function getWorldOptsForStage(stageType)
-    if stageType == 'boss' then
-        return {
-            tileSize = 32,
-            w = 96,
-            h = 96,
-            roomCount = 1,
-            roomMin = 34,
-            roomMax = 44,
-            corridorWidth = 2,
-            navRefresh = 0.25
-        }
+local function getWorldOptsForStage(stageType, biomeDef)
+    local ts = 32
+    local nav = (stageType == 'boss') and 0.25 or 0.35
+    local roomCount = (stageType == 'boss') and 1 or math.random(3, 5)
+
+    local base = {tileSize = ts, roomCount = roomCount, navRefresh = nav}
+    local src = nil
+    if biomeDef then
+        src = (stageType == 'boss') and biomeDef.worldBoss or biomeDef.worldExplore
     end
-    return {
-        tileSize = 32,
-        w = 120,
-        h = 120,
-        roomCount = 5,
-        roomMin = 8,
-        roomMax = 18,
-        corridorWidth = 2,
-        navRefresh = 0.35
-    }
+    src = src or {}
+
+    base.w = src.w or ((stageType == 'boss') and 96 or 112)
+    base.h = src.h or ((stageType == 'boss') and 96 or 112)
+    base.roomMin = src.roomMin or ((stageType == 'boss') and 34 or 10)
+    base.roomMax = src.roomMax or ((stageType == 'boss') and 44 or 18)
+    base.corridorWidth = src.corridorWidth or 2
+    return base
 end
 
 function campaign.startRun(state, opts)
@@ -92,7 +92,8 @@ function campaign.startRun(state, opts)
         stageInBiome = 1,
         biomesTotal = math.max(1, math.floor(opts.biomesTotal or 3)),
         stagesPerBiome = math.max(1, math.floor(opts.stagesPerBiome or 3)),
-        stageType = 'explore'
+        stageType = 'explore',
+        biomeDef = biomes.get(1)
     }
     return campaign.startStage(state)
 end
@@ -110,12 +111,16 @@ end
 function campaign.startStage(state)
     local c = state and state.campaign
     if not c then return false end
+    c.biomeDef = biomes.get(c.biome)
     c.stageType = getStageType(c)
 
     resetStageState(state)
 
-    local opts = getWorldOptsForStage(c.stageType)
+    local opts = getWorldOptsForStage(c.stageType, c.biomeDef)
     state.world = world.new(opts)
+    if state.world and c.biomeDef and c.biomeDef.wallColor then
+        state.world.wallColor = c.biomeDef.wallColor
+    end
 
     if state.player and state.world then
         state.player.x, state.player.y = state.world.spawnX, state.world.spawnY
@@ -159,4 +164,3 @@ function campaign.advanceStage(state)
 end
 
 return campaign
-

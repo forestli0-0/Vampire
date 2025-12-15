@@ -564,7 +564,8 @@ function draw.renderWorld(state)
         local minCy = math.max(1, math.floor(camY / ts) + 1)
         local maxCy = math.min(world.h, math.floor((camY + sh) / ts) + 1)
 
-        love.graphics.setColor(0.10, 0.10, 0.11, 1.0)
+        local wallCol = (world and world.wallColor) or {0.10, 0.10, 0.11}
+        love.graphics.setColor(wallCol[1] or 0.10, wallCol[2] or 0.10, wallCol[3] or 0.11, 1.0)
         for cy = minCy, maxCy do
             local row = (cy - 1) * world.w
             local y = (cy - 1) * ts
