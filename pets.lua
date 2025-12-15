@@ -20,6 +20,7 @@ local function ensure(state)
     p.bleedoutTime = p.bleedoutTime or 10.0
     p.runLevel = p.runLevel or 1
     p.lostKey = p.lostKey or nil
+    p.upgrades = p.upgrades or {}
     return p
 end
 
@@ -66,24 +67,103 @@ local function applyPetProc(state, enemy, effectType, procs, petKey, petModule)
     })
 end
 
+local function getPetUpgradeLevel(state, upgradeKey)
+    local ps = state and state.pets or nil
+    local ups = ps and ps.upgrades or nil
+    local lvl = ups and ups[upgradeKey] or 0
+    lvl = tonumber(lvl) or 0
+    return math.max(0, math.floor(lvl))
+end
+
+local function applyPetHit(state, enemy, params)
+    local calc = getCalculator()
+    if not calc or not enemy then return end
+    calc.applyHit(state, enemy, params or {})
+end
+
+local function recomputePetStats(state, pet)
+    if not state or not pet then return end
+    local ps = ensure(state)
+
+    local def = state.catalog and state.catalog[pet.key]
+    local base = def and def.base or {}
+
+    local profile = state.profile or {}
+    local meta = profile.petRanks or {}
+    local rank = math.max(0, math.floor(meta[pet.key] or 0))
+
+    local baseHp = tonumber(base.hp) or 60
+    local hpBonus = rank * 6
+    local vitLv = getPetUpgradeLevel(state, 'pet_upgrade_vitality')
+    local hpMul = 1 + 0.12 * vitLv
+
+    local oldMax = pet.maxHp or 0
+    local oldHp = pet.hp or oldMax
+    local hpPct = 1
+    if oldMax and oldMax > 0 then
+        hpPct = math.max(0, math.min(1, oldHp / oldMax))
+    end
+
+    local maxHp = math.floor((baseHp + hpBonus) * hpMul + 0.5)
+    maxHp = math.max(1, maxHp)
+    pet.maxHp = maxHp
+    pet.hp = math.min(maxHp, math.max(0, math.floor(maxHp * hpPct + 0.5)))
+
+    local baseCd = tonumber(base.cooldown) or (pet.abilityCooldown or 3.0)
+    local lvl = ps.runLevel or 1
+
+    local cdMul = 1.0 - math.min(0.18, (lvl - 1) * 0.02)
+    cdMul = cdMul * (1.0 - math.min(0.15, rank * 0.03))
+    local overLv = getPetUpgradeLevel(state, 'pet_upgrade_overclock')
+    cdMul = cdMul * (1.0 - math.min(0.30, overLv * 0.06))
+    pet.abilityCooldown = math.max(0.25, baseCd * cdMul)
+
+    pet.level = lvl
+end
+
 local function doPetAbility(state, pet)
     if not state or not pet then return end
     local key = pet.key
     local module = pet.module or 'default'
     local lvl = pet.level or 1
+    local p = state.player or {}
+    local might = (p.stats and p.stats.might) or 1
+
+    local powerLv = getPetUpgradeLevel(state, 'pet_upgrade_power')
+    local dmgMul = 1 + 0.20 * powerLv
+    local statusLv = getPetUpgradeLevel(state, 'pet_upgrade_status')
+    local extraProcs = math.floor(statusLv / 2)
+
+    local function tags()
+        local t = {'pet', tostring(key or 'pet')}
+        if module then table.insert(t, tostring(module)) end
+        return t
+    end
 
     if key == 'pet_magnet' then
         if module == 'pulse' then
             local r = 150 + (lvl - 1) * 8
             local r2 = r * r
             local any = false
+            local hit = 0
+            local maxHits = 8
             for _, e in ipairs(state.enemies or {}) do
                 if e and not e.isDummy and (e.health or e.hp or 0) > 0 then
                     local dx = (e.x or 0) - pet.x
                     local dy = (e.y or 0) - pet.y
                     if dx * dx + dy * dy <= r2 then
-                        applyPetProc(state, e, 'MAGNETIC', 1, key, module)
+                        local procs = 1 + extraProcs
+                        applyPetHit(state, e, {
+                            damage = math.max(0, math.floor((6 + (lvl - 1) * 2) * might * dmgMul + 0.5)),
+                            critChance = 0,
+                            critMultiplier = 1.5,
+                            statusChance = procs,
+                            effectType = 'MAGNETIC',
+                            weaponTags = tags()
+                        })
                         any = true
+                        hit = hit + 1
+                        if hit >= maxHits then break end
                     end
                 end
             end
@@ -91,9 +171,16 @@ local function doPetAbility(state, pet)
         else
             local t = findNearestEnemyAt(state, pet.x, pet.y, 700)
             if t then
-                local stacks = 1
-                if lvl >= 4 then stacks = 2 end
-                applyPetProc(state, t, 'MAGNETIC', stacks, key, module)
+                local stacks = 1 + extraProcs
+                if lvl >= 4 then stacks = stacks + 1 end
+                applyPetHit(state, t, {
+                    damage = math.max(0, math.floor((8 + (lvl - 1) * 2) * might * dmgMul + 0.5)),
+                    critChance = 0,
+                    critMultiplier = 1.5,
+                    statusChance = stacks,
+                    effectType = 'MAGNETIC',
+                    weaponTags = tags()
+                })
                 if state.spawnEffect then state.spawnEffect('static_hit', t.x, t.y, 0.7) end
             end
         end
@@ -102,13 +189,25 @@ local function doPetAbility(state, pet)
             local r = 140 + (lvl - 1) * 6
             local r2 = r * r
             local any = false
+            local hit = 0
+            local maxHits = 8
             for _, e in ipairs(state.enemies or {}) do
                 if e and not e.isDummy and (e.health or e.hp or 0) > 0 then
                     local dx = (e.x or 0) - pet.x
                     local dy = (e.y or 0) - pet.y
                     if dx * dx + dy * dy <= r2 then
-                        applyPetProc(state, e, 'CORROSIVE', 1, key, module)
+                        local procs = 1 + extraProcs
+                        applyPetHit(state, e, {
+                            damage = math.max(0, math.floor((7 + (lvl - 1) * 2) * might * dmgMul + 0.5)),
+                            critChance = 0,
+                            critMultiplier = 1.5,
+                            statusChance = procs,
+                            effectType = 'CORROSIVE',
+                            weaponTags = tags()
+                        })
                         any = true
+                        hit = hit + 1
+                        if hit >= maxHits then break end
                     end
                 end
             end
@@ -116,21 +215,30 @@ local function doPetAbility(state, pet)
         else
             local t = findNearestEnemyAt(state, pet.x, pet.y, 700)
             if t then
-                local stacks = 1
-                if (t.armor or 0) >= 120 and lvl >= 3 then stacks = 2 end
-                applyPetProc(state, t, 'CORROSIVE', stacks, key, module)
+                local stacks = 1 + extraProcs
+                if (t.armor or 0) >= 120 and lvl >= 3 then stacks = stacks + 1 end
+                applyPetHit(state, t, {
+                    damage = math.max(0, math.floor((9 + (lvl - 1) * 2) * might * dmgMul + 0.5)),
+                    critChance = 0,
+                    critMultiplier = 1.5,
+                    statusChance = stacks,
+                    effectType = 'CORROSIVE',
+                    weaponTags = tags()
+                })
                 if state.spawnEffect then state.spawnEffect('corrosive_hit', t.x, t.y, 0.75) end
             end
         end
     elseif key == 'pet_guardian' then
-        local p = state.player
         if not p then return end
         if module == 'barrier' then
-            p.invincibleTimer = math.max(p.invincibleTimer or 0, 0.22 + math.min(0.18, (lvl - 1) * 0.02))
+            local base = 0.22 + math.min(0.18, (lvl - 1) * 0.02)
+            local bonus = 1 + 0.10 * powerLv
+            p.invincibleTimer = math.max(p.invincibleTimer or 0, base * bonus)
             if state.spawnEffect then state.spawnEffect('static_hit', p.x, p.y, 0.75) end
             table.insert(state.texts, {x = p.x, y = p.y - 46, text = "BARRIER", color = {0.7, 0.95, 1.0}, life = 0.8})
         else
             local heal = 7 + math.min(10, (lvl - 1) * 2)
+            heal = math.floor(heal * (1 + 0.12 * powerLv) + 0.5)
             p.hp = math.min(p.maxHp or p.hp, (p.hp or 0) + heal)
             if state.spawnEffect then state.spawnEffect('static_hit', p.x, p.y, 0.7) end
             table.insert(state.texts, {x = p.x, y = p.y - 46, text = "+" .. tostring(heal), color = {0.55, 1.0, 0.55}, life = 0.9})
@@ -144,6 +252,7 @@ function pets.init(state)
     p.list = {}
     p.runLevel = 1
     p.lostKey = nil
+    p.upgrades = {}
 end
 
 function pets.getActive(state)
@@ -162,18 +271,7 @@ function pets.bumpRunLevel(state, delta)
 
     local pet = getActive(state)
     if pet then
-        pet.level = p.runLevel
-        local def = state.catalog and state.catalog[pet.key]
-        local baseCd = (def and def.base and def.base.cooldown) or (pet.abilityCooldown or 3.0)
-
-        local profile = state.profile or {}
-        local meta = profile.petRanks or {}
-        local rank = math.max(0, math.floor(meta[pet.key] or 0))
-
-        local lvl = p.runLevel or 1
-        local cdMul = 1.0 - math.min(0.18, (lvl - 1) * 0.02)
-        cdMul = cdMul * (1.0 - math.min(0.15, rank * 0.03))
-        pet.abilityCooldown = math.max(0.25, baseCd * cdMul)
+        recomputePetStats(state, pet)
     end
     return p.runLevel
 end
@@ -192,7 +290,7 @@ function pets.setActive(state, petKey, opts)
     local profile = state.profile or {}
     profile.startPetKey = profile.startPetKey or 'pet_magnet'
     profile.petModules = profile.petModules or {}
-    local module = profile.petModules[petKey] or 'default'
+    local module = 'default'
 
     local baseHp = (def.base and def.base.hp) or 60
     local baseCd = (def.base and def.base.cooldown) or 3.0
@@ -233,12 +331,21 @@ function pets.setActive(state, petKey, opts)
     }
     table.insert(p.list, pet)
 
+    recomputePetStats(state, pet)
+
     if state.texts then
         local label = opts.revive and "PET REVIVED" or (opts.swap and "PET SWAPPED" or "PET READY")
         table.insert(state.texts, {x = pet.x, y = pet.y - 60, text = label .. ": " .. tostring(pet.name), color = {0.85, 0.95, 1.0}, life = 1.3})
     end
     if state.spawnEffect then state.spawnEffect('static_hit', pet.x, pet.y, 0.75) end
     return pet
+end
+
+function pets.recompute(state)
+    local pet = getActive(state)
+    if pet then
+        recomputePetStats(state, pet)
+    end
 end
 
 function pets.spawnStartingPet(state)

@@ -256,6 +256,18 @@ local function spawnRewardChest(state, r)
     table.insert(state.chests, chest)
     r.rewardChest = chest
 
+    -- Extra pet progression (low frequency): elite rooms may drop a pet chip.
+    if r.roomKind == 'elite' and state.floorPickups then
+        local pet = pets and pets.getActive and pets.getActive(state) or nil
+        if pet and not pet.downed then
+            local kind = 'pet_upgrade_chip'
+            if (pet.module or 'default') == 'default' and math.random() < 0.65 then
+                kind = 'pet_module_chip'
+            end
+            table.insert(state.floorPickups, {x = cx + 60, y = cy + 10, size = 14, kind = kind})
+        end
+    end
+
     local rewardLabel = ''
     if rewardType then rewardLabel = ' (' .. string.upper(tostring(rewardType)) .. ')' end
     local clearLabel = (r.roomKind == 'elite') and 'ELITE CLEAR!' or 'ROOM CLEAR!'

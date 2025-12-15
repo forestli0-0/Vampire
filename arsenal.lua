@@ -289,23 +289,8 @@ function arsenal.keypressed(state, key)
             local petKey = list[a.petIdx]
             state.profile.startPetKey = petKey
             local petName = (state.catalog[petKey] and state.catalog[petKey].name) or petKey
-            local module = state.profile.petModules and state.profile.petModules[petKey] or 'default'
-            setMessage(state, "Pet: " .. tostring(petName) .. " (" .. tostring(module) .. ")")
+            setMessage(state, "Pet: " .. tostring(petName))
             if state.saveProfile then state.saveProfile(state.profile) end
-        end
-        return true
-    end
-
-    if key == 'm' then
-        local profile = state.profile
-        if profile then
-            local petKey = profile.startPetKey
-            if petKey then
-                local module = cyclePetModule(profile, petKey, 1)
-                local petName = (state.catalog[petKey] and state.catalog[petKey].name) or petKey
-                setMessage(state, "Pet Module: " .. tostring(petName) .. " -> " .. tostring(module))
-                if state.saveProfile then state.saveProfile(profile) end
-            end
         end
         return true
     end
@@ -380,7 +365,6 @@ function arsenal.draw(state)
     local petKey = (state.profile and state.profile.startPetKey) or 'pet_magnet'
     local petDef = state.catalog and state.catalog[petKey]
     local petName = (petDef and petDef.name) or petKey
-    local petModule = (state.profile and state.profile.petModules and state.profile.petModules[petKey]) or 'default'
 
     love.graphics.setColor(1, 1, 1)
     local credits = (state.profile and state.profile.currency) or 0
@@ -388,7 +372,7 @@ function arsenal.draw(state)
     love.graphics.setColor(0.85, 0.85, 0.95)
     love.graphics.print("Weapon: " .. tostring(weaponName) .. "  (Tab/Backspace)", leftX, topY - 54)
     love.graphics.setColor(0.85, 0.95, 0.9)
-    love.graphics.print("Pet: " .. tostring(petName) .. "  Module: " .. tostring(petModule) .. "  (P/O, M)", leftX, topY - 42)
+    love.graphics.print("Pet: " .. tostring(petName) .. "  (P/O)", leftX, topY - 42)
 
     for i, key in ipairs(list) do
         local def = state.catalog[key]

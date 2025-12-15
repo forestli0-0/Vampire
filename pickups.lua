@@ -227,6 +227,27 @@ function pickups.updateFloorPickups(state, dt)
                     roomKind = item.roomKind
                 })
                 logger.pickup(state, 'pet_contract')
+            elseif item.kind == 'pet_module_chip' then
+                local pet = pets.getActive(state)
+                if not pet then
+                    consume = false
+                    table.insert(state.texts, {x = p.x, y = p.y - 30, text = "No active pet", color = {1, 0.6, 0.6}, life = 1.0})
+                elseif (pet.module or 'default') ~= 'default' then
+                    consume = false
+                    table.insert(state.texts, {x = p.x, y = p.y - 30, text = "Pet module already installed", color = {1, 0.75, 0.55}, life = 1.0})
+                else
+                    upgrades.queueLevelUp(state, 'pet_module_chip', {allowedTypes = {pet_module = true}, source = 'pet_chip'})
+                    logger.pickup(state, 'pet_module_chip')
+                end
+            elseif item.kind == 'pet_upgrade_chip' then
+                local pet = pets.getActive(state)
+                if not pet then
+                    consume = false
+                    table.insert(state.texts, {x = p.x, y = p.y - 30, text = "No active pet", color = {1, 0.6, 0.6}, life = 1.0})
+                else
+                    upgrades.queueLevelUp(state, 'pet_upgrade_chip', {allowedTypes = {pet_upgrade = true}, source = 'pet_chip'})
+                    logger.pickup(state, 'pet_upgrade_chip')
+                end
             elseif item.kind == 'shop_terminal' then
                 local room = (state.rooms and state.rooms.roomIndex) or 1
 
@@ -242,6 +263,8 @@ function pickups.updateFloorPickups(state, dt)
                 local swapCost = 55 + room * 12
                 local petHealCost = 25 + room * 6
                 local medkitCost = 18 + room * 5
+                local petModuleCost = 40 + room * 10
+                local petUpgradeCost = 32 + room * 8
 
                 local function setMsg(msg)
                     state.shop = state.shop or {}
@@ -303,6 +326,37 @@ function pickups.updateFloorPickups(state, dt)
                                 table.insert(st.texts, {x = st.player.x, y = st.player.y - 30, text = "+" .. tostring(heal) .. " HP", color = {1, 0.7, 0}, life = 1.0})
                                 st.shop = nil
                                 st.gameState = 'PLAYING'
+                            end
+                        },
+                        {
+                            id = 'pet_module',
+                            name = "Pet Module",
+                            desc = "Install a module (non-replaceable)",
+                            cost = petModuleCost,
+                            enabled = (pet ~= nil) and ((pet.module or 'default') == 'default'),
+                            disabledReason = (pet == nil) and "No active pet" or "Module already installed",
+                            onBuy = function(st)
+                                local active = pets.getActive(st)
+                                if not active then setMsg("No active pet") return end
+                                if (active.module or 'default') ~= 'default' then setMsg("Module already installed") return end
+                                if not buy(petModuleCost) then setMsg("Not enough GOLD") return end
+                                st.shop = nil
+                                upgrades.queueLevelUp(st, 'shop_pet_module', {allowedTypes = {pet_module = true}, source = 'shop'})
+                            end
+                        },
+                        {
+                            id = 'pet_upgrade',
+                            name = "Pet Upgrade",
+                            desc = "Upgrade your pet (stackable)",
+                            cost = petUpgradeCost,
+                            enabled = (pet ~= nil),
+                            disabledReason = "No active pet",
+                            onBuy = function(st)
+                                local active = pets.getActive(st)
+                                if not active then setMsg("No active pet") return end
+                                if not buy(petUpgradeCost) then setMsg("Not enough GOLD") return end
+                                st.shop = nil
+                                upgrades.queueLevelUp(st, 'shop_pet_upgrade', {allowedTypes = {pet_upgrade = true}, source = 'shop'})
                             end
                         }
                     }

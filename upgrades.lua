@@ -66,6 +66,19 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
             local pet = pets.getActive(state)
             return pet and pet.key == itemKey
         end
+        if itemType == 'pet_module' then
+            local pet = pets.getActive(state)
+            if not pet then return false end
+            local def = state.catalog and state.catalog[itemKey]
+            local modId = def and def.moduleId
+            if not modId then return false end
+            return (pet.module or 'default') == modId
+        end
+        if itemType == 'pet_upgrade' then
+            local ps = state and state.pets or nil
+            local ups = ps and ps.upgrades or nil
+            return ups and (ups[itemKey] or 0) > 0
+        end
         return false
     end
 
@@ -106,6 +119,22 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
     for key, item in pairs(state.catalog) do
         if item and item.type == 'pet' and not allowPets then
             goto continue_catalog
+        end
+        -- Pet modules/upgrades only make sense when you have an active pet.
+        if item and (item.type == 'pet_module' or item.type == 'pet_upgrade') then
+            local pet = pets.getActive(state)
+            if not pet then
+                goto continue_catalog
+            end
+            if item.type == 'pet_module' then
+                if item.requiresPetKey and pet.key ~= item.requiresPetKey then
+                    goto continue_catalog
+                end
+                -- non-replaceable: only offer modules when still on default
+                if (pet.module or 'default') ~= 'default' then
+                    goto continue_catalog
+                end
+            end
         end
         if item and item.type and not typeAllowed(item.type) then
             goto continue_catalog
@@ -154,6 +183,20 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
                 if request and request.excludePetKey and request.excludePetKey == key then
                     goto continue_catalog
                 end
+            end
+            if item.type == 'pet_module' then
+                local pet = pets.getActive(state)
+                local modId = item.moduleId
+                if pet and modId and (pet.module or 'default') == modId then
+                    currentLevel = 1
+                else
+                    currentLevel = 0
+                end
+            end
+            if item.type == 'pet_upgrade' then
+                local ps = state and state.pets or nil
+                local ups = ps and ps.upgrades or nil
+                currentLevel = ups and (ups[key] or 0) or 0
             end
             if currentLevel < item.maxLevel then
                 local opt = {key=key, type=item.type, name=item.name, desc=item.desc, def=item}
@@ -374,6 +417,29 @@ function upgrades.applyUpgrade(state, opt)
         logger.upgrade(state, opt, state.inventory.augments[opt.key])
         if opt.def.onUpgrade then opt.def.onUpgrade() end
         dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = state.inventory.augments[opt.key]})
+    elseif opt.type == 'pet_module' then
+        local pet = pets.getActive(state)
+        local def = opt.def or (state.catalog and state.catalog[opt.key]) or nil
+        local modId = def and def.moduleId
+        if pet and modId and (pet.module or 'default') == 'default' then
+            pet.module = modId
+            logger.upgrade(state, opt, 1)
+            if state.texts then
+                table.insert(state.texts, {x = pet.x, y = pet.y - 60, text = "PET MODULE: " .. tostring(def.name or opt.key), color = {0.85, 0.95, 1.0}, life = 1.3})
+            end
+            dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = 1})
+        end
+    elseif opt.type == 'pet_upgrade' then
+        state.pets = state.pets or {}
+        state.pets.upgrades = state.pets.upgrades or {}
+        local cur = state.pets.upgrades[opt.key] or 0
+        cur = cur + 1
+        local max = opt.def and opt.def.maxLevel
+        if max and cur > max then cur = max end
+        state.pets.upgrades[opt.key] = cur
+        logger.upgrade(state, opt, cur)
+        if pets and pets.recompute then pets.recompute(state) end
+        dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = cur})
     elseif opt.type == 'pet' then
         local pet = pets.setActive(state, opt.key, {swap = true})
         if pet then

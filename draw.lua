@@ -421,6 +421,20 @@ local function drawPetPanel(state)
         table.insert(lines, string.format("%s  Lv%d", name, lvl))
         table.insert(lines, string.format("Module: %s    Mode: %s", tostring(module), mode))
 
+        local ups = ps.upgrades or {}
+        local summary = {}
+        local pwr = ups.pet_upgrade_power or 0
+        local oc = ups.pet_upgrade_overclock or 0
+        local st = ups.pet_upgrade_status or 0
+        local vit = ups.pet_upgrade_vitality or 0
+        if pwr > 0 then table.insert(summary, "Power " .. tostring(pwr)) end
+        if oc > 0 then table.insert(summary, "Overclock " .. tostring(oc)) end
+        if st > 0 then table.insert(summary, "Catalyst " .. tostring(st)) end
+        if vit > 0 then table.insert(summary, "Vitality " .. tostring(vit)) end
+        if #summary > 0 then
+            table.insert(lines, "Upgrades: " .. table.concat(summary, "  "))
+        end
+
         local hp = pet.hp or 0
         local maxHp = pet.maxHp or 1
         local hpRatio = (maxHp > 0) and clamp01(hp / maxHp) or 0
@@ -705,7 +719,7 @@ function draw.renderWorld(state)
     for _, item in ipairs(state.floorPickups) do
         local sprite = state.pickupSprites and state.pickupSprites[item.kind]
         
-        local isGlow = (item.kind == 'magnet' or item.kind == 'chicken' or item.kind == 'chest_xp' or item.kind == 'chest_reward' or item.kind == 'pet_contract' or item.kind == 'pet_revive' or item.kind == 'shop_terminal')
+        local isGlow = (item.kind == 'magnet' or item.kind == 'chicken' or item.kind == 'chest_xp' or item.kind == 'chest_reward' or item.kind == 'pet_contract' or item.kind == 'pet_revive' or item.kind == 'shop_terminal' or item.kind == 'pet_module_chip' or item.kind == 'pet_upgrade_chip')
         if isGlow then love.graphics.setBlendMode("add") end
 
         if sprite then
@@ -736,6 +750,17 @@ function draw.renderWorld(state)
                 love.graphics.circle('fill', item.x, item.y, 6)
                 love.graphics.setColor(1, 1, 1, 0.9)
                 love.graphics.printf("SHOP", item.x - 40, item.y + 12, 80, "center")
+            elseif item.kind == 'pet_module_chip' or item.kind == 'pet_upgrade_chip' then
+                local isModule = (item.kind == 'pet_module_chip')
+                if isModule then
+                    love.graphics.setColor(0.7, 0.95, 1.0, 0.95)
+                else
+                    love.graphics.setColor(1.0, 0.92, 0.55, 0.95)
+                end
+                love.graphics.circle('line', item.x, item.y, 11)
+                love.graphics.circle('fill', item.x, item.y, 5)
+                love.graphics.setColor(1, 1, 1, 0.9)
+                love.graphics.printf(isModule and "MOD" or "UP", item.x - 30, item.y + 12, 60, "center")
             elseif item.kind == 'pet_contract' or item.kind == 'pet_revive' then
                 local rk = item.roomKind
                 if item.kind == 'pet_revive' then
@@ -1191,14 +1216,16 @@ end
 function draw.renderUI(state)
     love.graphics.setFont(state.font)
 
-    -- 屏幕边缘指示道具方向（磁铁/鸡腿/宝箱）
+    -- 屏幕边缘指示道具方向（磁铁/鸡腿/宝箱/宠物芯片）
     do
         local w, h = love.graphics.getWidth(), love.graphics.getHeight()
         local cx, cy = w / 2, h / 2
         local colors = {
             magnet = {0,0.8,1},
             chest = {1,0.84,0},
-            chicken = {1,0.7,0.2}
+            chicken = {1,0.7,0.2},
+            pet_module_chip = {0.7, 0.95, 1.0},
+            pet_upgrade_chip = {1.0, 0.92, 0.55}
         }
         local function drawArrow(wx, wy, kind)
             local col = colors[kind] or {1,1,1}
@@ -1225,7 +1252,7 @@ function draw.renderUI(state)
             drawArrow(c.x, c.y, 'chest')
         end
         for _, item in ipairs(state.floorPickups) do
-            if item.kind == 'magnet' or item.kind == 'chicken' then
+            if item.kind == 'magnet' or item.kind == 'chicken' or item.kind == 'pet_module_chip' or item.kind == 'pet_upgrade_chip' then
                 drawArrow(item.x, item.y, item.kind)
             end
         end
@@ -1375,10 +1402,18 @@ function draw.renderUI(state)
 
         local shop = state.shop or {}
         local options = shop.options or {}
-        for i = 1, math.min(3, #options) do
+        local maxShow = math.min(6, #options)
+        local boxX, boxW, boxH = 200, 400, 84
+        local gap = 12
+        local totalH = maxShow * boxH + math.max(0, maxShow - 1) * gap
+        local startY = 160
+        local maxY = h - 120
+        if startY + totalH > maxY then
+            startY = math.max(130, maxY - totalH)
+        end
+        for i = 1, maxShow do
             local opt = options[i]
-            local y = 180 + (i - 1) * 110
-            local boxX, boxW, boxH = 200, 400, 90
+            local y = startY + (i - 1) * (boxH + gap)
             local cost = math.floor(opt.cost or 0)
             local affordable = (gold >= cost)
             local enabled = (opt.enabled == nil) and true or (opt.enabled == true)
@@ -1412,7 +1447,7 @@ function draw.renderUI(state)
         end
 
         love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.printf("Press 1-3 to buy, or 0 to leave", 0, h - 70, w, "center")
+        love.graphics.printf(string.format("Press 1-%d to buy, or 0 to leave", maxShow), 0, h - 70, w, "center")
 
         if shop.message then
             love.graphics.setColor(1, 0.8, 0.3)
@@ -1454,6 +1489,10 @@ function draw.renderUI(state)
             local req = state.activeUpgradeRequest or {}
             if req and req.allowedTypes and (req.allowedTypes.pet or (type(req.allowedTypes) == 'table' and #req.allowedTypes > 0 and req.allowedTypes[1] == 'pet')) then
                 title = "CHOOSE A PET:"
+            elseif req and req.allowedTypes and req.allowedTypes.pet_module then
+                title = "CHOOSE A PET MODULE:"
+            elseif req and req.allowedTypes and req.allowedTypes.pet_upgrade then
+                title = "CHOOSE A PET UPGRADE:"
             end
             love.graphics.printf(title, 0, 100, love.graphics.getWidth(), "center")
 
@@ -1496,6 +1535,14 @@ function draw.renderUI(state)
                     end
                 end
                 if opt.type == 'augment' and state.inventory.augments and state.inventory.augments[opt.key] then curLv = state.inventory.augments[opt.key] end
+                if opt.type == 'pet_upgrade' then
+                    curLv = (state.pets and state.pets.upgrades and state.pets.upgrades[opt.key]) or 0
+                end
+                if opt.type == 'pet_module' then
+                    local pet = state.pets and state.pets.list and state.pets.list[1]
+                    local modId = opt.def and opt.def.moduleId
+                    if pet and modId and (pet.module or 'default') == modId then curLv = 1 else curLv = 0 end
+                end
                 love.graphics.print("Current Lv: " .. curLv, 500, y+10)
             end
             love.graphics.setColor(1,1,1)
