@@ -105,6 +105,59 @@ local function carveRect(self, x1, y1, x2, y2)
     end
 end
 
+local function fillRect(self, x1, y1, x2, y2, value)
+    value = value or 1
+    x1 = math.max(2, math.min(self.w - 1, x1))
+    y1 = math.max(2, math.min(self.h - 1, y1))
+    x2 = math.max(2, math.min(self.w - 1, x2))
+    y2 = math.max(2, math.min(self.h - 1, y2))
+    if x2 < x1 or y2 < y1 then return end
+    for cy = y1, y2 do
+        local row = (cy - 1) * self.w
+        for cx = x1, x2 do
+            self.tiles[row + cx] = value
+        end
+    end
+end
+
+local function applyRoomArchetype(self, room)
+    local w = (room.x2 or 0) - (room.x1 or 0) + 1
+    local h = (room.y2 or 0) - (room.y1 or 0) + 1
+    if w < 9 or h < 9 then return end
+
+    local choice = math.random()
+    if choice < 0.55 then
+        -- four corner pillars (reusable landmark, leaves center clear)
+        fillRect(self, room.x1 + 2, room.y1 + 2, room.x1 + 3, room.y1 + 3, 1)
+        fillRect(self, room.x2 - 3, room.y1 + 2, room.x2 - 2, room.y1 + 3, 1)
+        fillRect(self, room.x1 + 2, room.y2 - 3, room.x1 + 3, room.y2 - 2, 1)
+        fillRect(self, room.x2 - 3, room.y2 - 3, room.x2 - 2, room.y2 - 2, 1)
+    elseif choice < 0.80 then
+        -- sparse inner pillars (grid-ish) for larger rooms
+        local step = 4
+        for cy = room.y1 + 3, room.y2 - 3, step do
+            for cx = room.x1 + 3, room.x2 - 3, step do
+                local dx = cx - (room.cx or cx)
+                local dy = cy - (room.cy or cy)
+                if dx * dx + dy * dy > 9 then
+                    fillRect(self, cx, cy, cx, cy, 1)
+                end
+            end
+        end
+    else
+        -- center lane divider with a gap (recognizable but navigable)
+        local midX = room.cx or math.floor((room.x1 + room.x2) * 0.5)
+        local gapY = room.cy or math.floor((room.y1 + room.y2) * 0.5)
+        for cy = room.y1 + 2, room.y2 - 2 do
+            if math.abs(cy - gapY) <= 1 then
+                -- gap
+            else
+                fillRect(self, midX, cy, midX, cy, 1)
+            end
+        end
+    end
+end
+
 local function rectsOverlap(a, b, margin)
     margin = margin or 0
     return not (a.x2 + margin < b.x1 - margin
@@ -218,6 +271,7 @@ function World:generate(opts)
         end
         if ok then
             carveRect(self, room.x1, room.y1, room.x2, room.y2)
+            applyRoomArchetype(self, room)
             self.rooms[#self.rooms + 1] = room
         end
     end
@@ -443,6 +497,31 @@ function World:sampleSpawn(px, py, minCells, maxCells, attempts)
     end
 
     local fx, fy = self:findNearestWalkable(pcx, pcy, maxCells + 6)
+    if fx then return self:cellToWorld(fx, fy) end
+    return self.spawnX, self.spawnY
+end
+
+function World:sampleSpawnInCells(minCx, minCy, maxCx, maxCy, attempts)
+    attempts = math.max(8, math.floor(attempts or 48))
+    minCx = math.max(2, math.min(self.w - 1, math.floor(minCx or 2)))
+    maxCx = math.max(2, math.min(self.w - 1, math.floor(maxCx or (self.w - 1))))
+    minCy = math.max(2, math.min(self.h - 1, math.floor(minCy or 2)))
+    maxCy = math.max(2, math.min(self.h - 1, math.floor(maxCy or (self.h - 1))))
+    if maxCx < minCx then minCx, maxCx = maxCx, minCx end
+    if maxCy < minCy then minCy, maxCy = maxCy, minCy end
+
+    for _ = 1, attempts do
+        local cx = math.random(minCx, maxCx)
+        local cy = math.random(minCy, maxCy)
+        if self:isWalkableCell(cx, cy) then
+            return self:cellToWorld(cx, cy)
+        end
+    end
+
+    local ccx = math.floor((minCx + maxCx) * 0.5)
+    local ccy = math.floor((minCy + maxCy) * 0.5)
+    local maxR = math.max(8, math.max(maxCx - minCx, maxCy - minCy))
+    local fx, fy = self:findNearestWalkable(ccx, ccy, maxR)
     if fx then return self:cellToWorld(fx, fy) end
     return self.spawnX, self.spawnY
 end

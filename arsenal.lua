@@ -1,6 +1,7 @@
 local weapons = require('weapons')
 local pets = require('pets')
 local world = require('world')
+local mission = require('mission')
 
 local arsenal = {}
 
@@ -286,8 +287,10 @@ function arsenal.startRun(state, opts)
             state.camera.x = math.max(0, math.min((state.player.x or 0) - sw / 2, maxCamX))
             state.camera.y = math.max(0, math.min((state.player.y or 0) - sh / 2, maxCamY))
         end
+        mission.start(state)
     else
         state.world = nil
+        state.mission = nil
         if state.rooms then state.rooms.enabled = true end
     end
 

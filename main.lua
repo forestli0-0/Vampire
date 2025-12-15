@@ -20,6 +20,7 @@ local testmode = require('testmode')
 local testScenarios = require('test_scenarios')
 local pets = require('pets')
 local world = require('world')
+local mission = require('mission')
 
 -- 游戏启动时的初始化（状态、日志、默认武器等）
 function love.load()
@@ -65,6 +66,13 @@ function love.update(dt)
     end
 
     if bloom and bloom.update then bloom.update(dt) end
+    if bloom and bloom.setParams then
+        local desired = (state.runMode == 'explore') and 0.10 or 0.0
+        if state._vignetteStrength ~= desired then
+            state._vignetteStrength = desired
+            bloom.setParams({vignette_strength = desired})
+        end
+    end
     -- 升级/死亡界面下暂停主循环
     if state.gameState == 'LEVEL_UP' or state.gameState == 'SHOP' then return end
     if state.gameState == 'GAME_OVER' then
@@ -98,6 +106,8 @@ function love.update(dt)
     projectiles.updateEnemyBullets(state, dt)
     if state.runMode == 'rooms' and not state.testArena and not state.scenarioNoDirector and not state.benchmarkMode then
         rooms.update(state, dt)
+    elseif state.runMode == 'explore' and not state.testArena and not state.scenarioNoDirector and not state.benchmarkMode then
+        mission.update(state, dt)
     else
         director.update(state, dt)
     end

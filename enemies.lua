@@ -394,7 +394,8 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
     end
 end
 
-function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
+function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY, opts)
+    opts = opts or {}
     local def = enemyDefs[type] or enemyDefs.skeleton
     local color = def.color and {def.color[1], def.color[2], def.color[3]} or {1,1,1}
     local hp = def.hp
@@ -529,7 +530,7 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
     end
     local spawned = state.enemies[#state.enemies]
     ensureStatus(spawned)
-    if spawned and spawned.isElite and spawned.eliteMod and state and state.texts then
+    if spawned and spawned.isElite and spawned.eliteMod and state and state.texts and not opts.suppressSpawnText then
         table.insert(state.texts, {x = spawned.x, y = spawned.y - 70, text = string.upper(spawned.eliteMod), color = {1, 1, 1}, life = 1.2})
     end
     if state and state.augments and state.augments.dispatch then
@@ -541,6 +542,7 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY)
             player = state.player
         })
     end
+    return spawned
 end
 
 local function resetDummy(e)
@@ -658,6 +660,11 @@ function enemies.update(state, dt)
         local def = enemyDefs[e.kind] or enemyDefs.skeleton
         local tenacity = clamp(e.tenacity or 0, 0, 0.95)
         local hardCcImmune = (e.hardCcImmune == true) or (def and def.hardCcImmune == true) or false
+
+        if e.noContactDamageTimer and e.noContactDamageTimer > 0 then
+            e.noContactDamageTimer = e.noContactDamageTimer - (dt or 0)
+            if e.noContactDamageTimer <= 0 then e.noContactDamageTimer = nil end
+        end
 
         if hardCcImmune and e.status then
             if e.status.frozen then
@@ -1393,13 +1400,14 @@ function enemies.update(state, dt)
         local playerRadius = (p.size or 20) / 2
         local enemyRadius = (e.size or 16) / 2
         local inChargeDash = e.attack and e.attack.type == 'charge' and e.attack.phase == 'dash'
-        if not inChargeDash and pDist < (playerRadius + enemyRadius) and not e.noContactDamage then
+        local contactGrace = (e.noContactDamageTimer or 0) > 0
+        if not inChargeDash and pDist < (playerRadius + enemyRadius) and not e.noContactDamage and not contactGrace then
             local dmgMult = 1 - getPunctureReduction(e)
             if dmgMult < 0.25 then dmgMult = 0.25 end
             local baseContact = ((def and def.contactDamage) or 10) * (e.eliteDamageMult or 1)
             player.hurt(state, baseContact * dmgMult)
         end
-        if not inChargeDash and not e.noContactDamage then
+        if not inChargeDash and not e.noContactDamage and not contactGrace then
             local pet = pets.getActive(state)
             if pet and not pet.downed then
                 local dmgMult = 1 - getPunctureReduction(e)
