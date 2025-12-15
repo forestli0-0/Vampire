@@ -705,7 +705,7 @@ function draw.renderWorld(state)
     for _, item in ipairs(state.floorPickups) do
         local sprite = state.pickupSprites and state.pickupSprites[item.kind]
         
-        local isGlow = (item.kind == 'magnet' or item.kind == 'chicken' or item.kind == 'chest_xp' or item.kind == 'chest_reward' or item.kind == 'pet_contract' or item.kind == 'pet_revive')
+        local isGlow = (item.kind == 'magnet' or item.kind == 'chicken' or item.kind == 'chest_xp' or item.kind == 'chest_reward' or item.kind == 'pet_contract' or item.kind == 'pet_revive' or item.kind == 'shop_terminal')
         if isGlow then love.graphics.setBlendMode("add") end
 
         if sprite then
@@ -739,6 +739,12 @@ function draw.renderWorld(state)
                 -- Fuse
                 love.graphics.setColor(1, 0.5, 0)
                 love.graphics.line(item.x, item.y - 8, item.x + 4, item.y - 12)
+            elseif item.kind == 'shop_terminal' then
+                love.graphics.setColor(0.35, 0.95, 1.0, 0.95)
+                love.graphics.circle('line', item.x, item.y, 12)
+                love.graphics.circle('fill', item.x, item.y, 6)
+                love.graphics.setColor(1, 1, 1, 0.9)
+                love.graphics.printf("SHOP", item.x - 40, item.y + 12, 80, "center")
             elseif item.kind == 'pet_contract' or item.kind == 'pet_revive' then
                 local rk = item.roomKind
                 if item.kind == 'pet_revive' then
@@ -1277,6 +1283,13 @@ function draw.renderUI(state)
         end
     end
 
+    do
+        local gold = math.floor(state.runCurrency or 0)
+        love.graphics.setColor(1, 0.95, 0.55, 0.95)
+        love.graphics.print(string.format("GOLD %d", gold), 10, 90)
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+
     local minutes = math.floor(state.gameTimer / 60)
     local seconds = math.floor(state.gameTimer % 60)
     local timeStr = string.format("%02d:%02d", minutes, seconds)
@@ -1344,6 +1357,66 @@ function draw.renderUI(state)
         love.graphics.setFont(state.font)
         love.graphics.setColor(1,1,1)
         love.graphics.printf("Press R to restart", 0, h/2, w, "center")
+    end
+
+    if state.gameState == 'SHOP' then
+        local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+        love.graphics.setColor(0, 0, 0, 0.9)
+        love.graphics.rectangle('fill', 0, 0, w, h)
+        love.graphics.setFont(state.titleFont)
+        love.graphics.setColor(0.55, 0.95, 1.0)
+        love.graphics.printf("SHOP", 0, 80, w, "center")
+
+        love.graphics.setFont(state.font)
+        local gold = math.floor(state.runCurrency or 0)
+        love.graphics.setColor(1, 0.95, 0.55, 0.95)
+        love.graphics.printf(string.format("GOLD %d", gold), 0, 120, w, "center")
+
+        local shop = state.shop or {}
+        local options = shop.options or {}
+        for i = 1, math.min(3, #options) do
+            local opt = options[i]
+            local y = 180 + (i - 1) * 110
+            local boxX, boxW, boxH = 200, 400, 90
+            local cost = math.floor(opt.cost or 0)
+            local affordable = (gold >= cost)
+            local enabled = (opt.enabled == nil) and true or (opt.enabled == true)
+            local active = enabled and affordable
+
+            love.graphics.setColor(0.3, 0.3, 0.3, 0.9)
+            love.graphics.rectangle('fill', boxX, y, boxW, boxH, 8, 8)
+
+            if active then
+                love.graphics.setColor(1, 1, 1, 1)
+            else
+                love.graphics.setColor(0.6, 0.6, 0.6, 1)
+            end
+            local name = opt.name or opt.id or "Item"
+            local desc = opt.desc or ""
+            love.graphics.print(string.format("%d. %s", i, name), boxX + 16, y + 12)
+            love.graphics.setColor(0.75, 0.75, 0.75, 1)
+            love.graphics.print(desc, boxX + 16, y + 38)
+
+            if not enabled and opt.disabledReason then
+                love.graphics.setColor(1, 0.55, 0.55, 0.95)
+                love.graphics.print(opt.disabledReason, boxX + 16, y + 62)
+            end
+
+            if affordable then
+                love.graphics.setColor(1, 0.95, 0.55, 0.95)
+            else
+                love.graphics.setColor(1, 0.35, 0.35, 0.95)
+            end
+            love.graphics.print(string.format("Cost: %d", cost), boxX + 300, y + 12)
+        end
+
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.printf("Press 1-3 to buy, or 0 to leave", 0, h - 70, w, "center")
+
+        if shop.message then
+            love.graphics.setColor(1, 0.8, 0.3)
+            love.graphics.printf(shop.message, 0, h - 100, w, "center")
+        end
     end
 
     if state.gameState == 'LEVEL_UP' then

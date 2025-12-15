@@ -1143,6 +1143,10 @@ function state.init()
     -- Mods are loadout-only by default (Warframe-like); in-run power comes from weapons/passives/augments.
     state.allowInRunMods = false
 
+    -- Run economy (resets each run)
+    state.runCurrency = 0
+    state.shop = nil
+
     state.profile = state.loadProfile()
     state.applyPersistentMods()
     state.enemies = {}

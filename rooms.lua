@@ -323,7 +323,9 @@ spawnSpecialRoomPickup = function(state, r)
 
     state.floorPickups = state.floorPickups or {}
     local kind = 'pet_contract'
-    if r.roomKind == 'event' and pets and pets.hasLost and pets.hasLost(state) then
+    if r.roomKind == 'shop' then
+        kind = 'shop_terminal'
+    elseif r.roomKind == 'event' and pets and pets.hasLost and pets.hasLost(state) then
         kind = 'pet_revive'
     end
     local pickup = {

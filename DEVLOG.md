@@ -107,7 +107,8 @@
 ### 当前已落地（MVP）
 - `pets.lua`：单宠物体系（跟随/驻守切换、HP/倒地、按住 `E` 复活、流血退场、事件复活）。
 - `arsenal.lua`：开局选择宠物（`P/O`）+ 选择模块（`M`），并随开局生成。
-- `rooms.lua` + `pickups.lua`：特殊房 `shop/event` 生成 `pet_contract`（换宠）或 `pet_revive`（复活退场宠物）。
+- `rooms.lua` + `pickups.lua`：特殊房 `shop/event` 支持宠物换宠/复活；`shop` 使用 `shop_terminal` 打开购买菜单，`event` 产出 `pet_contract` / `pet_revive`。
+- 跑内经济：清房宝箱会给予跑内 `GOLD`，用于商店消费（与局外 `Credits` 分离）。
 - `draw.lua`：宠物占位绘制 + 倒地复活条；特殊房道具表现。
 
 ### 下一步（把“宠物”变成真正的路线）

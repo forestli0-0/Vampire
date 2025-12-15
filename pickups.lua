@@ -111,6 +111,15 @@ function pickups.updateChests(state, dt)
             end
 
             if not cancel then
+                -- Room-mode economy: reward run currency on room reward chests (shop spend).
+                if state and not state.benchmarkMode and c and c.kind == 'room_reward' then
+                    local room = tonumber(c.room) or (state.rooms and state.rooms.roomIndex) or 1
+                    local gain = 18 + math.floor(room * 6)
+                    if c.roomKind == 'elite' then gain = gain + 16 end
+                    state.runCurrency = (state.runCurrency or 0) + gain
+                    table.insert(state.texts, {x = p.x, y = p.y - 70, text = "+" .. tostring(gain) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 1.2})
+                end
+
                 local rewardType = c and c.rewardType or nil
                 local bonus = tonumber(c and c.bonusLevelUps) or 0
                 bonus = math.max(0, math.floor(bonus))
@@ -243,6 +252,90 @@ function pickups.updateFloorPickups(state, dt)
                     roomKind = item.roomKind
                 })
                 logger.pickup(state, 'pet_contract')
+            elseif item.kind == 'shop_terminal' then
+                local room = (state.rooms and state.rooms.roomIndex) or 1
+
+                local function buy(cost)
+                    cost = math.floor(cost or 0)
+                    if cost <= 0 then return true end
+                    if (state.runCurrency or 0) < cost then return false end
+                    state.runCurrency = (state.runCurrency or 0) - cost
+                    return true
+                end
+
+                local pet = pets.getActive(state)
+                local swapCost = 55 + room * 12
+                local petHealCost = 25 + room * 6
+                local medkitCost = 18 + room * 5
+
+                local function setMsg(msg)
+                    state.shop = state.shop or {}
+                    state.shop.message = msg
+                end
+
+                state.shop = {
+                    title = "SHOP",
+                    message = nil,
+                    options = {
+                        {
+                            id = 'pet_swap',
+                            name = "Pet Contract",
+                            desc = "Swap / adopt a pet",
+                            cost = swapCost,
+                            enabled = true,
+                            onBuy = function(st)
+                                if not buy(swapCost) then setMsg("Not enough GOLD") return end
+                                st.shop = nil
+                                local current = pets.getActive(st)
+                                upgrades.queueLevelUp(st, 'shop_pet', {
+                                    allowedTypes = {pet = true},
+                                    excludePetKey = current and current.key or nil,
+                                    source = 'shop'
+                                })
+                            end
+                        },
+                        {
+                            id = 'pet_heal',
+                            name = "Pet Treat",
+                            desc = "Heal your active pet",
+                            cost = petHealCost,
+                            enabled = (pet ~= nil) and ((pet.hp or 0) < (pet.maxHp or 0)),
+                            disabledReason = (pet == nil) and "No active pet" or "Pet already full",
+                            onBuy = function(st, opt, shop)
+                                local p = pets.getActive(st)
+                                if not p then setMsg("No active pet") return end
+                                if (p.hp or 0) >= (p.maxHp or 0) then setMsg("Pet already full") return end
+                                if not buy(petHealCost) then setMsg("Not enough GOLD") return end
+                                local heal = math.max(10, math.floor((p.maxHp or 0) * 0.55))
+                                p.hp = math.min(p.maxHp or p.hp, (p.hp or 0) + heal)
+                                table.insert(st.texts, {x = st.player.x, y = st.player.y - 60, text = "Pet +" .. tostring(heal), color = {0.55, 1.0, 0.55}, life = 1.1})
+                                st.shop = nil
+                                st.gameState = 'PLAYING'
+                            end
+                        },
+                        {
+                            id = 'medkit',
+                            name = "Medkit",
+                            desc = "Heal the player",
+                            cost = medkitCost,
+                            enabled = (p.hp or 0) < (p.maxHp or 0),
+                            disabledReason = "HP already full",
+                            onBuy = function(st)
+                                if (st.player.hp or 0) >= (st.player.maxHp or 0) then setMsg("HP already full") return end
+                                if not buy(medkitCost) then setMsg("Not enough GOLD") return end
+                                local heal = 35 + room * 2
+                                st.player.hp = math.min(st.player.maxHp, st.player.hp + heal)
+                                table.insert(st.texts, {x = st.player.x, y = st.player.y - 30, text = "+" .. tostring(heal) .. " HP", color = {1, 0.7, 0}, life = 1.0})
+                                st.shop = nil
+                                st.gameState = 'PLAYING'
+                            end
+                        }
+                    }
+                }
+
+                -- Always open the shop; leaving is handled in `main.lua` (0/esc).
+                state.gameState = 'SHOP'
+                logger.pickup(state, 'shop_terminal')
             elseif item.kind == 'pet_revive' then
                 local revived = pets.reviveLost(state)
                 if revived then

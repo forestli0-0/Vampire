@@ -65,7 +65,7 @@ function love.update(dt)
 
     if bloom and bloom.update then bloom.update(dt) end
     -- 升级/死亡界面下暂停主循环
-    if state.gameState == 'LEVEL_UP' then return end
+    if state.gameState == 'LEVEL_UP' or state.gameState == 'SHOP' then return end
     if state.gameState == 'GAME_OVER' then
         if love.keyboard.isDown('r') then love.load() end
         return
@@ -148,6 +148,23 @@ function love.keypressed(key)
     if testmode.keypressed(state, key) then return end
     if state.gameState == 'ARSENAL' then
         if arsenal.keypressed(state, key) then return end
+        return
+    end
+
+    if state.gameState == 'SHOP' then
+        local shop = state.shop or {}
+        if key == '0' or key == 'escape' or key == 'backspace' then
+            state.shop = nil
+            state.gameState = 'PLAYING'
+            return
+        end
+        local idx = tonumber(key)
+        if idx and shop.options and idx >= 1 and idx <= #shop.options then
+            local opt = shop.options[idx]
+            if opt and opt.onBuy then
+                opt.onBuy(state, opt, shop)
+            end
+        end
         return
     end
     if key == 'f5' then benchmark.toggle(state) end
