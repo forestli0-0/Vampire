@@ -9,6 +9,8 @@ local projectiles = {}
 local function findNearestEnemyAt(state, x, y, maxDist, exclude)
     local best = nil
     local bestD2 = (maxDist or 999999) ^ 2
+    local world = state and state.world
+    local useLos = world and world.enabled and world.segmentHitsWall
     for _, e in ipairs(state.enemies or {}) do
         if e and (e.health or e.hp or 0) > 0 then
             if not (exclude and exclude[e]) then
@@ -16,8 +18,10 @@ local function findNearestEnemyAt(state, x, y, maxDist, exclude)
                 local dy = (e.y or 0) - y
                 local d2 = dx * dx + dy * dy
                 if d2 < bestD2 then
-                    bestD2 = d2
-                    best = e
+                    if not (useLos and world:segmentHitsWall(x, y, e.x, e.y)) then
+                        bestD2 = d2
+                        best = e
+                    end
                 end
             end
         end
@@ -140,6 +144,7 @@ function projectiles.updatePlayerBullets(state, dt)
         end
 
         if not handled then
+            local ox, oy = b.x, b.y
             updateBulletGuidance(state, b, dt)
             if b.type == 'wand' or b.type == 'holy_wand' or b.type == 'fire_wand' or b.type == 'hellfire' or b.type == 'oil_bottle' or b.type == 'heavy_hammer' or b.type == 'dagger' or b.type == 'thousand_edge' or b.type == 'static_orb' or b.type == 'thunder_loop' or b.type == 'debug_effect' or b.type == 'augment_shard' then
                 b.x = b.x + b.vx * dt
@@ -160,6 +165,15 @@ function projectiles.updatePlayerBullets(state, dt)
                 b.x = b.x + b.vx * dt
                 b.y = b.y + b.vy * dt
                 b.rotation = (b.rotation or 0) + 8 * dt
+            end
+
+            local world = state.world
+            if world and world.enabled and world.segmentHitsWall then
+                if world:segmentHitsWall(ox, oy, b.x, b.y) then
+                    if state.spawnEffect then state.spawnEffect('hit', b.x, b.y, 0.55) end
+                    table.remove(state.bullets, i)
+                    goto continue_player_bullet
+                end
             end
 
             b.life = b.life - dt
@@ -302,6 +316,8 @@ function projectiles.updatePlayerBullets(state, dt)
                 end
             end
         end
+
+        ::continue_player_bullet::
     end
 end
 
@@ -316,10 +332,19 @@ function projectiles.updateEnemyBullets(state, dt)
     end
     for i = #state.enemyBullets, 1, -1 do
         local eb = state.enemyBullets[i]
+        local ox, oy = eb.x, eb.y
         eb.x = eb.x + eb.vx * dt
         eb.y = eb.y + eb.vy * dt
         eb.life = eb.life - dt
         eb.rotation = math.atan2(eb.vy, eb.vx)
+
+        local world = state.world
+        if world and world.enabled and world.segmentHitsWall then
+            if world:segmentHitsWall(ox, oy, eb.x, eb.y) then
+                table.remove(state.enemyBullets, i)
+                goto continue_enemy_bullet
+            end
+        end
 
         if eb.life <= 0 or math.abs(eb.x - state.player.x) > 1500 or math.abs(eb.y - state.player.y) > 1500 then
             table.remove(state.enemyBullets, i)
@@ -335,6 +360,7 @@ function projectiles.updateEnemyBullets(state, dt)
                 end
             end
         end
+        ::continue_enemy_bullet::
     end
 end
 

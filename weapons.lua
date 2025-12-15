@@ -301,15 +301,20 @@ function weapons.update(state, dt)
                 local computedStats = weapons.calculateStats(state, key) or w.stats
                 local weaponDef = state.catalog[key] or {}
                 local actualCD = (computedStats.cd or w.stats.cd) * (state.player.stats.cooldown or 1)
+                local losOpts = nil
+                if state.world and state.world.enabled then
+                    losOpts = {requireLOS = true}
+                end
 
                 if key == 'wand' then
-                    local t = enemies.findNearestEnemy(state, 600, sx, sy)
+                    local range = math.max(1, math.floor(computedStats.range or 600))
+                    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
                     if t then
                         if state.playSfx then state.playSfx('shoot') end
                         local shots = getProjectileCount(computedStats)
                         local baseAngle = math.atan2(t.y - sy, t.x - sx)
                         local spread = 0.12
-                        local dist = 600
+                        local dist = range
                         for i = 1, shots do
                             local ang = baseAngle + (i - (shots + 1) / 2) * spread
                             local target = {x = sx + math.cos(ang) * dist, y = sy + math.sin(ang) * dist}
@@ -318,13 +323,14 @@ function weapons.update(state, dt)
                         w.timer = actualCD
                     end
                 elseif key == 'holy_wand' then
-                    local t = enemies.findNearestEnemy(state, 700, sx, sy)
+                    local range = math.max(1, math.floor(computedStats.range or 700))
+                    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
                     if t then
                         if state.playSfx then state.playSfx('shoot') end
                         local shots = getProjectileCount(computedStats)
                         local baseAngle = math.atan2(t.y - sy, t.x - sx)
                         local spread = 0.1
-                        local dist = 650
+                        local dist = range
                         for i = 1, shots do
                             local ang = baseAngle + (i - (shots + 1) / 2) * spread
                             local target = {x = sx + math.cos(ang) * dist, y = sy + math.sin(ang) * dist}
@@ -333,7 +339,8 @@ function weapons.update(state, dt)
                         w.timer = actualCD
                     end
                 elseif key == 'fire_wand' or key == 'hellfire' then
-                    local t = enemies.findNearestEnemy(state, 700, sx, sy)
+                    local range = math.max(1, math.floor(computedStats.range or 700))
+                    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
                     if t then
                         if state.playSfx then state.playSfx('shoot') end
                         local shots = getProjectileCount(computedStats)
@@ -343,7 +350,8 @@ function weapons.update(state, dt)
                         w.timer = actualCD
                     end
                 elseif key == 'oil_bottle' then
-                    local t = enemies.findNearestEnemy(state, 700, sx, sy)
+                    local range = math.max(1, math.floor(computedStats.range or 700))
+                    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
                     if t then
                         if state.playSfx then state.playSfx('shoot') end
                         local shots = getProjectileCount(computedStats)
@@ -353,12 +361,13 @@ function weapons.update(state, dt)
                         w.timer = actualCD
                     end
                 elseif key == 'dagger' or key == 'thousand_edge' then
-                    local t = enemies.findNearestEnemy(state, 550, sx, sy)
+                    local range = math.max(1, math.floor(computedStats.range or 550))
+                    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
                     if t then
                         local shots = getProjectileCount(computedStats)
                         local baseAngle = math.atan2(t.y - sy, t.x - sx)
                         local spread = 0.08
-                        local dist = 450
+                        local dist = range
                         for i = 1, shots do
                             local ang = baseAngle + (i - (shots + 1) / 2) * spread
                             local target = {x = sx + math.cos(ang) * dist, y = sy + math.sin(ang) * dist}
@@ -367,7 +376,8 @@ function weapons.update(state, dt)
                         w.timer = actualCD
                     end
                 elseif key == 'static_orb' or key == 'thunder_loop' then
-                    local t = enemies.findNearestEnemy(state, 650, sx, sy)
+                    local range = math.max(1, math.floor(computedStats.range or 650))
+                    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
                     if t then
                         if state.playSfx then state.playSfx('shoot') end
                         local shots = getProjectileCount(computedStats)
@@ -377,7 +387,8 @@ function weapons.update(state, dt)
                         w.timer = actualCD
                     end
                 elseif key == 'heavy_hammer' then
-                    local t = enemies.findNearestEnemy(state, 550, sx, sy)
+                    local range = math.max(1, math.floor(computedStats.range or 550))
+                    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
                     if t then
                         if state.playSfx then state.playSfx('shoot') end
                         local shots = getProjectileCount(computedStats)

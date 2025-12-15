@@ -42,6 +42,55 @@ function World:clampToBounds(x, y, r)
     return clamp(x, r, maxX), clamp(y, r, maxY)
 end
 
+function World:segmentHitsWall(x0, y0, x1, y1)
+    local ts = self.tileSize
+    if not ts or ts <= 0 then return false end
+
+    local dx = (x1 or 0) - (x0 or 0)
+    local dy = (y1 or 0) - (y0 or 0)
+
+    local cx, cy = self:worldToCell(x0 or 0, y0 or 0)
+    local endCx, endCy = self:worldToCell(x1 or 0, y1 or 0)
+
+    local stepX = (dx > 0) and 1 or ((dx < 0) and -1 or 0)
+    local stepY = (dy > 0) and 1 or ((dy < 0) and -1 or 0)
+
+    local tMaxX, tMaxY = math.huge, math.huge
+    local tDeltaX, tDeltaY = math.huge, math.huge
+
+    if stepX ~= 0 then
+        local nextBoundaryX = (stepX > 0) and (cx * ts) or ((cx - 1) * ts)
+        tMaxX = (nextBoundaryX - (x0 or 0)) / dx
+        tDeltaX = ts / math.abs(dx)
+    end
+    if stepY ~= 0 then
+        local nextBoundaryY = (stepY > 0) and (cy * ts) or ((cy - 1) * ts)
+        tMaxY = (nextBoundaryY - (y0 or 0)) / dy
+        tDeltaY = ts / math.abs(dy)
+    end
+
+    local guard = 0
+    while true do
+        if self:isWallCell(cx, cy) then return true end
+        if cx == endCx and cy == endCy then return false end
+
+        guard = guard + 1
+        if guard > 4096 then return true end
+
+        if tMaxX < tMaxY then
+            cx = cx + stepX
+            tMaxX = tMaxX + tDeltaX
+        else
+            cy = cy + stepY
+            tMaxY = tMaxY + tDeltaY
+        end
+    end
+end
+
+function World:hasLineOfSight(x0, y0, x1, y1)
+    return not self:segmentHitsWall(x0, y0, x1, y1)
+end
+
 local function carveRect(self, x1, y1, x2, y2)
     x1 = math.max(2, math.min(self.w - 1, x1))
     y1 = math.max(2, math.min(self.h - 1, y1))
@@ -540,4 +589,3 @@ function world.update(state, dt)
 end
 
 return world
-

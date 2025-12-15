@@ -554,8 +554,9 @@ local function resetDummy(e)
     ensureStatus(e)
 end
 
-function enemies.findNearestEnemy(state, maxDist, fromX, fromY)
+function enemies.findNearestEnemy(state, maxDist, fromX, fromY, opts)
     if not state then return nil end
+    opts = opts or {}
     local px = fromX
     local py = fromY
     if px == nil then px = state.player and state.player.x end
@@ -563,14 +564,22 @@ function enemies.findNearestEnemy(state, maxDist, fromX, fromY)
     if px == nil or py == nil then return nil end
 
     local t, m = nil, (maxDist or 999999) ^ 2
+    local world = state.world
+    local requireLOS = opts.requireLOS == true
     for _, e in ipairs(state.enemies or {}) do
         if e and (e.health or e.hp or 0) > 0 then
             local dx = px - e.x
             local dy = py - e.y
             local d2 = dx * dx + dy * dy
             if d2 < m then
-                m = d2
-                t = e
+                local blocked = false
+                if requireLOS and world and world.enabled and world.segmentHitsWall then
+                    blocked = world:segmentHitsWall(px, py, e.x, e.y)
+                end
+                if not blocked then
+                    m = d2
+                    t = e
+                end
             end
         end
     end
