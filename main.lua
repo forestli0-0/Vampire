@@ -18,13 +18,13 @@ local vfx = require('vfx')
 local rooms = require('rooms')
 local testmode = require('testmode')
 local testScenarios = require('test_scenarios')
-local crew = require('crew')
+local pets = require('pets')
 
 -- 游戏启动时的初始化（状态、日志、默认武器等）
 function love.load()
     if state.stopMusic then state.stopMusic() end
     state.init()
-    crew.init(state)
+    pets.init(state)
 
     -- deterministic runs for scenario-driven tests
     if state.pendingScenarioSeed then
@@ -87,7 +87,7 @@ function love.update(dt)
 
     -- 核心更新顺序：玩家 → 武器 → 子弹 → 刷怪
     player.updateMovement(state, dt)
-    crew.update(state, dt)
+    pets.update(state, dt)
     if state.augments and state.augments.update then
         state.augments.update(state, dt)
     end
@@ -156,8 +156,7 @@ function love.keypressed(key)
     if player.keypressed and player.keypressed(state, key) then return end
 
     if state.gameState == 'PLAYING' then
-        if key == '1' then crew.toggleMode(state, 1) return end
-        if key == '2' then crew.toggleMode(state, 2) return end
+        if key == '1' then pets.toggleMode(state) return end
     end
 
     -- 等级界面：按数字选择升级

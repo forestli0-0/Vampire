@@ -9,10 +9,16 @@ local function findOwnerActor(state, owner)
     if owner == nil or owner == 'player' then
         return state.player
     end
-    local list = state.crew and state.crew.list
+    if owner == 'pet' or owner == 'pet_active' then
+        local pet = state.pets and state.pets.list and state.pets.list[1]
+        if pet and not pet.dead and not pet.downed then
+            return pet
+        end
+    end
+    local list = state.pets and state.pets.list
     if type(list) == 'table' then
         for _, a in ipairs(list) do
-            if a and not a.dead and a.ownerKey == owner then
+            if a and not a.dead and not a.downed and (a.ownerKey == owner or a.key == owner) then
                 return a
             end
         end

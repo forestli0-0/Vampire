@@ -49,7 +49,12 @@ local function defaultProfile()
             mod_vital_sense = true,
             mod_status_matrix = true
         },
-        currency = 0
+        currency = 0,
+
+        -- Pets (loadout + light meta progression)
+        startPetKey = 'pet_magnet',
+        petModules = {},
+        petRanks = {}
     }
 end
 
@@ -119,6 +124,9 @@ function state.loadProfile()
             profile.ownedMods[k] = true
         end
     end
+    profile.startPetKey = profile.startPetKey or 'pet_magnet'
+    profile.petModules = profile.petModules or {}
+    profile.petRanks = profile.petRanks or {}
     profile.currency = profile.currency or 0
     return profile
 end
@@ -216,6 +224,24 @@ function state.init()
     }
 
     state.catalog = {
+        pet_magnet = {
+            type = 'pet', name = "Magnet Pup",
+            desc = "Periodic MAGNETIC procs (utility). Module: pulse AoE.",
+            maxLevel = 1,
+            base = {hp = 60, cooldown = 3.0, speed = 200, size = 16}
+        },
+        pet_corrosive = {
+            type = 'pet', name = "Corrosive Slime",
+            desc = "Periodic CORROSIVE procs (armor shred). Module: field AoE.",
+            maxLevel = 1,
+            base = {hp = 70, cooldown = 3.4, speed = 185, size = 17}
+        },
+        pet_guardian = {
+            type = 'pet', name = "Guardian Wisp",
+            desc = "Support: heal or brief barrier. Module: barrier i-frames.",
+            maxLevel = 1,
+            base = {hp = 55, cooldown = 4.0, speed = 215, size = 15}
+        },
         wand = {
             type = 'weapon', name = "Magic Wand",
             desc = "Fires at nearest enemy.",

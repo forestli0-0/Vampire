@@ -575,7 +575,7 @@ function draw.renderWorld(state)
     for _, item in ipairs(state.floorPickups) do
         local sprite = state.pickupSprites and state.pickupSprites[item.kind]
         
-        local isGlow = (item.kind == 'magnet' or item.kind == 'chicken' or item.kind == 'chest_xp' or item.kind == 'chest_reward' or item.kind == 'crew_contract')
+        local isGlow = (item.kind == 'magnet' or item.kind == 'chicken' or item.kind == 'chest_xp' or item.kind == 'chest_reward' or item.kind == 'pet_contract' or item.kind == 'pet_revive')
         if isGlow then love.graphics.setBlendMode("add") end
 
         if sprite then
@@ -609,9 +609,11 @@ function draw.renderWorld(state)
                 -- Fuse
                 love.graphics.setColor(1, 0.5, 0)
                 love.graphics.line(item.x, item.y - 8, item.x + 4, item.y - 12)
-            elseif item.kind == 'crew_contract' then
+            elseif item.kind == 'pet_contract' or item.kind == 'pet_revive' then
                 local rk = item.roomKind
-                if rk == 'shop' then
+                if item.kind == 'pet_revive' then
+                    love.graphics.setColor(0.55, 1.0, 0.55, 0.95)
+                elseif rk == 'shop' then
                     love.graphics.setColor(0.35, 0.95, 1.0, 0.9)
                 else
                     love.graphics.setColor(0.95, 0.7, 1.0, 0.9)
@@ -619,7 +621,9 @@ function draw.renderWorld(state)
                 love.graphics.circle('line', item.x, item.y, 10)
                 love.graphics.circle('fill', item.x, item.y, 6)
                 love.graphics.setColor(1, 1, 1, 0.9)
-                love.graphics.printf("RECRUIT", item.x - 40, item.y + 12, 80, "center")
+                local label = (item.kind == 'pet_revive') and "REVIVE" or "PET"
+                if item.kind == 'pet_contract' and rk == 'shop' then label = "SWAP" end
+                love.graphics.printf(label, item.x - 40, item.y + 12, 80, "center")
             end
         end
         if isGlow then love.graphics.setBlendMode("alpha") end
@@ -826,53 +830,46 @@ function draw.renderWorld(state)
         love.graphics.ellipse('fill', state.player.x, state.player.y + size * 0.55, shadowR, shadowY)
     end
 
-    -- 船员（占位绘制：后续可替换为独立动画/皮肤）
+    -- 宠物（占位绘制：后续可替换为独立动画/皮肤）
     do
-        local list = state.crew and state.crew.list
-        if type(list) == 'table' and #list > 0 then
-            -- shadows first
-            for _, a in ipairs(list) do
-                if a and not a.dead then
-                    local size = a.size or 18
-                    local shadowR = size * 0.62
-                    local shadowY = shadowR * 0.35
-                    love.graphics.setColor(0, 0, 0, 0.22)
-                    love.graphics.ellipse('fill', a.x, a.y + size * 0.55, shadowR, shadowY)
-                end
+        local pet = state.pets and state.pets.list and state.pets.list[1]
+        if pet then
+            local size = pet.size or 18
+            local shadowR = size * 0.62
+            local shadowY = shadowR * 0.35
+            love.graphics.setColor(0, 0, 0, 0.22)
+            love.graphics.ellipse('fill', pet.x, pet.y + size * 0.55, shadowR, shadowY)
+
+            local col = {0.75, 0.95, 1.0}
+            if pet.key == 'pet_corrosive' then col = {0.55, 1.0, 0.55} end
+            if pet.key == 'pet_guardian' then col = {0.8, 0.9, 1.0} end
+            if pet.downed then col = {1.0, 0.35, 0.35} end
+
+            love.graphics.setColor(col[1], col[2], col[3], pet.downed and 0.75 or 0.95)
+            love.graphics.circle('fill', pet.x, pet.y, size * 0.55)
+            love.graphics.setColor(0, 0, 0, 0.35)
+            love.graphics.circle('line', pet.x, pet.y, size * 0.55)
+
+            -- HP / revive bar
+            local barW, barH = 36, 4
+            local bx, by = pet.x - barW / 2, pet.y - size * 0.95
+            love.graphics.setColor(0.1, 0.1, 0.1, 0.7)
+            love.graphics.rectangle('fill', bx, by, barW, barH)
+            if pet.downed then
+                local hold = (state.pets and state.pets.reviveHoldTime) or 1.1
+                local p = (hold > 0) and math.max(0, math.min(1, (pet.reviveProgress or 0) / hold)) or 0
+                love.graphics.setColor(0.55, 1.0, 0.55, 0.85)
+                love.graphics.rectangle('fill', bx, by, barW * p, barH)
+                love.graphics.setColor(1, 1, 1, 0.9)
+                love.graphics.printf("Hold E", bx - 24, by - 16, barW + 48, "center")
+            else
+                local hp = pet.hp or 0
+                local maxHp = pet.maxHp or 1
+                local p = (maxHp > 0) and math.max(0, math.min(1, hp / maxHp)) or 0
+                love.graphics.setColor(col[1], col[2], col[3], 0.85)
+                love.graphics.rectangle('fill', bx, by, barW * p, barH)
             end
 
-            for idx, a in ipairs(list) do
-                if a and not a.dead then
-                    local size = a.size or 18
-                    local col = (idx == 2) and {1.0, 0.55, 0.95} or {0.55, 0.85, 1.0}
-                    if a.downed then col = {1.0, 0.35, 0.35} end
-
-                    love.graphics.setColor(col[1], col[2], col[3], a.downed and 0.75 or 0.95)
-                    love.graphics.circle('fill', a.x, a.y, size * 0.55)
-                    love.graphics.setColor(0, 0, 0, 0.35)
-                    love.graphics.circle('line', a.x, a.y, size * 0.55)
-
-                    -- HP / revive bar
-                    local barW, barH = 30, 4
-                    local bx, by = a.x - barW / 2, a.y - size * 0.95
-                    love.graphics.setColor(0.1, 0.1, 0.1, 0.7)
-                    love.graphics.rectangle('fill', bx, by, barW, barH)
-                    if a.downed then
-                        local hold = (state.crew and state.crew.reviveHoldTime) or 1.2
-                        local p = (hold > 0) and math.max(0, math.min(1, (a.reviveProgress or 0) / hold)) or 0
-                        love.graphics.setColor(0.55, 1.0, 0.55, 0.85)
-                        love.graphics.rectangle('fill', bx, by, barW * p, barH)
-                        love.graphics.setColor(1, 1, 1, 0.9)
-                        love.graphics.printf("Hold E", bx - 24, by - 16, barW + 48, "center")
-                    else
-                        local hp = a.hp or 0
-                        local maxHp = a.maxHp or 1
-                        local p = (maxHp > 0) and math.max(0, math.min(1, hp / maxHp)) or 0
-                        love.graphics.setColor(col[1], col[2], col[3], 0.85)
-                        love.graphics.rectangle('fill', bx, by, barW * p, barH)
-                    end
-                end
-            end
             love.graphics.setColor(1, 1, 1, 1)
         end
     end
@@ -1248,7 +1245,12 @@ function draw.renderUI(state)
             love.graphics.setColor(1, 1, 1)
             love.graphics.printf("Press 1-3 to replace, or 0 to cancel", 0, 550, love.graphics.getWidth(), "center")
         else
-            love.graphics.printf("LEVEL UP! Choose One:", 0, 100, love.graphics.getWidth(), "center")
+            local title = "LEVEL UP! Choose One:"
+            local req = state.activeUpgradeRequest or {}
+            if req and req.allowedTypes and (req.allowedTypes.pet or (type(req.allowedTypes) == 'table' and #req.allowedTypes > 0 and req.allowedTypes[1] == 'pet')) then
+                title = "CHOOSE A PET:"
+            end
+            love.graphics.printf(title, 0, 100, love.graphics.getWidth(), "center")
 
             love.graphics.setFont(state.font)
             for i, opt in ipairs(state.upgradeOptions) do

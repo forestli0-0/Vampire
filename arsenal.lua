@@ -1,4 +1,5 @@
 local weapons = require('weapons')
+local pets = require('pets')
 
 local arsenal = {}
 
@@ -97,12 +98,53 @@ local function setMessage(state, text)
     a.messageTimer = 1.6
 end
 
+local function buildPetList(state)
+    local list = {}
+    for key, def in pairs(state.catalog or {}) do
+        if def and def.type == 'pet' then
+            table.insert(list, key)
+        end
+    end
+    table.sort(list, function(a, b)
+        local da, db = state.catalog[a], state.catalog[b]
+        if da and db and da.name and db.name then
+            return da.name < db.name
+        end
+        return a < b
+    end)
+    return list
+end
+
+local function getPetModules(petKey)
+    if petKey == 'pet_magnet' then return {'default', 'pulse'} end
+    if petKey == 'pet_corrosive' then return {'default', 'field'} end
+    if petKey == 'pet_guardian' then return {'default', 'barrier'} end
+    return {'default'}
+end
+
+local function cyclePetModule(profile, petKey, dir)
+    if not profile or not petKey then return 'default' end
+    profile.petModules = profile.petModules or {}
+    local mods = getPetModules(petKey)
+    local cur = profile.petModules[petKey] or 'default'
+    local idx = 1
+    for i, m in ipairs(mods) do
+        if m == cur then idx = i break end
+    end
+    dir = dir or 1
+    idx = ((idx - 1 + dir) % #mods) + 1
+    profile.petModules[petKey] = mods[idx]
+    return mods[idx]
+end
+
 function arsenal.init(state)
     state.arsenal = {
         modList = buildModList(state),
         weaponList = buildWeaponList(state),
+        petList = buildPetList(state),
         idx = 1,
         weaponIdx = 1,
+        petIdx = 1,
         message = nil,
         messageTimer = 0
     }
@@ -113,16 +155,34 @@ function arsenal.init(state)
     local profile = state.profile
     if profile then
         profile.modTargetWeapon = profile.modTargetWeapon or 'wand'
+        profile.startPetKey = profile.startPetKey or 'pet_magnet'
+        profile.petModules = profile.petModules or {}
         local list = state.arsenal.weaponList or {}
+        local foundWeapon = false
         for i, k in ipairs(list) do
             if k == profile.modTargetWeapon then
                 state.arsenal.weaponIdx = i
-                return
+                foundWeapon = true
+                break
             end
         end
-        if #list > 0 then
+        if not foundWeapon and #list > 0 then
             profile.modTargetWeapon = list[1]
             state.arsenal.weaponIdx = 1
+        end
+    end
+
+    if profile then
+        local petList = state.arsenal.petList or {}
+        for i, k in ipairs(petList) do
+            if k == profile.startPetKey then
+                state.arsenal.petIdx = i
+                break
+            end
+        end
+        if #petList > 0 and (profile.startPetKey == nil or state.catalog[profile.startPetKey] == nil) then
+            profile.startPetKey = petList[1]
+            state.arsenal.petIdx = 1
         end
     end
 end
@@ -210,12 +270,45 @@ function arsenal.startRun(state, opts)
         end
         weapons.addWeapon(state, startKey, 'player')
     end
+
+    if not opts.skipStartingPet then
+        pets.spawnStartingPet(state)
+    end
     state.gameState = 'PLAYING'
 end
 
 function arsenal.keypressed(state, key)
     local a = state.arsenal
     if not a then return false end
+
+    if key == 'p' or key == 'o' then
+        local list = a.petList or {}
+        if #list > 0 and state.profile then
+            local dir = (key == 'p') and 1 or -1
+            a.petIdx = ((a.petIdx - 1 + dir) % #list) + 1
+            local petKey = list[a.petIdx]
+            state.profile.startPetKey = petKey
+            local petName = (state.catalog[petKey] and state.catalog[petKey].name) or petKey
+            local module = state.profile.petModules and state.profile.petModules[petKey] or 'default'
+            setMessage(state, "Pet: " .. tostring(petName) .. " (" .. tostring(module) .. ")")
+            if state.saveProfile then state.saveProfile(state.profile) end
+        end
+        return true
+    end
+
+    if key == 'm' then
+        local profile = state.profile
+        if profile then
+            local petKey = profile.startPetKey
+            if petKey then
+                local module = cyclePetModule(profile, petKey, 1)
+                local petName = (state.catalog[petKey] and state.catalog[petKey].name) or petKey
+                setMessage(state, "Pet Module: " .. tostring(petName) .. " -> " .. tostring(module))
+                if state.saveProfile then state.saveProfile(profile) end
+            end
+        end
+        return true
+    end
 
     if key == 'tab' or key == 'backspace' then
         local list = a.weaponList or {}
@@ -284,11 +377,18 @@ function arsenal.draw(state)
     local weaponName = (weaponDef and weaponDef.name) or weaponKey
     local loadout = ensureWeaponLoadout(state.profile, weaponKey) or {}
 
+    local petKey = (state.profile and state.profile.startPetKey) or 'pet_magnet'
+    local petDef = state.catalog and state.catalog[petKey]
+    local petName = (petDef and petDef.name) or petKey
+    local petModule = (state.profile and state.profile.petModules and state.profile.petModules[petKey]) or 'default'
+
     love.graphics.setColor(1, 1, 1)
     local credits = (state.profile and state.profile.currency) or 0
     love.graphics.print("Available Mods   Credits: " .. tostring(credits), leftX, topY - 30)
     love.graphics.setColor(0.85, 0.85, 0.95)
     love.graphics.print("Weapon: " .. tostring(weaponName) .. "  (Tab/Backspace)", leftX, topY - 54)
+    love.graphics.setColor(0.85, 0.95, 0.9)
+    love.graphics.print("Pet: " .. tostring(petName) .. "  Module: " .. tostring(petModule) .. "  (P/O, M)", leftX, topY - 42)
 
     for i, key in ipairs(list) do
         local def = state.catalog[key]
@@ -345,7 +445,7 @@ function arsenal.draw(state)
     end
 
     love.graphics.setColor(0.9, 0.9, 0.9)
-    love.graphics.printf("Up/Down: select   E: equip/unequip   Left/Right: rank   Enter: start run", 0, h - 60, w, "center")
+    love.graphics.printf("Up/Down: select   E: equip/unequip   Left/Right: rank   Tab/Backspace: weapon   P/O: pet   M: module   Enter: start run", 0, h - 60, w, "center")
 
     if a.message then
         love.graphics.setColor(1, 0.8, 0.3)

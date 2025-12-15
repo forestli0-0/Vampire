@@ -1,7 +1,7 @@
 local util = require('util')
 local upgrades = require('upgrades')
 local logger = require('logger')
-local crew = require('crew')
+local pets = require('pets')
 
 local pickups = {}
 
@@ -234,14 +234,23 @@ function pickups.updateFloorPickups(state, dt)
                         state.augments.dispatch(state, 'postPickup', ctx)
                     end
                 end
-            elseif item.kind == 'crew_contract' then
-                local recruited = crew.recruit(state, {})
-                if recruited then
-                    table.insert(state.texts, {x=p.x, y=p.y-30, text="Recruited " .. tostring(recruited.name), color={0.75, 0.95, 1.0}, life=1.2})
-                    logger.pickup(state, 'crew_recruit')
+            elseif item.kind == 'pet_contract' then
+                local current = pets.getActive(state)
+                upgrades.queueLevelUp(state, 'pet_contract', {
+                    allowedTypes = {pet = true},
+                    excludePetKey = current and current.key or nil,
+                    source = 'special_room',
+                    roomKind = item.roomKind
+                })
+                logger.pickup(state, 'pet_contract')
+            elseif item.kind == 'pet_revive' then
+                local revived = pets.reviveLost(state)
+                if revived then
+                    table.insert(state.texts, {x = p.x, y = p.y - 30, text = "Pet revived: " .. tostring(revived.name), color = {0.75, 0.95, 1.0}, life = 1.2})
+                    logger.pickup(state, 'pet_revive')
                 else
-                    table.insert(state.texts, {x=p.x, y=p.y-30, text="Crew full", color={1, 0.6, 0.6}, life=1.0})
-                    logger.pickup(state, 'crew_full')
+                    consume = false
+                    table.insert(state.texts, {x = p.x, y = p.y - 30, text = "No pet to revive", color = {1, 0.6, 0.6}, life = 1.0})
                 end
             end
             if consume then

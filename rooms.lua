@@ -1,5 +1,6 @@
 local enemies = require('enemies')
 local util = require('util')
+local pets = require('pets')
 
 local rooms = {}
 
@@ -220,6 +221,11 @@ local function spawnRewardChest(state, r)
         g.magnetized = true
     end
 
+    -- Pet per-run growth: clear a combat room -> pet run level up.
+    if pets and pets.bumpRunLevel then
+        pets.bumpRunLevel(state, 1)
+    end
+
     local cx = r.roomCenterX or state.player.x
     local cy = r.roomCenterY or state.player.y
     local rewardType = r.roomRewardType
@@ -280,20 +286,18 @@ local function spawnDoors(state, r)
         if math.random() < 0.5 then leftKind = 'elite' else rightKind = 'elite' end
     end
 
-    -- Special rooms: event/shop can appear (primarily to recruit crew).
-    local crewCount, crewMax = 0, 0
-    if state.crew then
-        crewMax = tonumber(state.crew.max) or 0
-        for _, a in ipairs(state.crew.list or {}) do
-            if a and not a.dead then crewCount = crewCount + 1 end
-        end
+    -- Special rooms: event/shop can appear (pet swap / pet revival).
+    local specialKind = nil
+    local chance = 0
+    if pets and pets.hasLost and pets.hasLost(state) then
+        specialKind = 'event'
+        chance = 1.0
+    else
+        specialKind = (math.random() < 0.5) and 'shop' or 'event'
+        chance = 0.22
     end
-    if crewMax > 0 and crewCount < crewMax then
-        local specialKind = (crewCount == 0) and 'event' or 'shop'
-        local chance = (crewCount == 0) and 1.0 or 0.35
-        if math.random() < chance then
-            if math.random() < 0.5 then leftKind = specialKind else rightKind = specialKind end
-        end
+    if specialKind and math.random() < chance then
+        if math.random() < 0.5 then leftKind = specialKind else rightKind = specialKind end
     end
 
     local offset = 150
@@ -318,11 +322,15 @@ spawnSpecialRoomPickup = function(state, r)
     local cy = r.roomCenterY or state.player.y
 
     state.floorPickups = state.floorPickups or {}
+    local kind = 'pet_contract'
+    if r.roomKind == 'event' and pets and pets.hasLost and pets.hasLost(state) then
+        kind = 'pet_revive'
+    end
     local pickup = {
         x = cx,
         y = cy,
         size = 18,
-        kind = 'crew_contract',
+        kind = kind,
         roomKind = r.roomKind
     }
     table.insert(state.floorPickups, pickup)

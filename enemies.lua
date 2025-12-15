@@ -1,7 +1,7 @@
 local player = require('player')
 local enemyDefs = require('enemy_defs')
 local logger = require('logger')
-local crew = require('crew')
+local pets = require('pets')
 
 local enemies = {}
 
@@ -1019,7 +1019,7 @@ function enemies.update(state, dt)
                         atk.phase = 'dash'
                         atk.remaining = atk.distance or 0
                         atk.hitPlayer = false
-                        atk.hitCrew = nil
+                        atk.hitPet = nil
                     end
                 end
             elseif atk and atk.type == 'slam' then
@@ -1039,18 +1039,14 @@ function enemies.update(state, dt)
                             if dx * dx + dy * dy <= rr * rr then
                                 player.hurt(state, damage * dmgMult)
                             end
-                            local list = state.crew and state.crew.list
-                            if type(list) == 'table' then
-                                for _, a in ipairs(list) do
-                                    if a and not a.dead and not a.downed then
-                                        local ax = (a.x - sx)
-                                        local ay = (a.y - sy)
-                                        local ar = (a.size or 18) / 2
-                                        local rr2 = radius + ar
-                                        if ax * ax + ay * ay <= rr2 * rr2 then
-                                            crew.hurt(state, a, damage * dmgMult)
-                                        end
-                                    end
+                            local pet = pets.getActive(state)
+                            if pet and not pet.downed then
+                                local ax = ((pet.x or 0) - sx)
+                                local ay = ((pet.y or 0) - sy)
+                                local ar = (pet.size or 18) / 2
+                                local rr2 = radius + ar
+                                if ax * ax + ay * ay <= rr2 * rr2 then
+                                    pets.hurt(state, pet, damage * dmgMult)
                                 end
                             end
                         end
@@ -1321,19 +1317,14 @@ function enemies.update(state, dt)
                 player.hurt(state, (atk.damage or 18) * dmgMult)
                 atk.hitPlayer = true
             end
-            local list = state.crew and state.crew.list
-            if type(list) == 'table' then
-                atk.hitCrew = atk.hitCrew or {}
-                for _, a in ipairs(list) do
-                    if a and not a.dead and not a.downed and not atk.hitCrew[a] then
-                        local r = (((a.size or 18) + (e.size or 16)) * 0.5)
-                        local dx = (a.x or 0) - e.x
-                        local dy = (a.y or 0) - e.y
-                        if dx * dx + dy * dy <= r * r then
-                            crew.hurt(state, a, (atk.damage or 18) * dmgMult)
-                            atk.hitCrew[a] = true
-                        end
-                    end
+            local pet = pets.getActive(state)
+            if pet and not pet.downed and not atk.hitPet then
+                local r = (((pet.size or 18) + (e.size or 16)) * 0.5)
+                local dx = (pet.x or 0) - e.x
+                local dy = (pet.y or 0) - e.y
+                if dx * dx + dy * dy <= r * r then
+                    pets.hurt(state, pet, (atk.damage or 18) * dmgMult)
+                    atk.hitPet = true
                 end
             end
 
@@ -1359,19 +1350,15 @@ function enemies.update(state, dt)
             player.hurt(state, baseContact * dmgMult)
         end
         if not inChargeDash and not e.noContactDamage then
-            local list = state.crew and state.crew.list
-            if type(list) == 'table' then
+            local pet = pets.getActive(state)
+            if pet and not pet.downed then
                 local dmgMult = 1 - getPunctureReduction(e)
                 if dmgMult < 0.25 then dmgMult = 0.25 end
                 local baseContact = ((def and def.contactDamage) or 10) * (e.eliteDamageMult or 1)
-                for _, a in ipairs(list) do
-                    if a and not a.dead and not a.downed then
-                        local dist = math.sqrt(((a.x or 0) - e.x)^2 + ((a.y or 0) - e.y)^2)
-                        local ar = (a.size or 18) / 2
-                        if dist < (ar + enemyRadius) then
-                            crew.hurt(state, a, baseContact * dmgMult)
-                        end
-                    end
+                local dist = math.sqrt(((pet.x or 0) - e.x) ^ 2 + ((pet.y or 0) - e.y) ^ 2)
+                local pr = (pet.size or 18) / 2
+                if dist < (pr + enemyRadius) then
+                    pets.hurt(state, pet, baseContact * dmgMult)
                 end
             end
         end

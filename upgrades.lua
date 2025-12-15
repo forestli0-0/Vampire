@@ -1,5 +1,6 @@
 local weapons = require('weapons')
 local logger = require('logger')
+local pets = require('pets')
 
 local upgrades = {}
 
@@ -61,6 +62,10 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
         if itemType == 'passive' then return state.inventory.passives[itemKey] ~= nil end
         if itemType == 'mod' then return state.profile and state.profile.ownedMods and state.profile.ownedMods[itemKey] == true end
         if itemType == 'augment' then return state.inventory.augments and state.inventory.augments[itemKey] ~= nil end
+        if itemType == 'pet' then
+            local pet = pets.getActive(state)
+            return pet and pet.key == itemKey
+        end
         return false
     end
 
@@ -78,6 +83,13 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
     end
 
     local allowedTypes = request and request.allowedTypes
+    local allowPets = false
+    if type(allowedTypes) == 'table' then
+        if allowedTypes.pet then allowPets = true end
+        for _, v in ipairs(allowedTypes) do
+            if v == 'pet' then allowPets = true break end
+        end
+    end
     local function typeAllowed(t)
         if type(allowedTypes) ~= 'table' then return true end
         if next(allowedTypes) == nil then return true end
@@ -92,6 +104,9 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
     if allowInRunMods == nil then allowInRunMods = false end
 
     for key, item in pairs(state.catalog) do
+        if item and item.type == 'pet' and not allowPets then
+            goto continue_catalog
+        end
         if item and item.type and not typeAllowed(item.type) then
             goto continue_catalog
         end
@@ -133,6 +148,13 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
                 end
             end
             if item.type == 'augment' and state.inventory.augments and state.inventory.augments[key] then currentLevel = state.inventory.augments[key] end
+            if item.type == 'pet' then
+                local pet = pets.getActive(state)
+                if pet and pet.key == key then currentLevel = 1 end
+                if request and request.excludePetKey and request.excludePetKey == key then
+                    goto continue_catalog
+                end
+            end
             if currentLevel < item.maxLevel then
                 local opt = {key=key, type=item.type, name=item.name, desc=item.desc, def=item}
                 if isOwned(item.type, key) then
@@ -346,6 +368,12 @@ function upgrades.applyUpgrade(state, opt)
         logger.upgrade(state, opt, state.inventory.augments[opt.key])
         if opt.def.onUpgrade then opt.def.onUpgrade() end
         dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = state.inventory.augments[opt.key]})
+    elseif opt.type == 'pet' then
+        local pet = pets.setActive(state, opt.key, {swap = true})
+        if pet then
+            logger.upgrade(state, opt, 1)
+            dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = 1})
+        end
     end
 end
 
