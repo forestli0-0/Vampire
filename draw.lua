@@ -1686,6 +1686,52 @@ function draw.renderUI(state)
         love.graphics.setColor(1, 1, 1, 0.95)
         love.graphics.printf(label, 0, 40, love.graphics.getWidth(), "center")
         love.graphics.setColor(1, 1, 1, 1)
+        
+        -- Mission-specific HUD
+        local w = love.graphics.getWidth()
+        if r.missionType == 'defense' and r.defenseObjective then
+            local obj = r.defenseObjective
+            local barW = 200
+            local barH = 12
+            local barX = (w - barW) / 2
+            local barY = 62
+            
+            -- Background
+            love.graphics.setColor(0.15, 0.1, 0.05, 0.9)
+            love.graphics.rectangle('fill', barX, barY, barW, barH, 3, 3)
+            
+            -- HP fill
+            local ratio = math.max(0, obj.hp / obj.maxHp)
+            local r1, g1, b1 = 1, 0.8, 0.3
+            if ratio < 0.3 then r1, g1, b1 = 1, 0.3, 0.2 end
+            love.graphics.setColor(r1, g1, b1, 0.9)
+            love.graphics.rectangle('fill', barX, barY, barW * ratio, barH, 3, 3)
+            
+            -- Label
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.printf(string.format("目标: %d%%", math.floor(ratio * 100)), 0, barY - 1, w, "center")
+        elseif r.missionType == 'survival' and r.lifeSupport then
+            local barW = 200
+            local barH = 12
+            local barX = (w - barW) / 2
+            local barY = 62
+            
+            -- Background
+            love.graphics.setColor(0.05, 0.1, 0.15, 0.9)
+            love.graphics.rectangle('fill', barX, barY, barW, barH, 3, 3)
+            
+            -- Life support fill
+            local ratio = math.max(0, r.lifeSupport / 100)
+            local r1, g1, b1 = 0.3, 0.7, 1
+            if ratio < 0.3 then r1, g1, b1 = 1, 0.3, 0.3 end
+            love.graphics.setColor(r1, g1, b1, 0.9)
+            love.graphics.rectangle('fill', barX, barY, barW * ratio, barH, 3, 3)
+            
+            -- Survival timer
+            local remaining = math.max(0, (r.survivalTarget or 60) - (r.survivalTimer or 0))
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.printf(string.format("存活: %.0fs | 支援: %d%%", remaining, math.floor(r.lifeSupport)), 0, barY - 1, w, "center")
+        end
     end
 
     if state.gameState == 'GAME_CLEAR' then

@@ -49,6 +49,18 @@ local function ensureState(state)
     r.nextRewardType = r.nextRewardType or nil
     r.roomKind = r.roomKind or 'normal'
     r.nextRoomKind = r.nextRoomKind or nil
+    
+    -- Mission type: 'exterminate', 'defense', 'survival'
+    r.missionType = r.missionType or 'exterminate'
+    
+    -- Defense mission state
+    r.defenseObjective = r.defenseObjective or nil
+    
+    -- Survival mission state
+    r.lifeSupport = r.lifeSupport or nil
+    r.lifeSupportCapsuleTimer = r.lifeSupportCapsuleTimer or 0
+    r.survivalTimer = r.survivalTimer or 0
+    r.survivalTarget = r.survivalTarget or 60  -- seconds to survive
 
     -- Reward pacing knobs (Hades-like defaults for rooms mode)
     if r.xpGivesUpgrades == nil then r.xpGivesUpgrades = false end
@@ -240,13 +252,42 @@ local function startRoom(state, r)
         if spawnSpecialRoomPickup then spawnSpecialRoomPickup(state, r) end
     else
         r.phase = 'spawning'
+        
+        -- Mission-specific initialization
+        if r.missionType == 'defense' then
+            -- Spawn defense objective at room center
+            local cx, cy = r.roomCenterX, r.roomCenterY
+            if state.world and state.world.adjustToWalkable then
+                cx, cy = state.world:adjustToWalkable(cx, cy, 6)
+            end
+            r.defenseObjective = {
+                x = cx, y = cy,
+                hp = 1000, maxHp = 1000,
+                size = 40
+            }
+            table.insert(state.texts, {x=cx, y=cy-50, text="保护目标!", color={1, 0.8, 0.3}, life=2})
+        elseif r.missionType == 'survival' then
+            -- Initialize life support
+            r.lifeSupport = 100
+            r.survivalTimer = 0
+            r.survivalTarget = 60  -- 60 seconds to survive
+            r.lifeSupportCapsuleTimer = 15  -- first capsule in 15s
+            table.insert(state.texts, {x=state.player.x, y=state.player.y-50, text="存活60秒!", color={0.6, 0.9, 1}, life=2})
+        end
+    end
+    
+    -- Mission type label
+    local missionLabel = ""
+    if r.missionType == 'defense' then missionLabel = " [DEFENSE]"
+    elseif r.missionType == 'survival' then missionLabel = " [SURVIVAL]"
     end
 
     table.insert(state.texts, {
         x = state.player.x,
         y = state.player.y - 100,
-        text = string.format("ROOM %d%s", r.roomIndex,
-            (roomKind == 'elite') and " (ELITE)" or ((roomKind == 'shop') and " (SHOP)" or ((roomKind == 'event') and " (EVENT)" or ""))
+        text = string.format("ROOM %d%s%s", r.roomIndex,
+            (roomKind == 'elite') and " (ELITE)" or ((roomKind == 'shop') and " (SHOP)" or ((roomKind == 'event') and " (EVENT)" or "")),
+            missionLabel
         ),
         color = {1, 1, 1},
         life = 1.2
@@ -503,6 +544,68 @@ function rooms.update(state, dt)
     end
 
     if r.phase == 'fighting' then
+        -- Mission-specific updates
+        if r.missionType == 'defense' and r.defenseObjective then
+            local obj = r.defenseObjective
+            -- Enemies near objective deal damage to it
+            for _, e in ipairs(state.enemies or {}) do
+                if e.health and e.health > 0 then
+                    local dx = e.x - obj.x
+                    local dy = e.y - obj.y
+                    local dist = math.sqrt(dx*dx + dy*dy)
+                    if dist < obj.size + (e.size or 16) then
+                        -- Enemy touching objective damages it
+                        local dmg = (e.damage or 5) * dt
+                        obj.hp = obj.hp - dmg
+                    end
+                end
+            end
+            -- Check fail condition
+            if obj.hp <= 0 then
+                state.gameState = 'GAME_OVER'
+                table.insert(state.texts, {x=obj.x, y=obj.y-30, text="目标被摧毁!", color={1, 0.2, 0.2}, life=3})
+                return
+            end
+        elseif r.missionType == 'survival' and r.lifeSupport then
+            -- Life support decay
+            r.lifeSupport = r.lifeSupport - (2 * dt)  -- 2% per second
+            r.survivalTimer = (r.survivalTimer or 0) + dt
+            
+            -- Spawn life support capsule periodically
+            r.lifeSupportCapsuleTimer = (r.lifeSupportCapsuleTimer or 0) - dt
+            if r.lifeSupportCapsuleTimer <= 0 then
+                r.lifeSupportCapsuleTimer = 20  -- every 20 seconds
+                -- Spawn capsule pickup near player
+                local px, py = state.player.x, state.player.y
+                local ang = math.random() * 6.28
+                local dist = 100 + math.random() * 100
+                local cx = px + math.cos(ang) * dist
+                local cy = py + math.sin(ang) * dist
+                if state.world and state.world.adjustToWalkable then
+                    cx, cy = state.world:adjustToWalkable(cx, cy, 5)
+                end
+                state.floorPickups = state.floorPickups or {}
+                table.insert(state.floorPickups, {x=cx, y=cy, size=16, kind='life_support'})
+                table.insert(state.texts, {x=cx, y=cy-20, text="生命支援!", color={0.4, 0.8, 1}, life=1.5})
+            end
+            
+            -- Check fail condition
+            if r.lifeSupport <= 0 then
+                state.gameState = 'GAME_OVER'
+                table.insert(state.texts, {x=state.player.x, y=state.player.y-50, text="生命支援耗尽!", color={1, 0.2, 0.2}, life=3})
+                return
+            end
+            
+            -- Check win condition
+            if r.survivalTimer >= r.survivalTarget then
+                r.phase = 'reward'
+                r.lifeSupport = nil
+                spawnRewardChest(state, r)
+                return
+            end
+        end
+        
+        -- Standard exterminate check
         local alive = countAliveEnemies(state)
         if alive > 0 then return end
         if r._hadCombat then
@@ -512,6 +615,9 @@ function rooms.update(state, dt)
                 r.timer = 0.65
                 r.phase = 'between_waves'
             else
+                -- For defense/survival, clearing waves still triggers reward
+                r.defenseObjective = nil
+                r.lifeSupport = nil
                 r.phase = 'reward'
                 spawnRewardChest(state, r)
             end

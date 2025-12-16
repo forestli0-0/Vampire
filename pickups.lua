@@ -326,6 +326,18 @@ function pickups.updateFloorPickups(state, dt)
                 else
                     consume = false
                 end
+            elseif item.kind == 'life_support' then
+                -- Survival mission life support capsule
+                local r = state.rooms
+                if r and r.lifeSupport then
+                    local restore = 20
+                    r.lifeSupport = math.min(100, r.lifeSupport + restore)
+                    table.insert(state.texts, {x=p.x, y=p.y-30, text="+"..restore.."%生命支援", color={0.4, 0.8, 1}, life=1})
+                    if state.playSfx then state.playSfx('gem') end
+                    logger.pickup(state, 'life_support')
+                else
+                    consume = false
+                end
             elseif item.kind == 'pet_contract' then
                 local current = pets.getActive(state)
                 upgrades.queueLevelUp(state, 'pet_contract', {
