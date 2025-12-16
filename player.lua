@@ -235,8 +235,39 @@ function player.tryDash(state, dirX, dirY)
     return true
 end
 
+-- Switch active weapon slot (WF-style 1/2/3 switching)
+function player.switchWeaponSlot(state, slot)
+    if not state or not state.player then return false end
+    local validSlots = {primary = true, secondary = true, melee = true}
+    if not validSlots[slot] then return false end
+    
+    local p = state.player
+    local oldSlot = p.activeSlot
+    if oldSlot == slot then return false end -- Already on this slot
+    
+    p.activeSlot = slot
+    
+    -- Visual/audio feedback
+    if state.playSfx then state.playSfx('shoot') end
+    
+    -- Trigger switch event for augments
+    if state.augments and state.augments.dispatch then
+        state.augments.dispatch(state, 'onWeaponSwitch', {
+            oldSlot = oldSlot, newSlot = slot
+        })
+    end
+    
+    return true
+end
+
 function player.keypressed(state, key)
     if not state or state.gameState ~= 'PLAYING' then return false end
+    
+    -- Weapon slot switching (1/2/3 keys)
+    if key == '1' then return player.switchWeaponSlot(state, 'primary') end
+    if key == '2' then return player.switchWeaponSlot(state, 'secondary') end
+    if key == '3' then return player.switchWeaponSlot(state, 'melee') end
+    
     if key == 'space' then
         return player.tryDash(state)
     end

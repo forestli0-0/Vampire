@@ -179,14 +179,16 @@ function weapons.calculateStats(state, weaponKey)
     return stats
 end
 
-function weapons.addWeapon(state, key, owner)
+function weapons.addWeapon(state, key, owner, slotType)
     local proto = state.catalog[key]
     if not proto then
         print("Error: Attempted to add invalid weapon key: " .. tostring(key))
         return
     end
     local stats = cloneStats(proto.base)
-    state.inventory.weapons[key] = { level = 1, timer = 0, stats = stats, owner = owner }
+    -- Determine slot type from parameter, catalog, or default to 'primary'
+    local slot = slotType or proto.slotType or 'primary'
+    state.inventory.weapons[key] = { level = 1, timer = 0, stats = stats, owner = owner, slotType = slot }
 end
 
 function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
@@ -480,6 +482,8 @@ end
 
 function weapons.update(state, dt)
     updateQuakes(state, dt)
+    local activeSlot = state.player and state.player.activeSlot or 'primary'
+    
     for key, w in pairs((state.inventory and state.inventory.weapons) or {}) do
         w.timer = (w.timer or 0) - dt
         if w.timer <= 0 then
@@ -496,16 +500,23 @@ function weapons.update(state, dt)
                 local behaviorName = def and def.behavior
                 local behaviorFunc = behaviorName and Behaviors[behaviorName]
                 
+                -- Check weapon slot - only fire if in active slot (for player weapons)
+                local isPlayerWeapon = (w.owner == nil or w.owner == 'player')
+                local weaponSlot = w.slotType or def.slotType or 'primary'
+                local isInActiveSlot = (weaponSlot == activeSlot)
+                
                 -- Check if player is firing (required for most weapons unless pet/aura)
                 -- Auras and pet weapons always fire when ready
                 -- autoTrigger meta item bypasses the firing requirement
-                local isPlayerWeapon = (w.owner == nil or w.owner == 'player')
                 local isAura = (behaviorName == 'AURA')
                 local hasAutoTrigger = state.profile and state.profile.autoTrigger
                 local needsFiring = isPlayerWeapon and not isAura and not hasAutoTrigger
                 local canFire = not needsFiring or (state.player.isFiring == true)
                 
-                if behaviorFunc and canFire then
+                -- Skip if player weapon not in active slot
+                if isPlayerWeapon and not isInActiveSlot then
+                    w.timer = 0 -- Keep ready but don't fire
+                elseif behaviorFunc and canFire then
                     local fired = behaviorFunc(state, key, w, computedStats, def.behaviorParams, sx, sy)
                     if fired then
                         w.timer = actualCD

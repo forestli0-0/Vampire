@@ -1449,6 +1449,57 @@ function draw.renderUI(state)
         love.graphics.setColor(1, 1, 1, 1)
     end
 
+    -- Weapon Slots HUD (WF-style 1/2/3)
+    do
+        local p = state.player or {}
+        local slots = p.weaponSlots or {}
+        local activeSlot = p.activeSlot or 'primary'
+        local slotOrder = {'primary', 'secondary', 'melee'}
+        local slotKeys = {'1', '2', '3'}
+        local slotLabels = {primary = '主武器', secondary = '副武器', melee = '近战'}
+        
+        local startX = 10
+        local startY = 135
+        local slotW, slotH = 55, 40
+        local gap = 4
+        
+        for i, slot in ipairs(slotOrder) do
+            local isActive = (slot == activeSlot)
+            local weaponKey = slots[slot]
+            local weaponDef = weaponKey and state.catalog and state.catalog[weaponKey]
+            local weaponName = weaponDef and weaponDef.name or "空"
+            
+            local x = startX + (i - 1) * (slotW + gap)
+            
+            -- Background
+            if isActive then
+                love.graphics.setColor(0.2, 0.5, 0.8, 0.85)
+            else
+                love.graphics.setColor(0.1, 0.1, 0.1, 0.65)
+            end
+            love.graphics.rectangle('fill', x, startY, slotW, slotH, 4, 4)
+            
+            -- Border for active slot
+            if isActive then
+                love.graphics.setColor(0.5, 0.85, 1.0, 1)
+                love.graphics.setLineWidth(2)
+                love.graphics.rectangle('line', x, startY, slotW, slotH, 4, 4)
+                love.graphics.setLineWidth(1)
+            end
+            
+            -- Key label
+            love.graphics.setColor(1, 1, 1, isActive and 1 or 0.6)
+            love.graphics.print(slotKeys[i], x + 4, startY + 2)
+            
+            -- Weapon name (truncated)
+            local displayName = weaponName
+            if #displayName > 6 then displayName = displayName:sub(1, 5) .. ".." end
+            love.graphics.setColor(1, 1, 1, isActive and 1 or 0.5)
+            love.graphics.print(displayName, x + 4, startY + 18)
+        end
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+
     local minutes = math.floor(state.gameTimer / 60)
     local seconds = math.floor(state.gameTimer % 60)
     local timeStr = string.format("%02d:%02d", minutes, seconds)

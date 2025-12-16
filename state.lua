@@ -249,6 +249,13 @@ function state.init()
         dash = {charges = 2, maxCharges = 2, rechargeTimer = 0, timer = 0, dx = 1, dy = 0},
         class = 'warrior', -- Current class: warrior / mage / beastmaster
         ability = {cooldown = 0, timer = 0}, -- Q skill state
+        -- Weapon slots (WF-style 3 slot system)
+        weaponSlots = {
+            primary = nil,   -- Primary weapon key (rifles, bows, wands)
+            secondary = nil, -- Secondary weapon key (pistols, thrown)
+            melee = nil      -- Melee weapon key (hammers, swords)
+        },
+        activeSlot = 'primary', -- Currently active weapon slot
         stats = {
             moveSpeed = 180,
             might = 1.0,
@@ -503,10 +510,11 @@ function state.init()
             type = 'weapon', name = "Magic Wand",
             desc = "Fires at nearest enemy.",
             maxLevel = 5,
+            slotType = 'primary',
             behavior = 'SHOOT_NEAREST',
             tags = {'weapon', 'projectile', 'magic'},
             classWeight = { warrior = 0.5, mage = 2.0, beastmaster = 1.0 },
-            base = { damage=8, cd=1.2, speed=380, range=600, elements={'IMPACT'}, damageBreakdown={IMPACT=1}, critChance=0.05, critMultiplier=1.5, statusChance=0 },
+            base = { damage=8, cd=1.2, speed=380, range=600, critChance=0.05, critMultiplier=1.5, statusChance=0 },
             onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.9 end,
             evolveInfo = { target='holy_wand', require='tome' }
         },
@@ -590,10 +598,11 @@ function state.init()
             type = 'weapon', name = "Warhammer",
             desc = "Shatters Frozen enemies for 3x Damage.",
             maxLevel = 5,
+            slotType = 'melee',
             behavior = 'SHOOT_NEAREST',
-            tags = {'weapon', 'projectile', 'physical', 'heavy'},
+            tags = {'weapon', 'projectile', 'physical', 'heavy', 'melee'},
             classWeight = { warrior = 2.0, mage = 0.5, beastmaster = 1.0 },
-            base = { damage=40, cd=2.0, speed=220, range=550, knockback=100, effectType='HEAVY', elements={'IMPACT'}, damageBreakdown={IMPACT=1}, size=12, critChance=0.05, critMultiplier=1.5, statusChance=0.5 },
+            base = { damage=40, cd=2.0, speed=220, range=550, knockback=100, effectType='HEAVY', size=12, critChance=0.05, critMultiplier=1.5, statusChance=0.5 },
             onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end,
             evolveInfo = { target='earthquake', require='armor' }
         },
@@ -601,10 +610,11 @@ function state.init()
             type = 'weapon', name = "Throwing Knife",
             desc = "Applies Slash Bleed that bypasses armor.",
             maxLevel = 5,
+            slotType = 'secondary',
             behavior = 'SHOOT_DIRECTIONAL',
             tags = {'weapon', 'projectile', 'physical', 'fast'},
             classWeight = { warrior = 1.0, mage = 1.0, beastmaster = 2.0 },
-            base = { damage=4, cd=0.18, speed=600, range=550, elements={'SLASH'}, damageBreakdown={SLASH=1}, critChance=0.20, critMultiplier=2.0, statusChance=0.2 },
+            base = { damage=4, cd=0.18, speed=600, range=550, critChance=0.20, critMultiplier=2.0, statusChance=0.2 },
             onUpgrade = function(w) w.damage = w.damage + 2 end,
             evolveInfo = { target='thousand_edge', require='bracer' }
         },

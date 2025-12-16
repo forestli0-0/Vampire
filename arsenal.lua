@@ -300,16 +300,24 @@ function arsenal.startRun(state, opts)
     end
 
     if not state.inventory.weapons or not next(state.inventory.weapons) then
-        local startKey = 'wand'
-        if not opts.skipStartingWeapon then
-            startKey = (state.profile and state.profile.modTargetWeapon) or startKey
+        -- Default weapon loadout (WF-style 3 slots)
+        local defaultLoadout = {
+            primary = 'wand',
+            secondary = 'dagger',
+            melee = 'heavy_hammer'
+        }
+        
+        -- Add each weapon to its slot
+        for slot, weaponKey in pairs(defaultLoadout) do
+            local def = state.catalog and state.catalog[weaponKey]
+            if def and def.type == 'weapon' and not def.evolvedOnly then
+                weapons.addWeapon(state, weaponKey, 'player', slot)
+                state.player.weaponSlots[slot] = weaponKey
+            end
         end
-
-        local def = state.catalog and state.catalog[startKey]
-        if not def or def.type ~= 'weapon' or def.evolvedOnly then
-            startKey = 'wand'
-        end
-        weapons.addWeapon(state, startKey, 'player')
+        
+        -- Start with primary weapon active
+        state.player.activeSlot = 'primary'
     end
 
     if not opts.skipStartingPet then
