@@ -1180,6 +1180,45 @@ function enemies.update(state, dt)
                         e.attackCooldown = atk.cooldown or 2.5
                     end
                 end
+            elseif atk and atk.type == 'melee' then
+                if atk.phase == 'windup' then
+                    atk.timer = (atk.timer or 0) - dt * coldMult
+                    if atk.timer <= 0 then
+                        -- Melee attack damage
+                        local range = atk.range or 50
+                        local damage = atk.damage or 10
+                        local dmgMult = 1 - getPunctureReduction(e)
+                        if dmgMult < 0.25 then dmgMult = 0.25 end
+                        damage = damage * dmgMult * (e.eliteDamageMult or 1)
+                        
+                        -- Check player hit
+                        local dx = p.x - e.x
+                        local dy = p.y - e.y
+                        local dist = math.sqrt(dx * dx + dy * dy)
+                        local pr = (p.size or 20) / 2
+                        if dist <= range + pr then
+                            player.hurt(state, damage)
+                        end
+                        
+                        -- Check pet hit
+                        local pet = pets.getActive(state)
+                        if pet and not pet.downed then
+                            local pdx = (pet.x or 0) - e.x
+                            local pdy = (pet.y or 0) - e.y
+                            local pdist = math.sqrt(pdx * pdx + pdy * pdy)
+                            local petR = (pet.size or 18) / 2
+                            if pdist <= range + petR then
+                                pets.hurt(state, pet, damage)
+                            end
+                        end
+                        
+                        -- Sound effect
+                        if state.playSfx then state.playSfx('hit') end
+                        
+                        e.attack = nil
+                        e.attackCooldown = atk.cooldown or 1.5
+                    end
+                end
             end
         end
 
@@ -1334,6 +1373,26 @@ function enemies.update(state, dt)
                     if state.spawnTelegraphLine then
                         local ex, ey = e.x, e.y
                         state.spawnTelegraphLine(ex, ey, ex + math.cos(angToTarget) * len, ey + math.sin(angToTarget) * len, width, windup, lineOpts)
+                    end
+                elseif key == 'melee' then
+                    local windup = math.max(0.25, (cfg.windup or 0.4) * windupMult)
+                    local range = cfg.range or 50
+                    local damage = (cfg.damage or 8) * eliteDamageMult
+                    local cooldown = cfg.cooldown or 1.5
+                    
+                    e.attack = {
+                        type = 'melee',
+                        phase = 'windup',
+                        timer = windup,
+                        interruptible = true,
+                        range = range,
+                        damage = damage,
+                        cooldown = cooldown
+                    }
+                    
+                    -- Show telegraph circle
+                    if state.spawnTelegraphCircle then
+                        state.spawnTelegraphCircle(e.x, e.y, range, windup, {kind = 'danger', intensity = 0.9})
                     end
                 end
             end

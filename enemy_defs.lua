@@ -23,14 +23,22 @@ local enemyDefs = {
         speed = 50,
         size = 16,
         color = {0.8, 0.8, 0.8},
-        healthType = 'FLESH'
+        healthType = 'FLESH',
+        contactDamage = 5,
+        attacks = {
+            melee = {range = 45, windup = 0.4, cooldown = 1.8, damage = 8}
+        }
     },
     bat = {
         hp = 5,
         speed = 120,
         size = 12,
         color = {0.6, 0, 1},
-        healthType = 'FLESH'
+        healthType = 'FLESH',
+        contactDamage = 3,
+        attacks = {
+            melee = {range = 35, windup = 0.25, cooldown = 1.0, damage = 5}
+        }
     },
     plant = {
         hp = 30,

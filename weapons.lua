@@ -443,6 +443,33 @@ function Behaviors.MELEE_SWING(state, weaponKey, w, stats, params, sx, sy)
         end
     end
     
+    -- Destroy enemy bullets in swing arc
+    if state.enemyBullets then
+        for i = #state.enemyBullets, 1, -1 do
+            local b = state.enemyBullets[i]
+            local dx = b.x - sx
+            local dy = b.y - sy
+            local dist = math.sqrt(dx * dx + dy * dy)
+            
+            if dist <= range then
+                local angleToB = math.atan2(dy, dx)
+                local angleDiff = math.abs(angleToB - aimAngle)
+                if angleDiff > math.pi then angleDiff = 2 * math.pi - angleDiff end
+                
+                if angleDiff <= arcWidth / 2 then
+                    -- Destroy bullet
+                    table.remove(state.enemyBullets, i)
+                    
+                    -- VFX
+                    if state.texts then
+                        table.insert(state.texts, {x=b.x, y=b.y, text="×", color={0.8, 0.9, 1}, life=0.3, scale=0.8})
+                    end
+                    if state.playSfx then state.playSfx('gem') end
+                end
+            end
+        end
+    end
+    
     melee.damageDealt = true
     
     -- Screen shake for heavy/finisher
