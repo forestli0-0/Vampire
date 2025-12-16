@@ -402,6 +402,13 @@ function player.keypressed(state, key)
         return weapons.startReload(state)
     end
     
+    -- Ability keys (Q/E/C/V)
+    local abilities = require('abilities')
+    local abilityKey = abilities.getAbilityForKey(key)
+    if abilityKey then
+        return abilities.tryActivate(state, abilityKey)
+    end
+    
     if key == 'space' then
         return player.tryDash(state)
     end

@@ -1585,6 +1585,76 @@ function draw.renderUI(state)
         love.graphics.setColor(1, 1, 1, 1)
     end
 
+    -- Energy bar and ability cooldowns
+    do
+        local p = state.player or {}
+        local energy = p.energy or 0
+        local maxEnergy = p.maxEnergy or 100
+        
+        local barX = 12
+        local barY = 145  -- Below weapon slots
+        local barW = 80
+        local barH = 8
+        
+        -- Energy bar background
+        love.graphics.setColor(0.1, 0.1, 0.2, 0.8)
+        love.graphics.rectangle('fill', barX, barY, barW, barH, 2, 2)
+        
+        -- Energy bar fill
+        local ratio = math.min(1, energy / maxEnergy)
+        love.graphics.setColor(0.3, 0.6, 1, 0.9)
+        love.graphics.rectangle('fill', barX, barY, barW * ratio, barH, 2, 2)
+        
+        -- Energy text
+        love.graphics.setColor(0.8, 0.9, 1, 1)
+        love.graphics.print(string.format("%.0f", energy), barX + barW + 5, barY - 2)
+        
+        -- Ability cooldowns (Q E C V below energy bar)
+        local abilities = require('abilities')
+        local abilityCDs = p.abilityCooldowns or {}
+        local keys = {'q', 'e', 'c', 'v'}
+        local abilityX = barX
+        local abilityY = barY + 14
+        local slotSize = 18
+        
+        for i, key in ipairs(keys) do
+            local abilityKey = abilities.getAbilityForKey(key)
+            local def = abilityKey and abilities.catalog[abilityKey]
+            local cd = abilityCDs[abilityKey] or 0
+            local canUse = abilities.canUse(state, abilityKey)
+            
+            local x = abilityX + (i - 1) * (slotSize + 4)
+            
+            -- Background
+            if canUse then
+                love.graphics.setColor(0.2, 0.4, 0.6, 0.8)
+            else
+                love.graphics.setColor(0.2, 0.2, 0.2, 0.7)
+            end
+            love.graphics.rectangle('fill', x, abilityY, slotSize, slotSize, 2, 2)
+            
+            -- Cooldown overlay
+            if cd > 0 and def then
+                local cdRatio = cd / def.cd
+                love.graphics.setColor(0, 0, 0, 0.6)
+                love.graphics.rectangle('fill', x, abilityY, slotSize, slotSize * cdRatio, 2, 2)
+            end
+            
+            -- Key label
+            love.graphics.setColor(canUse and 1 or 0.5, canUse and 1 or 0.5, canUse and 1 or 0.5, 1)
+            love.graphics.print(string.upper(key), x + 4, abilityY + 1)
+        end
+        
+        -- Passive indicator
+        local passiveInfo = abilities.getPassiveInfo(state)
+        if passiveInfo then
+            love.graphics.setColor(0.5, 0.7, 0.9, 0.8)
+            love.graphics.print(passiveInfo.icon or "P", abilityX + 4 * (slotSize + 4), abilityY + 1)
+        end
+        
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+
     local minutes = math.floor(state.gameTimer / 60)
     local seconds = math.floor(state.gameTimer % 60)
     local timeStr = string.format("%02d:%02d", minutes, seconds)

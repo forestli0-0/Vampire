@@ -312,6 +312,20 @@ function pickups.updateFloorPickups(state, dt)
                     -- All weapons full, don't consume
                     consume = false
                 end
+            elseif item.kind == 'energy' then
+                -- Energy pickup for abilities
+                local amount = item.amount or 25
+                local maxEnergy = p.maxEnergy or 100
+                local current = p.energy or 0
+                if current < maxEnergy then
+                    p.energy = math.min(maxEnergy, current + amount)
+                    local gained = p.energy - current
+                    table.insert(state.texts, {x=p.x, y=p.y-30, text="+"..math.floor(gained).." ENERGY", color={0.4, 0.7, 1}, life=1})
+                    if state.playSfx then state.playSfx('gem') end
+                    logger.pickup(state, 'energy')
+                else
+                    consume = false
+                end
             elseif item.kind == 'pet_contract' then
                 local current = pets.getActive(state)
                 upgrades.queueLevelUp(state, 'pet_contract', {

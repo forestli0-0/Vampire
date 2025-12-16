@@ -18,6 +18,7 @@ local vfx = require('vfx')
 local rooms = require('rooms')
 local testmode = require('testmode')
 local testScenarios = require('test_scenarios')
+local abilities = require('abilities')
 local pets = require('pets')
 local world = require('world')
 local mission = require('mission')
@@ -104,7 +105,7 @@ function love.update(dt)
     -- 核心更新顺序：玩家 → 武器 → 子弹 → 刷怪
     player.updateFiring(state) -- Update attack/aim state
     player.updateMelee(state, dt) -- Update melee state machine
-    player.updateAbility(state, dt) -- Update Q skill cooldown
+    abilities.update(state, dt) -- Update ability cooldowns and energy regen
     player.updateMovement(state, dt)
     world.update(state, dt)
     pets.update(state, dt)
