@@ -54,7 +54,10 @@ local function defaultProfile()
         -- Pets (loadout + light meta progression)
         startPetKey = 'pet_magnet',
         petModules = {},
-        petRanks = {}
+        petRanks = {},
+        
+        -- Meta items
+        autoTrigger = false -- When true, weapons fire automatically without holding attack key
     }
 end
 

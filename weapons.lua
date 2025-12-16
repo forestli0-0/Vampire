@@ -498,9 +498,11 @@ function weapons.update(state, dt)
                 
                 -- Check if player is firing (required for most weapons unless pet/aura)
                 -- Auras and pet weapons always fire when ready
+                -- autoTrigger meta item bypasses the firing requirement
                 local isPlayerWeapon = (w.owner == nil or w.owner == 'player')
                 local isAura = (behaviorName == 'AURA')
-                local needsFiring = isPlayerWeapon and not isAura
+                local hasAutoTrigger = state.profile and state.profile.autoTrigger
+                local needsFiring = isPlayerWeapon and not isAura and not hasAutoTrigger
                 local canFire = not needsFiring or (state.player.isFiring == true)
                 
                 if behaviorFunc and canFire then

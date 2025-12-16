@@ -382,6 +382,17 @@ function arsenal.keypressed(state, key)
         end
         return true
     end
+    
+    -- Auto-trigger toggle (T key)
+    if key == 't' then
+        if state.profile then
+            state.profile.autoTrigger = not state.profile.autoTrigger
+            local status = state.profile.autoTrigger and "ON" or "OFF"
+            setMessage(state, "Auto-Trigger: " .. status)
+            if state.saveProfile then state.saveProfile(state.profile) end
+        end
+        return true
+    end
 
     local list = a.modList or {}
     local count = #list
@@ -458,6 +469,16 @@ function arsenal.draw(state)
     local className = (classDef and classDef.name) or classKey
     love.graphics.setColor(0.95, 0.85, 0.75)
     love.graphics.print("Class: " .. tostring(className) .. "  (C)", leftX, topY - 66)
+    
+    -- Auto-trigger display
+    local autoTrigger = state.profile and state.profile.autoTrigger
+    if autoTrigger then
+        love.graphics.setColor(0.5, 1, 0.5)
+        love.graphics.print("Auto-Trigger: ON  (T)", leftX, topY - 78)
+    else
+        love.graphics.setColor(0.7, 0.7, 0.7)
+        love.graphics.print("Auto-Trigger: OFF  (T)", leftX, topY - 78)
+    end
 
     for i, key in ipairs(list) do
         local def = state.catalog[key]
@@ -514,7 +535,7 @@ function arsenal.draw(state)
     end
 
     love.graphics.setColor(0.9, 0.9, 0.9)
-    love.graphics.printf("Up/Down: select   E: equip   Left/Right: rank   Tab: weapon   P/O: pet   C: class   Enter: start", 0, h - 60, w, "center")
+    love.graphics.printf("E: equip   Tab: weapon   P: pet   C: class   T: auto-trigger   Enter: start", 0, h - 60, w, "center")
 
     if a.message then
         love.graphics.setColor(1, 0.8, 0.3)
