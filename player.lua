@@ -409,6 +409,29 @@ function player.keypressed(state, key)
         return abilities.tryActivate(state, abilityKey)
     end
     
+    -- M key: Test MOD system (debug)
+    if key == 'm' then
+        local mods = require('mods')
+        local p = state.player
+        local activeSlot = p.activeSlot or 'primary'
+        local activeKey = p.weaponSlots and p.weaponSlots[activeSlot]
+        if activeKey then
+            mods.equipTestMods(state, activeKey)
+            table.insert(state.texts, {x=p.x, y=p.y-50, text="MOD装备: "..activeKey, color={0.6, 0.9, 0.4}, life=2})
+            -- Force recalc stats
+            local weapons = require('weapons')
+            if weapons.calculateStats then
+                local newStats = weapons.calculateStats(state, activeKey)
+                if newStats then
+                    table.insert(state.texts, {x=p.x, y=p.y-70, text=string.format("DMG:%d CRIT:%.0f%%", math.floor(newStats.damage or 0), (newStats.critChance or 0)*100), color={1, 1, 0.7}, life=2})
+                end
+            end
+            return true
+        else
+            table.insert(state.texts, {x=p.x, y=p.y-50, text="无武器:"..tostring(activeSlot), color={1, 0.5, 0.5}, life=2})
+        end
+    end
+    
     if key == 'space' then
         return player.tryDash(state)
     end

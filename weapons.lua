@@ -175,6 +175,13 @@ function weapons.calculateStats(state, weaponKey)
             end
         end
     end
+    
+    -- Apply new 8-slot MOD system (mods.lua)
+    local modsModule = require('mods')
+    local equippedMods = modsModule.getWeaponMods(state, weaponKey)
+    if equippedMods and #equippedMods > 0 then
+        stats = modsModule.applyToWeapon(stats, equippedMods)
+    end
 
     return stats
 end

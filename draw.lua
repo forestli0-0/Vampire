@@ -1652,6 +1652,21 @@ function draw.renderUI(state)
             love.graphics.print(passiveInfo.icon or "P", abilityX + 4 * (slotSize + 4), abilityY + 1)
         end
         
+        -- MOD count for active weapon
+        local modsModule = require('mods')
+        local activeKey = state.inventory and state.inventory.activeWeaponKey
+        if activeKey then
+            local equippedMods = modsModule.getWeaponMods(state, activeKey)
+            local modCount = 0
+            for _, m in ipairs(equippedMods or {}) do
+                if m then modCount = modCount + 1 end
+            end
+            if modCount > 0 then
+                love.graphics.setColor(0.6, 0.8, 0.4, 0.8)
+                love.graphics.print(string.format("MOD:%d", modCount), abilityX, abilityY + 22)
+            end
+        end
+        
         love.graphics.setColor(1, 1, 1, 1)
     end
 
