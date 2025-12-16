@@ -233,6 +233,33 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
         table.remove(list, idx)
         return opt
     end
+    
+    -- Class weight system: items with classWeight field are weighted by player's class
+    local function getClassWeight(def)
+        if not def or not def.classWeight then return 1.0 end
+        local classKey = state.player and state.player.class or 'warrior'
+        return def.classWeight[classKey] or 1.0
+    end
+    
+    local function takeWeighted(list)
+        if #list == 0 then return nil end
+        local total = 0
+        for _, opt in ipairs(list) do
+            local w = getClassWeight(opt.def)
+            total = total + w
+        end
+        if total <= 0 then return takeRandom(list) end
+        local r = math.random() * total
+        for i, opt in ipairs(list) do
+            local w = getClassWeight(opt.def)
+            r = r - w
+            if r <= 0 then
+                table.remove(list, i)
+                return opt
+            end
+        end
+        return table.remove(list, #list)
+    end
 
     local function hasType(options, wanted)
         for _, opt in ipairs(options or {}) do
@@ -258,6 +285,32 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
 
     if #evolvePool > 0 then
         table.insert(state.upgradeOptions, takeRandom(evolvePool))
+    end
+    
+    -- Starting guarantee: first 2 upgrades prioritize class-preferred items
+    local upgradeCount = state.upgradeCount or 0
+    if upgradeCount < 2 then
+        local classKey = state.player and state.player.class or 'warrior'
+        local classDef = state.classes and state.classes[classKey]
+        local preferred = classDef and classDef.preferredUpgrades
+        if preferred then
+            -- Try to find a preferred item in the pools
+            local function takePreferred(list)
+                for _, prefKey in ipairs(preferred) do
+                    for i, opt in ipairs(list) do
+                        if opt.key == prefKey then
+                            return table.remove(list, i)
+                        end
+                    end
+                end
+                return nil
+            end
+            -- Add one preferred item if not already in options
+            local found = takePreferred(poolNew) or takePreferred(poolExisting)
+            if found and #state.upgradeOptions < 3 then
+                table.insert(state.upgradeOptions, found)
+            end
+        end
     end
 
     local runLevel = 1
@@ -301,15 +354,16 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
     for i = #state.upgradeOptions + 1, 3 do
         local choice = nil
         -- 现有/新选项混合：偏向现有，但保留一定随机新路线
+        -- Use weighted selection for class-based preferences
         local preferExisting = (#poolExisting > 0) and (math.random() < preferExistingChance or #poolNew == 0)
         if preferExisting then
-            choice = takeRandom(poolExisting)
+            choice = takeWeighted(poolExisting)
         else
-            choice = takeRandom(poolNew)
+            choice = takeWeighted(poolNew)
         end
-        if not choice then choice = takeRandom(poolExisting) end
-        if not choice then choice = takeRandom(poolNew) end
-        if not choice then choice = takeRandom(evolvePool) end
+        if not choice then choice = takeWeighted(poolExisting) end
+        if not choice then choice = takeWeighted(poolNew) end
+        if not choice then choice = takeRandom(evolvePool) end  -- Evolve pool stays random
         if not choice then break end
         table.insert(state.upgradeOptions, choice)
     end
@@ -356,6 +410,9 @@ function upgrades.queueLevelUp(state, reason, request)
 end
 
 function upgrades.applyUpgrade(state, opt)
+    -- Track upgrade count for starting guarantee system
+    state.upgradeCount = (state.upgradeCount or 0) + 1
+    
     if opt.evolveFrom then
         -- 直接进化：移除基础武器，添加目标武器
         local carryMods = state.inventory and state.inventory.weaponMods and state.inventory.weaponMods[opt.evolveFrom]

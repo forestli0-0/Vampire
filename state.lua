@@ -271,17 +271,19 @@ function state.init()
     -- Class definitions: base stats, starting weapon, Q ability
     state.classes = {
         warrior = {
-            name = "战士",
-            desc = "近战强化，护甲较高，Q技能：战吼（范围击退+减速）",
+            name = "Warrior",
+            desc = "Melee focused, high armor. Q: War Cry (AoE knockback + stun)",
             baseStats = {
                 maxHp = 120,
                 armor = 2,
                 moveSpeed = 170,
-                might = 1.1
+                might = 1.1,
+                dashCharges = 3  -- Extra dash charge
             },
             startWeapon = 'heavy_hammer',
+            preferredUpgrades = {'axe', 'armor', 'spinach'}, -- First upgrades favor these
             ability = {
-                name = "战吼",
+                name = "War Cry",
                 cooldown = 8.0,
                 execute = function(state)
                     local p = state.player
@@ -328,18 +330,20 @@ function state.init()
             }
         },
         mage = {
-            name = "法师",
-            desc = "法术强化，血量较低，Q技能：闪现（短距离瞬移+无敌帧）",
+            name = "Mage",
+            desc = "Magic focused, low HP. Q: Blink (teleport + i-frames)",
             baseStats = {
                 maxHp = 80,
                 armor = 0,
                 moveSpeed = 190,
                 might = 1.0,
-                cooldown = 0.9 -- 10% faster cooldowns
+                cooldown = 0.9, -- 10% faster cooldowns
+                critChance = 0.1 -- +10% crit chance
             },
             startWeapon = 'wand',
+            preferredUpgrades = {'fire_wand', 'static_orb', 'tome', 'clover'}, -- Mage prefers ranged/crit
             ability = {
-                name = "闪现",
+                name = "Blink",
                 cooldown = 5.0,
                 execute = function(state)
                     local p = state.player
@@ -383,17 +387,20 @@ function state.init()
             }
         },
         beastmaster = {
-            name = "驯兽师",
-            desc = "宠物强化，均衡属性，Q技能：召唤援护（临时强化宠物）",
+            name = "Beastmaster",
+            desc = "Pet focused, balanced. Q: Summon Aid (heal/buff pet)",
             baseStats = {
                 maxHp = 100,
                 armor = 1,
                 moveSpeed = 180,
-                might = 1.0
+                might = 1.0,
+                statusChance = 0.15, -- +15% status proc chance
+                petHpBonus = 0.25  -- +25% pet HP
             },
             startWeapon = 'garlic',
+            preferredUpgrades = {'dagger', 'ice_ring', 'garlic'}, -- Beastmaster prefers status weapons
             ability = {
-                name = "召唤援护",
+                name = "Summon Aid",
                 cooldown = 12.0,
                 execute = function(state)
                     local pets = state.pets
@@ -498,6 +505,7 @@ function state.init()
             maxLevel = 5,
             behavior = 'SHOOT_NEAREST',
             tags = {'weapon', 'projectile', 'magic'},
+            classWeight = { warrior = 0.5, mage = 2.0, beastmaster = 1.0 },
             base = { damage=8, cd=1.2, speed=380, range=600, elements={'IMPACT'}, damageBreakdown={IMPACT=1}, critChance=0.05, critMultiplier=1.5, statusChance=0 },
             onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.9 end,
             evolveInfo = { target='holy_wand', require='tome' }
@@ -518,6 +526,7 @@ function state.init()
             maxLevel = 5,
             behavior = 'AURA',
             tags = {'weapon', 'area', 'aura', 'magic'},
+            classWeight = { warrior = 1.0, mage = 1.0, beastmaster = 2.0 },
             base = { damage=3, cd=0.35, radius=70, knockback=30, elements={'IMPACT'}, damageBreakdown={IMPACT=1}, critChance=0.05, critMultiplier=1.5, statusChance=0 },
             onUpgrade = function(w) w.damage = w.damage + 2; w.radius = w.radius + 10 end,
             evolveInfo = { target='soul_eater', require='pummarola' }
@@ -528,6 +537,7 @@ function state.init()
             maxLevel = 5,
             behavior = 'SHOOT_RANDOM',
             tags = {'weapon', 'projectile', 'physical', 'arc'},
+            classWeight = { warrior = 2.0, mage = 0.5, beastmaster = 1.0 },
             base = { damage=30, cd=1.4, speed=450, area=1.5, elements={'SLASH','IMPACT'}, damageBreakdown={SLASH=7, IMPACT=3}, critChance=0.10, critMultiplier=2.5, statusChance=0 },
             onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end,
             evolveInfo = { target='death_spiral', require='spinach' }
@@ -560,6 +570,7 @@ function state.init()
             maxLevel = 5,
             behavior = 'SHOOT_NEAREST',
             tags = {'weapon', 'projectile', 'fire', 'magic'},
+            classWeight = { warrior = 0.5, mage = 2.0, beastmaster = 1.0 },
             base = { damage=15, cd=0.9, speed=450, range=700, elements={'HEAT'}, damageBreakdown={HEAT=1}, splashRadius=70, critChance=0.05, critMultiplier=1.5, statusChance=0.3 },
             onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.95 end,
             evolveInfo = { target='hellfire', require='candelabrador' }
@@ -570,6 +581,7 @@ function state.init()
             maxLevel = 5,
             behavior = 'AURA',
             tags = {'weapon', 'area', 'magic', 'ice'},
+            classWeight = { warrior = 1.0, mage = 1.5, beastmaster = 1.5 },
             base = { damage=2, cd=2.5, radius=100, duration=6.0, elements={'COLD'}, damageBreakdown={COLD=1}, critChance=0.05, critMultiplier=1.5, statusChance=0.3 },
             onUpgrade = function(w) w.radius = w.radius + 10; w.cd = w.cd * 0.95 end,
             evolveInfo = { target='absolute_zero', require='spellbinder' }
@@ -580,6 +592,7 @@ function state.init()
             maxLevel = 5,
             behavior = 'SHOOT_NEAREST',
             tags = {'weapon', 'projectile', 'physical', 'heavy'},
+            classWeight = { warrior = 2.0, mage = 0.5, beastmaster = 1.0 },
             base = { damage=40, cd=2.0, speed=220, range=550, knockback=100, effectType='HEAVY', elements={'IMPACT'}, damageBreakdown={IMPACT=1}, size=12, critChance=0.05, critMultiplier=1.5, statusChance=0.5 },
             onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end,
             evolveInfo = { target='earthquake', require='armor' }
@@ -590,6 +603,7 @@ function state.init()
             maxLevel = 5,
             behavior = 'SHOOT_DIRECTIONAL',
             tags = {'weapon', 'projectile', 'physical', 'fast'},
+            classWeight = { warrior = 1.0, mage = 1.0, beastmaster = 2.0 },
             base = { damage=4, cd=0.18, speed=600, range=550, elements={'SLASH'}, damageBreakdown={SLASH=1}, critChance=0.20, critMultiplier=2.0, statusChance=0.2 },
             onUpgrade = function(w) w.damage = w.damage + 2 end,
             evolveInfo = { target='thousand_edge', require='bracer' }
@@ -600,6 +614,7 @@ function state.init()
             maxLevel = 5,
             behavior = 'SHOOT_NEAREST',
             tags = {'weapon', 'projectile', 'magic', 'electric'},
+            classWeight = { warrior = 0.5, mage = 2.0, beastmaster = 1.5 },
             base = { damage=6, cd=1.25, speed=380, range=650, elements={'ELECTRIC'}, damageBreakdown={ELECTRIC=1}, duration=3.0, staticRange=160, chain=4, critChance=0.05, critMultiplier=1.5, statusChance=0.4 },
             onUpgrade = function(w) w.damage = w.damage + 3; w.cd = w.cd * 0.95 end,
             evolveInfo = { target='thunder_loop', require='duplicator' }
@@ -1665,7 +1680,7 @@ function state.init()
     -- size: logical diameter before spriteScale; spriteScale: base magnification for rendering (and hitbox, via hitSizeScale).
     state.projectileTuning = {
         default = { size = 6, spriteScale = 5 },
-        -- axe = { size = 12, spriteScale = 2 },
+        axe = { size = 6, spriteScale = 3 },
         -- death_spiral = { size = 14, spriteScale = 2 },
         oil_bottle = { size = 6, spriteScale = 3 },
         heavy_hammer = { size = 6, spriteScale = 3 }

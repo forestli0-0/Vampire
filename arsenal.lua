@@ -329,6 +329,22 @@ function arsenal.startRun(state, opts)
         if bs.moveSpeed then state.player.stats.moveSpeed = bs.moveSpeed end
         if bs.might then state.player.stats.might = bs.might end
         if bs.cooldown then state.player.stats.cooldown = bs.cooldown end
+        
+        -- Advanced class stats
+        if bs.dashCharges then
+            state.player.stats.dashCharges = bs.dashCharges
+            state.player.dash.maxCharges = bs.dashCharges
+            state.player.dash.charges = bs.dashCharges
+        end
+        if bs.critChance then
+            state.player.stats.critChance = (state.player.stats.critChance or 0) + bs.critChance
+        end
+        if bs.statusChance then
+            state.player.stats.statusChance = (state.player.stats.statusChance or 0) + bs.statusChance
+        end
+        if bs.petHpBonus then
+            state.player.stats.petHpBonus = bs.petHpBonus
+        end
     end
     
     -- Initialize ability cooldown
