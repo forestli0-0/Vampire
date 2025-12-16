@@ -419,4 +419,53 @@ function player.tickTexts(state, dt)
     end
 end
 
+-- Update ability cooldown tick
+function player.updateAbility(state, dt)
+    local p = state.player
+    local ability = p.ability
+    if not ability then
+        p.ability = {cooldown = 0, timer = 0}
+        ability = p.ability
+    end
+    
+    if (ability.timer or 0) > 0 then
+        ability.timer = ability.timer - dt
+        if ability.timer < 0 then ability.timer = 0 end
+    end
+end
+
+-- Use class ability (Q skill)
+function player.useAbility(state)
+    local p = state.player
+    local ability = p.ability
+    if not ability then
+        p.ability = {cooldown = 0, timer = 0}
+        ability = p.ability
+    end
+    
+    -- Check cooldown
+    if (ability.timer or 0) > 0 then
+        return false
+    end
+    
+    -- Get class definition
+    local classKey = p.class or 'warrior'
+    local classDef = state.classes and state.classes[classKey]
+    if not classDef or not classDef.ability or not classDef.ability.execute then
+        return false
+    end
+    
+    -- Execute ability
+    local success = classDef.ability.execute(state)
+    
+    -- Set cooldown if successful
+    if success then
+        ability.cooldown = classDef.ability.cooldown or 5.0
+        ability.timer = ability.cooldown
+    end
+    
+    return success
+end
+
 return player
+

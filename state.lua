@@ -244,6 +244,8 @@ function state.init()
         level = 1, xp = 0, xpToNextLevel = 10,
         invincibleTimer = 0,
         dash = {charges = 2, maxCharges = 2, rechargeTimer = 0, timer = 0, dx = 1, dy = 0},
+        class = 'warrior', -- Current class: warrior / mage / beastmaster
+        ability = {cooldown = 0, timer = 0}, -- Q skill state
         stats = {
             moveSpeed = 180,
             might = 1.0,
@@ -260,6 +262,167 @@ function state.init()
             dashDuration = 0.16,     -- seconds of dash movement
             dashDistance = 80,      -- pixels traveled over dashDuration
             dashInvincible = 0.16    -- i-frames (can be >= dashDuration)
+        }
+    }
+
+    -- Class definitions: base stats, starting weapon, Q ability
+    state.classes = {
+        warrior = {
+            name = "战士",
+            desc = "近战强化，护甲较高，Q技能：战吼（范围击退+减速）",
+            baseStats = {
+                maxHp = 120,
+                armor = 2,
+                moveSpeed = 170,
+                might = 1.1
+            },
+            startWeapon = 'heavy_hammer',
+            ability = {
+                name = "战吼",
+                cooldown = 8.0,
+                execute = function(state)
+                    local p = state.player
+                    local radius = 180
+                    local r2 = radius * radius
+                    local knockForce = 200
+                    local stunDuration = 0.8
+                    
+                    -- Visual/audio feedback
+                    if state.playSfx then state.playSfx('hit') end
+                    state.shakeAmount = math.max(state.shakeAmount or 0, 4)
+                    
+                    -- Hit all enemies in range
+                    local ok, calc = pcall(require, 'calculator')
+                    if ok and calc then
+                        local instance = calc.createInstance({
+                            damage = math.floor(15 * (p.stats.might or 1)),
+                            critChance = 0.1,
+                            critMultiplier = 1.5,
+                            statusChance = 0.8,
+                            effectType = 'HEAVY',
+                            effectData = {duration = stunDuration},
+                            elements = {'IMPACT'},
+                            damageBreakdown = {IMPACT = 1},
+                            weaponTags = {'ability', 'area', 'physical'},
+                            knock = true,
+                            knockForce = knockForce
+                        })
+                        for _, e in ipairs(state.enemies or {}) do
+                            if e and not e.isDummy then
+                                local dx = e.x - p.x
+                                local dy = e.y - p.y
+                                if dx * dx + dy * dy <= r2 then
+                                    calc.applyHit(state, e, instance)
+                                end
+                            end
+                        end
+                    end
+                    
+                    -- Spawn visual effect
+                    if state.spawnEffect then state.spawnEffect('hit', p.x, p.y) end
+                    return true
+                end
+            }
+        },
+        mage = {
+            name = "法师",
+            desc = "法术强化，血量较低，Q技能：闪现（短距离瞬移+无敌帧）",
+            baseStats = {
+                maxHp = 80,
+                armor = 0,
+                moveSpeed = 190,
+                might = 1.0,
+                cooldown = 0.9 -- 10% faster cooldowns
+            },
+            startWeapon = 'wand',
+            ability = {
+                name = "闪现",
+                cooldown = 5.0,
+                execute = function(state)
+                    local p = state.player
+                    local distance = 120
+                    
+                    -- Get aim direction (movement or facing)
+                    local dx, dy = 0, 0
+                    if love.keyboard.isDown('w') then dy = dy - 1 end
+                    if love.keyboard.isDown('s') then dy = dy + 1 end
+                    if love.keyboard.isDown('a') then dx = dx - 1 end
+                    if love.keyboard.isDown('d') then dx = dx + 1 end
+                    
+                    if dx == 0 and dy == 0 then
+                        dx = p.facing or 1
+                    end
+                    
+                    -- Normalize
+                    local len = math.sqrt(dx * dx + dy * dy)
+                    if len > 0 then
+                        dx, dy = dx / len, dy / len
+                    end
+                    
+                    -- Teleport
+                    local world = state.world
+                    local newX = p.x + dx * distance
+                    local newY = p.y + dy * distance
+                    if world and world.enabled and world.moveCircle then
+                        p.x, p.y = world:moveCircle(p.x, p.y, (p.size or 20) / 2, dx * distance, dy * distance)
+                    else
+                        p.x, p.y = newX, newY
+                    end
+                    
+                    -- Brief invincibility
+                    p.invincibleTimer = math.max(p.invincibleTimer or 0, 0.3)
+                    
+                    -- Visual effect
+                    if state.playSfx then state.playSfx('shoot') end
+                    if state.spawnEffect then state.spawnEffect('static', p.x, p.y) end
+                    return true
+                end
+            }
+        },
+        beastmaster = {
+            name = "驯兽师",
+            desc = "宠物强化，均衡属性，Q技能：召唤援护（临时强化宠物）",
+            baseStats = {
+                maxHp = 100,
+                armor = 1,
+                moveSpeed = 180,
+                might = 1.0
+            },
+            startWeapon = 'garlic',
+            ability = {
+                name = "召唤援护",
+                cooldown = 12.0,
+                execute = function(state)
+                    local pets = state.pets
+                    local pet = pets and pets.list and pets.list[1]
+                    
+                    if pet and not pet.dead and not pet.downed then
+                        -- Heal pet
+                        pet.hp = pet.maxHp or 100
+                        
+                        -- Temporary buff (stored on pet)
+                        pet.buffTimer = (pet.buffTimer or 0) + 6.0
+                        pet.buffDamage = 2.0 -- 2x damage
+                        pet.buffCooldown = 0.5 -- 50% faster ability
+                        
+                        if state.playSfx then state.playSfx('shoot') end
+                        if state.spawnEffect then state.spawnEffect('heal', pet.x, pet.y) end
+                    elseif pet and pet.downed then
+                        -- Instant revive
+                        pet.downed = false
+                        pet.hp = (pet.maxHp or 100) * 0.5
+                        pet.reviveProgress = 0
+                        
+                        if state.playSfx then state.playSfx('shoot') end
+                        if state.spawnEffect then state.spawnEffect('heal', pet.x, pet.y) end
+                    else
+                        -- No pet, spawn temporary effect around player
+                        if state.playSfx then state.playSfx('shoot') end
+                        return false -- Don't consume cooldown
+                    end
+                    return true
+                end
+            }
         }
     }
 

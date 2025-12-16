@@ -140,14 +140,25 @@ local function cyclePetModule(profile, petKey, dir)
     return mods[idx]
 end
 
+local function buildClassList(state)
+    local list = {}
+    for key, def in pairs(state.classes or {}) do
+        table.insert(list, key)
+    end
+    table.sort(list)
+    return list
+end
+
 function arsenal.init(state)
     state.arsenal = {
         modList = buildModList(state),
         weaponList = buildWeaponList(state),
         petList = buildPetList(state),
+        classList = buildClassList(state),
         idx = 1,
         weaponIdx = 1,
         petIdx = 1,
+        classIdx = 1,
         message = nil,
         messageTimer = 0
     }
@@ -186,6 +197,16 @@ function arsenal.init(state)
         if #petList > 0 and (profile.startPetKey == nil or state.catalog[profile.startPetKey] == nil) then
             profile.startPetKey = petList[1]
             state.arsenal.petIdx = 1
+        end
+    end
+    
+    -- Initialize class selection
+    local classList = state.arsenal.classList or {}
+    local playerClass = state.player.class or 'warrior'
+    for i, k in ipairs(classList) do
+        if k == playerClass then
+            state.arsenal.classIdx = i
+            break
         end
     end
 end
@@ -294,6 +315,26 @@ function arsenal.startRun(state, opts)
     if not opts.skipStartingPet then
         pets.spawnStartingPet(state)
     end
+    
+    -- Apply class base stats
+    local classKey = state.player.class or 'warrior'
+    local classDef = state.classes and state.classes[classKey]
+    if classDef and classDef.baseStats then
+        local bs = classDef.baseStats
+        if bs.maxHp then
+            state.player.maxHp = bs.maxHp
+            state.player.hp = bs.maxHp
+        end
+        if bs.armor then state.player.stats.armor = bs.armor end
+        if bs.moveSpeed then state.player.stats.moveSpeed = bs.moveSpeed end
+        if bs.might then state.player.stats.might = bs.might end
+        if bs.cooldown then state.player.stats.cooldown = bs.cooldown end
+    end
+    
+    -- Initialize ability cooldown
+    state.player.ability = state.player.ability or {cooldown = 0, timer = 0}
+    state.player.ability.timer = 0
+    
     state.gameState = 'PLAYING'
 end
 
@@ -324,6 +365,20 @@ function arsenal.keypressed(state, key)
             state.profile.modTargetWeapon = weaponKey
             setMessage(state, "Weapon: " .. tostring((state.catalog[weaponKey] and state.catalog[weaponKey].name) or weaponKey))
             if state.saveProfile then state.saveProfile(state.profile) end
+        end
+        return true
+    end
+    
+    -- Class selection (C key)
+    if key == 'c' then
+        local list = a.classList or {}
+        if #list > 0 then
+            a.classIdx = (a.classIdx % #list) + 1
+            local classKey = list[a.classIdx]
+            state.player.class = classKey
+            local classDef = state.classes and state.classes[classKey]
+            local className = (classDef and classDef.name) or classKey
+            setMessage(state, "Class: " .. tostring(className))
         end
         return true
     end
@@ -396,6 +451,13 @@ function arsenal.draw(state)
     love.graphics.print("Weapon: " .. tostring(weaponName) .. "  (Tab/Backspace)", leftX, topY - 54)
     love.graphics.setColor(0.85, 0.95, 0.9)
     love.graphics.print("Pet: " .. tostring(petName) .. "  (P/O)", leftX, topY - 42)
+    
+    -- Class display
+    local classKey = state.player.class or 'warrior'
+    local classDef = state.classes and state.classes[classKey]
+    local className = (classDef and classDef.name) or classKey
+    love.graphics.setColor(0.95, 0.85, 0.75)
+    love.graphics.print("Class: " .. tostring(className) .. "  (C)", leftX, topY - 66)
 
     for i, key in ipairs(list) do
         local def = state.catalog[key]
@@ -452,7 +514,7 @@ function arsenal.draw(state)
     end
 
     love.graphics.setColor(0.9, 0.9, 0.9)
-    love.graphics.printf("Up/Down: select   E: equip/unequip   Left/Right: rank   Tab/Backspace: weapon   P/O: pet   Enter: rooms run   F: explore (proc map)", 0, h - 60, w, "center")
+    love.graphics.printf("Up/Down: select   E: equip   Left/Right: rank   Tab: weapon   P/O: pet   C: class   Enter: start", 0, h - 60, w, "center")
 
     if a.message then
         love.graphics.setColor(1, 0.8, 0.3)

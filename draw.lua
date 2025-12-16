@@ -1418,6 +1418,37 @@ function draw.renderUI(state)
         love.graphics.setColor(1, 1, 1, 1)
     end
 
+    -- Ability (Q skill) cooldown indicator
+    do
+        local p = state.player or {}
+        local ability = p.ability or {}
+        local classKey = p.class or 'warrior'
+        local classDef = state.classes and state.classes[classKey]
+        local abilityName = (classDef and classDef.ability and classDef.ability.name) or "技能"
+        local cd = ability.cooldown or 5.0
+        local timer = ability.timer or 0
+        
+        local ready = timer <= 0
+        local barY = 108
+        
+        if ready then
+            love.graphics.setColor(0.4, 1, 0.4, 1)
+            love.graphics.print(string.format("%s (Q) READY", abilityName), 10, barY)
+        else
+            love.graphics.setColor(0.8, 0.8, 0.8, 1)
+            love.graphics.print(string.format("%s (Q) %.1fs", abilityName, timer), 10, barY)
+            
+            -- Cooldown bar
+            local ratio = cd > 0 and math.max(0, math.min(1, 1 - timer / cd)) or 1
+            local barX, barW, barH = 10, 150, 5
+            love.graphics.setColor(0.1, 0.1, 0.1, 0.65)
+            love.graphics.rectangle('fill', barX, barY + 18, barW, barH)
+            love.graphics.setColor(0.95, 0.75, 0.35, 0.9)
+            love.graphics.rectangle('fill', barX, barY + 18, barW * ratio, barH)
+        end
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+
     local minutes = math.floor(state.gameTimer / 60)
     local seconds = math.floor(state.gameTimer % 60)
     local timeStr = string.format("%02d:%02d", minutes, seconds)

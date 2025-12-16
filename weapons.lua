@@ -1,6 +1,7 @@
 local enemies = require('enemies')
 local calculator = require('calculator')
 local statsRules = require('stats_rules')
+local player = require('player')
 
 local weapons = {}
 
@@ -298,21 +299,40 @@ local Behaviors = {}
 function Behaviors.SHOOT_NEAREST(state, weaponKey, w, stats, params, sx, sy)
     local range = math.max(1, math.floor(stats.range or 600))
     local losOpts = state.world and state.world.enabled and {requireLOS = true} or nil
-    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
     
-    if t then
+    -- Check for precision aim mode (Shift held)
+    local isPlayerWeapon = (w.owner == nil or w.owner == 'player')
+    local weaponDef = state.catalog and state.catalog[weaponKey]
+    local aimDx, aimDy = nil, nil
+    if isPlayerWeapon and player.getAimDirection then
+        aimDx, aimDy = player.getAimDirection(state, weaponDef)
+    end
+    
+    local baseAngle = nil
+    local dist = range
+    
+    if aimDx and aimDy then
+        -- Precision aim: use player's aim direction
+        baseAngle = math.atan2(aimDy, aimDx)
+    else
+        -- Auto-aim: find nearest enemy
+        local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
+        if t then
+            baseAngle = math.atan2(t.y - sy, t.x - sx)
+        end
+    end
+    
+    if baseAngle then
         if state.playSfx then state.playSfx('shoot') end
         local shots = getProjectileCount(stats)
-        local baseAngle = math.atan2(t.y - sy, t.x - sx)
-        local spread = 0.12 -- Could be parameterized
-        local dist = range
+        local spread = 0.12
         
         for i = 1, shots do
             local ang = baseAngle + (i - (shots + 1) / 2) * spread
             local target = {x = sx + math.cos(ang) * dist, y = sy + math.sin(ang) * dist}
             weapons.spawnProjectile(state, weaponKey, sx, sy, target, stats)
         end
-        return true -- Fired
+        return true
     end
     return false
 end
@@ -320,13 +340,30 @@ end
 function Behaviors.SHOOT_DIRECTIONAL(state, weaponKey, w, stats, params, sx, sy)
     local range = math.max(1, math.floor(stats.range or 550))
     local losOpts = state.world and state.world.enabled and {requireLOS = true} or nil
-    local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
     
-    if t then
+    -- Check for precision aim mode
+    local isPlayerWeapon = (w.owner == nil or w.owner == 'player')
+    local weaponDef = state.catalog and state.catalog[weaponKey]
+    local aimDx, aimDy = nil, nil
+    if isPlayerWeapon and player.getAimDirection then
+        aimDx, aimDy = player.getAimDirection(state, weaponDef)
+    end
+    
+    local baseAngle = nil
+    local dist = range
+    
+    if aimDx and aimDy then
+        baseAngle = math.atan2(aimDy, aimDx)
+    else
+        local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
+        if t then
+            baseAngle = math.atan2(t.y - sy, t.x - sx)
+        end
+    end
+    
+    if baseAngle then
         local shots = getProjectileCount(stats)
-        local baseAngle = math.atan2(t.y - sy, t.x - sx)
         local spread = 0.08
-        local dist = range
         for i = 1, shots do
             local ang = baseAngle + (i - (shots + 1) / 2) * spread
             local target = {x = sx + math.cos(ang) * dist, y = sy + math.sin(ang) * dist}
