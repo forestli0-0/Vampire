@@ -188,7 +188,19 @@ function weapons.addWeapon(state, key, owner, slotType)
     local stats = cloneStats(proto.base)
     -- Determine slot type from parameter, catalog, or default to 'primary'
     local slot = slotType or proto.slotType or 'primary'
-    state.inventory.weapons[key] = { level = 1, timer = 0, stats = stats, owner = owner, slotType = slot }
+    
+    -- Initialize ammo system if weapon uses ammo
+    local magazine = proto.base.magazine
+    local reserve = proto.base.reserve
+    
+    state.inventory.weapons[key] = { 
+        level = 1, timer = 0, stats = stats, owner = owner, slotType = slot,
+        -- Ammo state (nil means unlimited)
+        magazine = magazine,
+        reserve = reserve,
+        isReloading = false,
+        reloadTimer = 0
+    }
 end
 
 function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
@@ -516,10 +528,35 @@ function weapons.update(state, dt)
                 -- Skip if player weapon not in active slot
                 if isPlayerWeapon and not isInActiveSlot then
                     w.timer = 0 -- Keep ready but don't fire
+                elseif w.isReloading then
+                    -- Weapon is reloading, skip firing
+                    w.timer = 0
                 elseif behaviorFunc and canFire then
-                    local fired = behaviorFunc(state, key, w, computedStats, def.behaviorParams, sx, sy)
-                    if fired then
-                        w.timer = actualCD
+                    -- Check ammo before firing
+                    local hasAmmo = true
+                    if w.magazine ~= nil then
+                        if w.magazine <= 0 then
+                            hasAmmo = false
+                            -- Auto-reload when empty
+                            if (w.reserve or 0) > 0 then
+                                local reloadTime = def.base.reloadTime or 1.5
+                                w.isReloading = true
+                                w.reloadTimer = reloadTime
+                            end
+                        end
+                    end
+                    
+                    if hasAmmo then
+                        local fired = behaviorFunc(state, key, w, computedStats, def.behaviorParams, sx, sy)
+                        if fired then
+                            -- Consume ammo on successful fire
+                            if w.magazine ~= nil then
+                                w.magazine = math.max(0, w.magazine - 1)
+                            end
+                            w.timer = actualCD
+                        end
+                    else
+                        w.timer = 0
                     end
                 elseif behaviorFunc and needsFiring and not canFire then
                     -- Player weapon waiting for attack input, don't reset timer
@@ -531,6 +568,52 @@ function weapons.update(state, dt)
             end
         end
     end
+end
+
+-- Update reload timers for all weapons
+function weapons.updateReload(state, dt)
+    for key, w in pairs((state.inventory and state.inventory.weapons) or {}) do
+        if w.isReloading and w.reloadTimer then
+            w.reloadTimer = w.reloadTimer - dt
+            if w.reloadTimer <= 0 then
+                -- Complete reload
+                local def = state.catalog[key]
+                local maxMag = (def and def.base.maxMagazine) or 30
+                local needed = maxMag - (w.magazine or 0)
+                local transfer = math.min(needed, w.reserve or 0)
+                w.magazine = (w.magazine or 0) + transfer
+                w.reserve = (w.reserve or 0) - transfer
+                w.isReloading = false
+                w.reloadTimer = 0
+                if state.playSfx then state.playSfx('gem') end
+            end
+        end
+    end
+end
+
+-- Try to start reloading the active weapon
+function weapons.startReload(state)
+    local p = state.player
+    if not p then return false end
+    local activeSlot = p.activeSlot or 'primary'
+    local weaponKey = p.weaponSlots and p.weaponSlots[activeSlot]
+    if not weaponKey then return false end
+    
+    local w = state.inventory and state.inventory.weapons and state.inventory.weapons[weaponKey]
+    if not w then return false end
+    if w.isReloading then return false end
+    if w.magazine == nil then return false end -- No ammo weapon (melee)
+    
+    local def = state.catalog[weaponKey]
+    local maxMag = (def and def.base.maxMagazine) or 30
+    if w.magazine >= maxMag then return false end -- Already full
+    if (w.reserve or 0) <= 0 then return false end -- No reserve ammo
+    
+    local reloadTime = (def and def.base.reloadTime) or 1.5
+    w.isReloading = true
+    w.reloadTimer = reloadTime
+    if state.playSfx then state.playSfx('shoot') end
+    return true
 end
 
 return weapons

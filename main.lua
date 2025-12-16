@@ -111,6 +111,7 @@ function love.update(dt)
         state.augments.update(state, dt)
     end
     weapons.update(state, dt)
+    weapons.updateReload(state, dt) -- Tick reload timers
     projectiles.updatePlayerBullets(state, dt)
     projectiles.updateEnemyBullets(state, dt)
     if state.runMode == 'rooms' and not state.testArena and not state.scenarioNoDirector and not state.benchmarkMode then

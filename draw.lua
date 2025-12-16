@@ -1456,11 +1456,10 @@ function draw.renderUI(state)
         local activeSlot = p.activeSlot or 'primary'
         local slotOrder = {'primary', 'secondary', 'melee'}
         local slotKeys = {'1', '2', '3'}
-        local slotLabels = {primary = '主武器', secondary = '副武器', melee = '近战'}
         
         local startX = 10
         local startY = 135
-        local slotW, slotH = 55, 40
+        local slotW, slotH = 70, 55
         local gap = 4
         
         for i, slot in ipairs(slotOrder) do
@@ -1468,6 +1467,7 @@ function draw.renderUI(state)
             local weaponKey = slots[slot]
             local weaponDef = weaponKey and state.catalog and state.catalog[weaponKey]
             local weaponName = weaponDef and weaponDef.name or "空"
+            local w = weaponKey and state.inventory and state.inventory.weapons and state.inventory.weapons[weaponKey]
             
             local x = startX + (i - 1) * (slotW + gap)
             
@@ -1495,7 +1495,41 @@ function draw.renderUI(state)
             local displayName = weaponName
             if #displayName > 6 then displayName = displayName:sub(1, 5) .. ".." end
             love.graphics.setColor(1, 1, 1, isActive and 1 or 0.5)
-            love.graphics.print(displayName, x + 4, startY + 18)
+            love.graphics.print(displayName, x + 18, startY + 2)
+            
+            -- Ammo display
+            if w and w.magazine ~= nil then
+                local maxMag = (weaponDef and weaponDef.base.maxMagazine) or 30
+                local reserve = w.reserve or 0
+                local ammoText = string.format("%d/%d", w.magazine, maxMag)
+                local reserveText = string.format("|%d", reserve)
+                
+                -- Ammo count
+                love.graphics.setColor(1, 1, 1, isActive and 1 or 0.6)
+                love.graphics.print(ammoText, x + 4, startY + 20)
+                love.graphics.setColor(0.7, 0.7, 0.7, isActive and 0.8 or 0.5)
+                love.graphics.print(reserveText, x + 38, startY + 20)
+                
+                -- Reload bar (if reloading)
+                if w.isReloading then
+                    local reloadTime = (weaponDef and weaponDef.base.reloadTime) or 1.5
+                    local progress = 1 - ((w.reloadTimer or 0) / reloadTime)
+                    progress = math.max(0, math.min(1, progress))
+                    
+                    love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
+                    love.graphics.rectangle('fill', x + 4, startY + 38, slotW - 8, 6)
+                    love.graphics.setColor(0.9, 0.7, 0.2, 1)
+                    love.graphics.rectangle('fill', x + 4, startY + 38, (slotW - 8) * progress, 6)
+                    
+                    -- "RELOAD" text
+                    love.graphics.setColor(0.9, 0.7, 0.2, 1)
+                    love.graphics.print("R", x + 4, startY + 46)
+                end
+            else
+                -- Melee: show "∞"
+                love.graphics.setColor(0.7, 0.9, 0.7, isActive and 1 or 0.5)
+                love.graphics.print("∞", x + 4, startY + 20)
+            end
         end
         love.graphics.setColor(1, 1, 1, 1)
     end

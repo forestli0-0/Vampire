@@ -268,6 +268,12 @@ function player.keypressed(state, key)
     if key == '2' then return player.switchWeaponSlot(state, 'secondary') end
     if key == '3' then return player.switchWeaponSlot(state, 'melee') end
     
+    -- Reload (R key)
+    if key == 'r' then
+        local weapons = require('weapons')
+        return weapons.startReload(state)
+    end
+    
     if key == 'space' then
         return player.tryDash(state)
     end

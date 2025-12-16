@@ -290,6 +290,28 @@ function pickups.updateFloorPickups(state, dt)
                         state.augments.dispatch(state, 'postPickup', ctx)
                     end
                 end
+            elseif item.kind == 'ammo' then
+                -- Ammo pickup: refill reserve ammo for all weapons
+                local amount = item.amount or 20
+                local refilled = false
+                for weaponKey, w in pairs(state.inventory and state.inventory.weapons or {}) do
+                    if w.reserve ~= nil then
+                        local def = state.catalog and state.catalog[weaponKey]
+                        local maxRes = (def and def.base.maxReserve) or 120
+                        if w.reserve < maxRes then
+                            w.reserve = math.min(maxRes, w.reserve + amount)
+                            refilled = true
+                        end
+                    end
+                end
+                if refilled then
+                    table.insert(state.texts, {x=p.x, y=p.y-30, text="+"..amount.." AMMO", color={0.8, 0.9, 1}, life=1})
+                    if state.playSfx then state.playSfx('gem') end
+                    logger.pickup(state, 'ammo')
+                else
+                    -- All weapons full, don't consume
+                    consume = false
+                end
             elseif item.kind == 'pet_contract' then
                 local current = pets.getActive(state)
                 upgrades.queueLevelUp(state, 'pet_contract', {

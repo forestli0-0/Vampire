@@ -514,7 +514,14 @@ function state.init()
             behavior = 'SHOOT_NEAREST',
             tags = {'weapon', 'projectile', 'magic'},
             classWeight = { warrior = 0.5, mage = 2.0, beastmaster = 1.0 },
-            base = { damage=8, cd=1.2, speed=380, range=600, critChance=0.05, critMultiplier=1.5, statusChance=0 },
+            base = { 
+                damage=8, cd=1.2, speed=380, range=600, 
+                critChance=0.05, critMultiplier=1.5, statusChance=0,
+                -- Ammo system
+                magazine=30, maxMagazine=30,
+                reserve=120, maxReserve=120,
+                reloadTime=1.5
+            },
             onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.9 end,
             evolveInfo = { target='holy_wand', require='tome' }
         },
@@ -614,7 +621,14 @@ function state.init()
             behavior = 'SHOOT_DIRECTIONAL',
             tags = {'weapon', 'projectile', 'physical', 'fast'},
             classWeight = { warrior = 1.0, mage = 1.0, beastmaster = 2.0 },
-            base = { damage=4, cd=0.18, speed=600, range=550, critChance=0.20, critMultiplier=2.0, statusChance=0.2 },
+            base = { 
+                damage=4, cd=0.18, speed=600, range=550, 
+                critChance=0.20, critMultiplier=2.0, statusChance=0.2,
+                -- Ammo system
+                magazine=20, maxMagazine=20,
+                reserve=80, maxReserve=80,
+                reloadTime=1.0
+            },
             onUpgrade = function(w) w.damage = w.damage + 2 end,
             evolveInfo = { target='thousand_edge', require='bracer' }
         },
