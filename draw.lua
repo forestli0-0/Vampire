@@ -1161,6 +1161,57 @@ function draw.renderWorld(state)
     end
     love.graphics.setColor(1,1,1)
 
+    -- Melee swing arc visual
+    do
+        local p = state.player or {}
+        local melee = p.meleeState
+        if melee and melee.phase == 'swing' then
+            local px, py = p.x, p.y
+            local range = 90
+            local arcWidth = 1.4
+            
+            -- Get aim direction
+            local mdx, mdy = 0, 0
+            if love.keyboard.isDown('w') then mdy = -1 end
+            if love.keyboard.isDown('s') then mdy = 1 end
+            if love.keyboard.isDown('a') then mdx = -1 end
+            if love.keyboard.isDown('d') then mdx = 1 end
+            
+            local aimAngle
+            if mdx ~= 0 or mdy ~= 0 then
+                aimAngle = math.atan2(mdy, mdx)
+            else
+                aimAngle = (p.facing or 1) > 0 and 0 or math.pi
+            end
+            
+            -- Arc color based on attack type
+            local r, g, b, a = 1, 1, 1, 0.6
+            if melee.attackType == 'light' then
+                r, g, b = 0.9, 0.95, 1
+            elseif melee.attackType == 'heavy' then
+                r, g, b = 1, 0.7, 0.3
+            elseif melee.attackType == 'finisher' then
+                r, g, b = 1, 0.4, 0.2
+                a = 0.8
+            end
+            
+            love.graphics.setColor(r, g, b, a)
+            love.graphics.setLineWidth(3)
+            
+            -- Draw arc
+            local startAng = aimAngle - arcWidth / 2
+            local endAng = aimAngle + arcWidth / 2
+            love.graphics.arc('line', 'open', px, py, range, startAng, endAng)
+            
+            -- Draw lines from center to arc edges
+            love.graphics.line(px, py, px + math.cos(startAng) * range, py + math.sin(startAng) * range)
+            love.graphics.line(px, py, px + math.cos(endAng) * range, py + math.sin(endAng) * range)
+            
+            love.graphics.setLineWidth(1)
+            love.graphics.setColor(1, 1, 1, 1)
+        end
+    end
+
     -- 玩家投射物
     for _, b in ipairs(state.bullets) do
         local isGlow = false

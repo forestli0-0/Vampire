@@ -103,6 +103,7 @@ function love.update(dt)
 
     -- 核心更新顺序：玩家 → 武器 → 子弹 → 刷怪
     player.updateFiring(state) -- Update attack/aim state
+    player.updateMelee(state, dt) -- Update melee state machine
     player.updateAbility(state, dt) -- Update Q skill cooldown
     player.updateMovement(state, dt)
     world.update(state, dt)

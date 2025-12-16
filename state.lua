@@ -606,11 +606,14 @@ function state.init()
             desc = "Shatters Frozen enemies for 3x Damage.",
             maxLevel = 5,
             slotType = 'melee',
-            behavior = 'SHOOT_NEAREST',
-            tags = {'weapon', 'projectile', 'physical', 'heavy', 'melee'},
+            behavior = 'MELEE_SWING',
+            behaviorParams = {
+                arcWidth = 1.4,  -- ~80 degrees
+            },
+            tags = {'weapon', 'physical', 'heavy', 'melee'},
             classWeight = { warrior = 2.0, mage = 0.5, beastmaster = 1.0 },
-            base = { damage=40, cd=2.0, speed=220, range=550, knockback=100, effectType='HEAVY', size=12, critChance=0.05, critMultiplier=1.5, statusChance=0.5 },
-            onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end,
+            base = { damage=40, cd=0.2, range=90, knockback=100, effectType='HEAVY', size=12, critChance=0.15, critMultiplier=2.0, statusChance=0.5 },
+            onUpgrade = function(w) w.damage = w.damage + 10 end,
             evolveInfo = { target='earthquake', require='armor' }
         },
         dagger = {

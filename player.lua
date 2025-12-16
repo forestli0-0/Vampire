@@ -99,6 +99,131 @@ function player.updateFiring(state)
     end
 end
 
+-- Ensure melee state exists
+local function ensureMeleeState(p)
+    if not p.meleeState then
+        p.meleeState = {
+            phase = 'idle',      -- idle/windup/swing/recovery
+            comboCount = 0,      -- 连击计数 (0-3)
+            comboTimer = 0,      -- 连击窗口倒计时
+            holdTimer = 0,       -- 按住时间
+            isHolding = false,   -- 是否正在按住
+            attackType = nil,    -- 'light' / 'heavy' / 'finisher'
+            swingTimer = 0,      -- 挥砍动画时间
+            recoveryTimer = 0,   -- 后摇时间
+            damageDealt = false, -- 本次攻击是否已造成伤害
+        }
+    end
+    return p.meleeState
+end
+
+-- Melee attack constants
+local HEAVY_HOLD_THRESHOLD = 0.4  -- 长按阈值
+local COMBO_WINDOW = 1.2          -- 连击窗口
+local LIGHT_SWING_TIME = 0.15     -- 轻击挥砍时间
+local HEAVY_SWING_TIME = 0.3      -- 重击挥砍时间
+local RECOVERY_TIME = 0.1         -- 后摇时间
+
+-- Update melee attack state machine
+function player.updateMelee(state, dt)
+    local p = state.player
+    if not p then return end
+    
+    local melee = ensureMeleeState(p)
+    local activeSlot = p.activeSlot or 'primary'
+    
+    -- Only process melee when melee slot is active
+    if activeSlot ~= 'melee' then
+        melee.phase = 'idle'
+        melee.holdTimer = 0
+        melee.isHolding = false
+        return
+    end
+    
+    -- Update combo timer
+    if melee.comboTimer > 0 then
+        melee.comboTimer = melee.comboTimer - dt
+        if melee.comboTimer <= 0 then
+            melee.comboCount = 0
+            melee.comboTimer = 0
+        end
+    end
+    
+    local attacking = isAttackKeyDown()
+    
+    -- State machine
+    if melee.phase == 'idle' then
+        if attacking then
+            if not melee.isHolding then
+                -- Just pressed attack
+                melee.isHolding = true
+                melee.holdTimer = 0
+            else
+                -- Holding attack
+                melee.holdTimer = melee.holdTimer + dt
+            end
+        else
+            if melee.isHolding then
+                -- Released attack - determine type
+                melee.isHolding = false
+                
+                if melee.holdTimer >= HEAVY_HOLD_THRESHOLD then
+                    -- Heavy attack
+                    if melee.comboCount >= 3 then
+                        melee.attackType = 'finisher'
+                        melee.comboCount = 0
+                    else
+                        melee.attackType = 'heavy'
+                    end
+                    melee.swingTimer = HEAVY_SWING_TIME
+                else
+                    -- Light attack
+                    melee.attackType = 'light'
+                    melee.comboCount = melee.comboCount + 1
+                    melee.swingTimer = LIGHT_SWING_TIME
+                end
+                
+                melee.phase = 'swing'
+                melee.damageDealt = false
+                melee.comboTimer = COMBO_WINDOW
+                melee.holdTimer = 0
+                
+                -- Sound
+                if state.playSfx then state.playSfx('shoot') end
+            end
+        end
+        
+    elseif melee.phase == 'swing' then
+        melee.swingTimer = melee.swingTimer - dt
+        if melee.swingTimer <= 0 then
+            melee.phase = 'recovery'
+            melee.recoveryTimer = RECOVERY_TIME
+        end
+        
+    elseif melee.phase == 'recovery' then
+        melee.recoveryTimer = melee.recoveryTimer - dt
+        if melee.recoveryTimer <= 0 then
+            melee.phase = 'idle'
+            melee.attackType = nil
+        end
+    end
+end
+
+-- Cancel melee for dodge
+function player.cancelMelee(state)
+    local p = state.player
+    if not p or not p.meleeState then return end
+    local melee = p.meleeState
+    if melee.phase ~= 'idle' then
+        melee.phase = 'idle'
+        melee.attackType = nil
+        melee.swingTimer = 0
+        melee.recoveryTimer = 0
+        melee.isHolding = false
+        melee.holdTimer = 0
+    end
+end
+
 local function ensureDashState(p)
     if not p then return nil end
     p.dash = p.dash or {}
@@ -155,6 +280,9 @@ end
 function player.tryDash(state, dirX, dirY)
     if not state or not state.player then return false end
     local p = state.player
+
+    -- Cancel melee attack on dash (Hades-style responsiveness)
+    player.cancelMelee(state)
 
     local dash = ensureDashState(p)
     if not dash or (dash.maxCharges or 0) <= 0 then return false end

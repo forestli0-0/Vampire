@@ -351,6 +351,108 @@ function Behaviors.SHOOT_NEAREST(state, weaponKey, w, stats, params, sx, sy)
     return false
 end
 
+-- Melee swing behavior - arc-based attack
+function Behaviors.MELEE_SWING(state, weaponKey, w, stats, params, sx, sy)
+    local p = state.player
+    if not p or not p.meleeState then return false end
+    
+    local melee = p.meleeState
+    
+    -- Only deal damage during swing phase and if not already dealt
+    if melee.phase ~= 'swing' or melee.damageDealt then
+        return false
+    end
+    
+    -- Parameters
+    params = params or {}
+    local arcWidth = params.arcWidth or 1.2  -- ~70 degrees in radians
+    local range = stats.range or 80
+    
+    -- Get aim direction
+    local aimAngle
+    local mdx, mdy = 0, 0
+    if love.keyboard.isDown('w') then mdy = -1 end
+    if love.keyboard.isDown('s') then mdy = 1 end
+    if love.keyboard.isDown('a') then mdx = -1 end
+    if love.keyboard.isDown('d') then mdx = 1 end
+    
+    if mdx ~= 0 or mdy ~= 0 then
+        aimAngle = math.atan2(mdy, mdx)
+    else
+        aimAngle = (p.facing or 1) > 0 and 0 or math.pi
+    end
+    
+    -- Damage multiplier based on attack type
+    local mult = 1
+    if melee.attackType == 'light' then
+        mult = 1
+    elseif melee.attackType == 'heavy' then
+        mult = 3
+    elseif melee.attackType == 'finisher' then
+        mult = 5
+    end
+    
+    local baseDamage = (stats.damage or 40) * mult
+    local might = p.stats and p.stats.might or 1
+    local finalDamage = baseDamage * might
+    
+    -- Knockback
+    local knockback = (stats.knockback or 80) * mult
+    
+    -- Check all enemies in arc
+    local hitCount = 0
+    for _, e in ipairs(state.enemies) do
+        if e.health and e.health > 0 then
+            local dx = e.x - sx
+            local dy = e.y - sy
+            local dist = math.sqrt(dx * dx + dy * dy)
+            
+            if dist <= range then
+                -- Check if in arc
+                local angleToEnemy = math.atan2(dy, dx)
+                local angleDiff = math.abs(angleToEnemy - aimAngle)
+                -- Normalize angle difference
+                if angleDiff > math.pi then angleDiff = 2 * math.pi - angleDiff end
+                
+                if angleDiff <= arcWidth / 2 then
+                    -- Hit enemy - apply damage directly
+                    e.health = e.health - finalDamage
+                    e.hp = e.health
+                    
+                    -- Damage text
+                    if state.texts then
+                        local color = {1, 0.9, 0.4}
+                        if melee.attackType == 'finisher' then color = {1, 0.5, 0.2} end
+                        table.insert(state.texts, {x=e.x, y=e.y-20, text=math.floor(finalDamage), color=color, life=0.5, scale=melee.attackType == 'finisher' and 1.5 or 1})
+                    end
+                    
+                    -- Apply knockback
+                    if knockback > 0 and dist > 0 then
+                        local kbX = (dx / dist) * knockback
+                        local kbY = (dy / dist) * knockback
+                        e.x = e.x + kbX * 0.1
+                        e.y = e.y + kbY * 0.1
+                    end
+                    
+                    hitCount = hitCount + 1
+                    
+                    -- Hit sound
+                    if state.playSfx then state.playSfx('hit') end
+                end
+            end
+        end
+    end
+    
+    melee.damageDealt = true
+    
+    -- Screen shake for heavy/finisher
+    if melee.attackType == 'heavy' or melee.attackType == 'finisher' then
+        state.shakeAmount = (state.shakeAmount or 0) + (melee.attackType == 'finisher' and 8 or 4)
+    end
+    
+    return hitCount > 0
+end
+
 function Behaviors.SHOOT_DIRECTIONAL(state, weaponKey, w, stats, params, sx, sy)
     local range = math.max(1, math.floor(stats.range or 550))
     local losOpts = state.world and state.world.enabled and {requireLOS = true} or nil
