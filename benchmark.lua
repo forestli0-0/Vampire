@@ -140,7 +140,6 @@ function benchmark.toggle(state)
         ensureWeapon('dagger')
         ensureWeapon('static_orb')
         ensureWeapon('heavy_hammer')
-        ensureWeapon('oil_bottle')
         ensureWeapon('ice_ring')
         
         -- Max out passives that amplify projectile count and cooldowns
@@ -167,10 +166,23 @@ function benchmark.toggle(state)
         tuneWeapon('axe', { amount = 5, cd = 0.4 })
         tuneWeapon('static_orb', { amount = 4, cd = 0.35, chain = 10, allowRepeat = true })
         tuneWeapon('heavy_hammer', { amount = 3, cd = 0.35 })
-        tuneWeapon('oil_bottle', { amount = 3, cd = 0.35 })
         tuneWeapon('ice_ring', { radius = 200, cd = 0.4 })
         
-        -- 2. Spawn enemies (continuous growth)
+        -- 2. Add Companion (Pet) for AI/Pathing/Proc stress
+        local pets = require('pets')
+        pets.setActive(state, 'pet_corrosive', {swap=false})
+        if state.pets and state.pets.list and state.pets.list[1] then
+            state.pets.list[1].module = 'field'
+        end
+        
+        -- 3. Add Augments for Event System stress (proc on move/hit/kill)
+        local augments = state.augments -- already loaded in main.lua
+        state.inventory.augments['aug_kinetic_discharge'] = 1 -- procs on move
+        state.inventory.augments['aug_forked_trajectory'] = 1 -- doubles projectiles
+        state.inventory.augments['aug_blood_burst'] = 1       -- procs on kill
+        state.inventory.augments['aug_shockstep'] = 1         -- spawns AreaFields (persistent zones)
+        
+        -- 4. Spawn enemies (continuous growth)
         state.enemies = {}
         state.enemyBullets = {}
         spawnBurst(state, 400)
