@@ -459,11 +459,21 @@ function weapons.update(state, dt)
                 local behaviorName = def and def.behavior
                 local behaviorFunc = behaviorName and Behaviors[behaviorName]
                 
-                if behaviorFunc then
+                -- Check if player is firing (required for most weapons unless pet/aura)
+                -- Auras and pet weapons always fire when ready
+                local isPlayerWeapon = (w.owner == nil or w.owner == 'player')
+                local isAura = (behaviorName == 'AURA')
+                local needsFiring = isPlayerWeapon and not isAura
+                local canFire = not needsFiring or (state.player.isFiring == true)
+                
+                if behaviorFunc and canFire then
                     local fired = behaviorFunc(state, key, w, computedStats, def.behaviorParams, sx, sy)
                     if fired then
                         w.timer = actualCD
                     end
+                elseif behaviorFunc and needsFiring and not canFire then
+                    -- Player weapon waiting for attack input, don't reset timer
+                    w.timer = 0
                 else
                     -- Fallback or un-migrated weapons could go here, or simple warning
                     -- For now, all known weapons should have tags.

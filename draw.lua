@@ -1294,6 +1294,28 @@ end
 function draw.renderUI(state)
     love.graphics.setFont(state.font)
 
+    -- Precision aim crosshair (Shift mode)
+    if state.player.isPrecisionAim and state.player.aimX then
+        local mx, my = love.mouse.getPosition()
+        local size = 12
+        local gap = 4
+        local thickness = 2
+        
+        love.graphics.setColor(1, 0.3, 0.3, 0.9)
+        love.graphics.setLineWidth(thickness)
+        -- Horizontal lines
+        love.graphics.line(mx - size, my, mx - gap, my)
+        love.graphics.line(mx + gap, my, mx + size, my)
+        -- Vertical lines
+        love.graphics.line(mx, my - size, mx, my - gap)
+        love.graphics.line(mx, my + gap, mx, my + size)
+        -- Center dot
+        love.graphics.setColor(1, 0.4, 0.4, 0.8)
+        love.graphics.circle('fill', mx, my, 2)
+        love.graphics.setLineWidth(1)
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+
     -- 屏幕边缘指示道具方向（磁铁/鸡腿/宝箱/宠物芯片）
     do
         local w, h = love.graphics.getWidth(), love.graphics.getHeight()

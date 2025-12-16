@@ -17,6 +17,88 @@ local function getMoveInput()
     return dx, dy
 end
 
+-- Check if player is holding attack key (mouse left or J)
+local function isAttackKeyDown()
+    return love.mouse.isDown(1) or love.keyboard.isDown('j')
+end
+
+-- Check if precision aiming mode (Shift held)
+local function isPrecisionAimMode()
+    return love.keyboard.isDown('lshift') or love.keyboard.isDown('rshift')
+end
+
+-- Get mouse position in world coordinates
+local function getMouseWorldPos(state)
+    local mx, my = love.mouse.getPosition()
+    local camX = state.camera and state.camera.x or 0
+    local camY = state.camera and state.camera.y or 0
+    return mx + camX, my + camY
+end
+
+-- Get aim direction based on weapon type and current input
+-- Returns dx, dy (normalized) and targetEnemy (if auto-aim)
+function player.getAimDirection(state, weaponDef)
+    local p = state.player
+    local isMelee = weaponDef and weaponDef.tags and false
+    -- Check if weapon has 'melee' tag
+    if weaponDef and weaponDef.tags then
+        for _, tag in ipairs(weaponDef.tags) do
+            if tag == 'melee' then isMelee = true; break end
+        end
+    end
+    
+    -- Precision aim mode (Shift): always aim at mouse
+    if isPrecisionAimMode() then
+        local mx, my = getMouseWorldPos(state)
+        local dx, dy = mx - p.x, my - p.y
+        local len = math.sqrt(dx * dx + dy * dy)
+        if len > 0 then
+            return dx / len, dy / len, nil
+        end
+    end
+    
+    -- Default aim based on weapon type
+    if isMelee then
+        -- Melee: aim in movement direction, or facing direction if standing
+        local mdx, mdy = getMoveInput()
+        if mdx ~= 0 or mdy ~= 0 then
+            local len = math.sqrt(mdx * mdx + mdy * mdy)
+            return mdx / len, mdy / len, nil
+        else
+            -- Standing: use last facing direction
+            return p.facing or 1, 0, nil
+        end
+    else
+        -- Ranged: auto-aim at nearest enemy (handled by weapons.lua)
+        -- Return nil to signal "use auto-aim"
+        return nil, nil, nil
+    end
+end
+
+-- Update firing state
+function player.updateFiring(state)
+    local p = state.player
+    local profile = state.profile or {}
+    
+    -- Auto-trigger meta item bypasses manual attack requirement
+    if profile.autoTrigger then
+        p.isFiring = true
+    else
+        p.isFiring = isAttackKeyDown()
+    end
+    
+    -- Track precision aim mode for UI
+    p.isPrecisionAim = isPrecisionAimMode()
+    
+    -- Update aim direction for UI crosshair
+    if p.isPrecisionAim then
+        local mx, my = getMouseWorldPos(state)
+        p.aimX, p.aimY = mx, my
+    else
+        p.aimX, p.aimY = nil, nil
+    end
+end
+
 local function ensureDashState(p)
     if not p then return nil end
     p.dash = p.dash or {}

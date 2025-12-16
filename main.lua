@@ -101,6 +101,7 @@ function love.update(dt)
     end
 
     -- 核心更新顺序：玩家 → 武器 → 子弹 → 刷怪
+    player.updateFiring(state) -- Update attack/aim state
     player.updateMovement(state, dt)
     world.update(state, dt)
     pets.update(state, dt)
@@ -191,7 +192,7 @@ function love.keypressed(key)
     if player.keypressed and player.keypressed(state, key) then return end
 
     if state.gameState == 'PLAYING' then
-        if key == '1' then pets.toggleMode(state) return end
+        if key == 'p' then pets.toggleMode(state) return end
     end
 
     -- 等级界面：按数字选择升级
