@@ -661,6 +661,45 @@ function enemies.update(state, dt)
         local tenacity = clamp(e.tenacity or 0, 0, 0.95)
         local hardCcImmune = (e.hardCcImmune == true) or (def and def.hardCcImmune == true) or false
 
+        -- === STUCK DETECTION ===
+        -- If enemy is far from player and hasn't moved much, teleport them closer
+        local distToPlayer = math.sqrt((p.x - e.x)^2 + (p.y - e.y)^2)
+        e._stuckTimer = e._stuckTimer or 0
+        e._lastX = e._lastX or e.x
+        e._lastY = e._lastY or e.y
+        
+        local movedDist = math.sqrt((e.x - e._lastX)^2 + (e.y - e._lastY)^2)
+        if distToPlayer > 400 and movedDist < 5 then
+            -- Enemy is far and hasn't moved
+            e._stuckTimer = e._stuckTimer + dt
+        else
+            e._stuckTimer = 0
+        end
+        e._lastX = e.x
+        e._lastY = e.y
+        
+        -- If stuck for more than 8 seconds, teleport to a valid location near player
+        if e._stuckTimer > 8 and not e.isBoss then
+            local world = state.world
+            if world and world.enabled and world.sampleSpawn then
+                local newX, newY = world:sampleSpawn(p.x, p.y, 150, 300, 20)
+                if newX and newY then
+                    e.x, e.y = newX, newY
+                    e._stuckTimer = 0
+                    if state.texts then
+                        table.insert(state.texts, {x = e.x, y = e.y - 40, text = "!", color = {1, 0.5, 0.5}, life = 0.6})
+                    end
+                end
+            else
+                -- No world, just teleport near player
+                local ang = math.random() * math.pi * 2
+                e.x = p.x + math.cos(ang) * 200
+                e.y = p.y + math.sin(ang) * 200
+                e._stuckTimer = 0
+            end
+        end
+        -- === END STUCK DETECTION ===
+
         if e.noContactDamageTimer and e.noContactDamageTimer > 0 then
             e.noContactDamageTimer = e.noContactDamageTimer - (dt or 0)
             if e.noContactDamageTimer <= 0 then e.noContactDamageTimer = nil end

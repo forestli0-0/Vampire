@@ -107,10 +107,10 @@ end
 
 local function fillRect(self, x1, y1, x2, y2, value)
     value = value or 1
-    x1 = math.max(2, math.min(self.w - 1, x1))
-    y1 = math.max(2, math.min(self.h - 1, y1))
-    x2 = math.max(2, math.min(self.w - 1, x2))
-    y2 = math.max(2, math.min(self.h - 1, y2))
+    x1 = math.max(1, math.min(self.w, x1))
+    y1 = math.max(1, math.min(self.h, y1))
+    x2 = math.max(1, math.min(self.w, x2))
+    y2 = math.max(1, math.min(self.h, y2))
     if x2 < x1 or y2 < y1 then return end
     for cy = y1, y2 do
         local row = (cy - 1) * self.w
@@ -480,25 +480,59 @@ function World:adjustToWalkable(x, y, maxR)
     return self:cellToWorld(fx, fy)
 end
 
-function World:sampleSpawn(px, py, minCells, maxCells, attempts)
-    local pcx, pcy = self:worldToCell(px or 0, py or 0)
-    minCells = math.max(2, math.floor(minCells or 10))
-    maxCells = math.max(minCells, math.floor(maxCells or 18))
-    attempts = math.max(8, math.floor(attempts or 36))
-
+function World:sampleValidFloor(attempts)
+    attempts = attempts or 20
     for _ = 1, attempts do
-        local ang = math.random() * math.pi * 2
-        local r = math.random(minCells, maxCells)
-        local cx = pcx + math.floor(math.cos(ang) * r)
-        local cy = pcy + math.floor(math.sin(ang) * r)
+        local cx = math.random(3, self.w - 2)
+        local cy = math.random(3, self.h - 2)
         if self:isWalkableCell(cx, cy) then
             return self:cellToWorld(cx, cy)
         end
     end
+    
+    -- Deterministic fallback: Scan for ANY valid floor tile
+    for cy = 3, self.h - 2 do
+        for cx = 3, self.w - 2 do
+            if self:isWalkableCell(cx, cy) then
+                return self:cellToWorld(cx, cy)
+            end
+        end
+    end
 
-    local fx, fy = self:findNearestWalkable(pcx, pcy, maxCells + 6)
-    if fx then return self:cellToWorld(fx, fy) end
-    return self.spawnX, self.spawnY
+    -- If map is somehow 100% walls (impossible), return spawn
+    if self.spawnX then return self.spawnX, self.spawnY end
+    return 0, 0
+end
+
+function World:sampleSpawn(px, py, minPixels, maxPixels, attempts)
+    minPixels = minPixels or 150
+    maxPixels = maxPixels or 600
+    attempts = math.max(20, math.floor(attempts or 36))
+    
+    -- Calculate maximum possible distance within arena
+    local arenaMaxDist = math.min(self.pixelW, self.pixelH) * 0.4
+    maxPixels = math.min(maxPixels, arenaMaxDist)
+    minPixels = math.min(minPixels, maxPixels * 0.5)
+
+    for _ = 1, attempts do
+        local r = minPixels + math.random() * (maxPixels - minPixels)
+        local ang = math.random() * math.pi * 2
+        local wx = px + math.cos(ang) * r
+        local wy = py + math.sin(ang) * r
+        
+        -- Clamp to arena pixel bounds
+        wx = math.max(self.tileSize * 3, math.min(self.pixelW - self.tileSize * 3, wx))
+        wy = math.max(self.tileSize * 3, math.min(self.pixelH - self.tileSize * 3, wy))
+        
+        local cx, cy = self:worldToCell(wx, wy)
+        
+        if self:isWalkableCell(cx, cy) then
+            return wx, wy
+        end
+    end
+
+    -- Fallback: Pick a random valid floor tile anywhere in the arena
+    return self:sampleValidFloor(30)
 end
 
 function World:sampleSpawnInCells(minCx, minCy, maxCx, maxCy, attempts)
@@ -651,6 +685,162 @@ function World:moveCircle(x, y, r, dx, dy)
     local newX, hitX = resolveAxisX(self, x, y, r, dx or 0)
     local newY, hitY = resolveAxisY(self, newX, y, r, dy or 0)
     return newX, newY, hitX, hitY
+end
+
+function World:isWalkableCell(cx, cy)
+    if not self.tiles then return true end
+    if cx < 1 or cx > self.w or cy < 1 or cy > self.h then return false end
+    local idx = (cy - 1) * self.w + cx
+    return self.tiles[idx] == 0
+end
+
+function World:sampleValidFloor(attempts)
+    attempts = attempts or 20
+    for _ = 1, attempts do
+        local cx = math.random(3, self.w - 2)
+        local cy = math.random(3, self.h - 2)
+        if self:isWalkableCell(cx, cy) then
+            return self:cellToWorld(cx, cy)
+        end
+    end
+    -- Absolute fallback: center of map
+    return self:cellToWorld(math.floor(self.w/2), math.floor(self.h/2))
+end
+
+function World:sampleSpawn(px, py, minPixels, maxPixels, attempts)
+    minPixels = minPixels or 300
+    maxPixels = maxPixels or 800
+    attempts = math.max(8, math.floor(attempts or 36))
+
+    local pcx, pcy = self:worldToCell(px, py)
+
+    for _ = 1, attempts do
+        local r = minPixels + math.random() * (maxPixels - minPixels)
+        local ang = math.random() * math.pi * 2
+        local wx = px + math.cos(ang) * r
+        local wy = py + math.sin(ang) * r
+        local cx, cy = self:worldToCell(wx, wy)
+        
+        if self:isWalkableCell(cx, cy) then
+            return wx, wy
+        end
+    end
+
+    -- Fallback: Do NOT return player position. Pick a random valid floor tile elsewhere.
+    return self:sampleValidFloor(20)
+end
+
+function World:adjustToWalkable(x, y, range)
+    local cx, cy = self:worldToCell(x, y)
+    if self:isWalkableCell(cx, cy) then return x, y end
+    
+    -- Spiral search
+    range = range or 4
+    for r = 1, range do
+        for dy = -r, r do
+            for dx = -r, r do
+                 if math.abs(dx) == r or math.abs(dy) == r then
+                     if self:isWalkableCell(cx + dx, cy + dy) then
+                         return self:cellToWorld(cx + dx, cy + dy)
+                     end
+                 end
+            end
+        end
+    end
+    return x, y
+end
+
+function World:generateArena(opts)
+    opts = opts or {}
+    self.tileSize = math.max(8, math.floor(opts.tileSize or 32))
+    -- Arena size: smaller than full map, but big enough for kiting. Default ~40x30 tiles.
+    self.w = math.max(20, math.floor(opts.w or 40))
+    self.h = math.max(16, math.floor(opts.h or 30))
+    self.pixelW = self.w * self.tileSize
+    self.pixelH = self.h * self.tileSize
+
+    self.tiles = {}
+    -- 1 = Wall, 0 = Floor. Init all as Floor first, then wall borders.
+    for i = 1, self.w * self.h do
+        self.tiles[i] = 0
+    end
+
+    -- Create borders
+    fillRect(self, 1, 1, self.w, 2, 1)              -- Top
+    fillRect(self, 1, self.h - 1, self.w, self.h, 1) -- Bottom
+    fillRect(self, 1, 1, 2, self.h, 1)              -- Left
+    fillRect(self, self.w - 1, 1, self.w, self.h, 1) -- Right
+
+    -- Layout patterns
+    local layout = opts.layout or 'random'
+    local cx, cy = math.floor(self.w / 2), math.floor(self.h / 2)
+
+    if layout == 'pillars' or (layout == 'random' and math.random() < 0.4) then
+        -- 4 large pillars
+        local insetX = math.floor(self.w * 0.25)
+        local insetY = math.floor(self.h * 0.25)
+        local size = 3
+        fillRect(self, cx - insetX, cy - insetY, cx - insetX + size, cy - insetY + size, 1)
+        fillRect(self, cx + insetX - size, cy - insetY, cx + insetX, cy - insetY + size, 1)
+        fillRect(self, cx - insetX, cy + insetY - size, cx - insetX + size, cy + insetY, 1)
+        fillRect(self, cx + insetX - size, cy + insetY - size, cx + insetX, cy + insetY, 1)
+    elseif layout == 'center' or (layout == 'random' and math.random() < 0.3) then
+        -- Large center block (donut arena)
+        local size = 6
+        fillRect(self, cx - size, cy - size, cx + size, cy + size, 1)
+    elseif layout == 'scattered' or (layout == 'random') then
+        -- Random scatter of small cover
+        local count = math.random(6, 12)
+        for _ = 1, count do
+            local x = math.random(4, self.w - 4)
+            local y = math.random(4, self.h - 4)
+            -- Avoid spawn center
+            if math.abs(x - cx) > 4 or math.abs(y - cy) > 4 then
+                 fillRect(self, x, y, x + 1, y + 1, 1)
+            end
+        end
+    end
+
+    -- Boss arena is just open
+    if layout == 'boss' then
+         -- Clear center just in case
+         carveRect(self, 3, 3, self.w - 2, self.h - 2)
+    end
+
+    -- Spawn points - ensure it's actually walkable
+    local spawnCx, spawnCy = cx, cy
+    -- If center is a wall (e.g., center layout), find nearest walkable
+    if self:isWallCell(cx, cy) then
+        local found = false
+        -- Search outward for walkable cell
+        for r = 1, 10 do
+            for dy = -r, r do
+                for dx = -r, r do
+                    if (math.abs(dx) == r or math.abs(dy) == r) and self:isWalkableCell(cx + dx, cy + dy) then
+                        spawnCx, spawnCy = cx + dx, cy + dy
+                        found = true
+                        break
+                    end
+                end
+                if found then break end
+            end
+            if found then break end
+        end
+    end
+    self.spawnCx, self.spawnCy = spawnCx, spawnCy
+    self.spawnX, self.spawnY = self:cellToWorld(spawnCx, spawnCy)
+    
+    -- Reset Nav
+    self.nav = {
+        dist = {},
+        refresh = 0.35,
+        timer = 0,
+        playerCx = nil,
+        playerCy = nil,
+        ready = false
+    }
+    for i = 1, self.w * self.h do self.nav.dist[i] = -1 end
+    self._navQueue = {}
 end
 
 function world.new(opts)

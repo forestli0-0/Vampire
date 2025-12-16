@@ -131,6 +131,7 @@ local spawnSpecialRoomPickup
 local function spawnWave(state, r)
     local roomIndex = r.roomIndex or 1
     local waveIndex = r.waveIndex or 1
+    local world = state.world
 
     local baseCount = 7 + roomIndex * 2
     local waveFactor = 0.85 + (waveIndex - 1) * 0.25
@@ -138,19 +139,33 @@ local function spawnWave(state, r)
     count = math.max(4, math.min(42, count))
 
     local pool = buildEnemyPool(roomIndex)
-    local px, py = state.player.x, state.player.y
-    local spawnR = 380 + math.random() * 220
 
     local eliteCount = (r.roomKind == 'elite') and 1 or 0
     eliteCount = math.min(eliteCount, count)
+    
     for _ = 1, count do
         local isElite = (eliteCount > 0)
         if isElite then eliteCount = eliteCount - 1 end
         local kind = isElite and chooseEliteKind(roomIndex) or (chooseWeighted(pool) or 'skeleton')
-        local ang = math.random() * 6.283185307179586
-        local dist = spawnR + math.random() * 120
-        local x = px + math.cos(ang) * dist
-        local y = py + math.sin(ang) * dist
+        
+
+        local x, y
+        if state.world and state.world.enabled and state.world.sampleSpawn then
+            -- Arena Mode: Spawn inside walkable area
+            -- Try to spawn away from player if possible
+            local px, py = state.player.x, state.player.y
+            -- Require min distance of 280 (approx 9 tiles) to avoid spawning on top of player
+            x, y = state.world:sampleSpawn(px, py, 280, 800, 12)
+        else
+             -- Open Field Fallback
+             local px, py = state.player.x, state.player.y
+             local spawnR = 380 + math.random() * 220
+             local ang = math.random() * 6.283185307179586
+             local dist = spawnR + math.random() * 120
+             x = px + math.cos(ang) * dist
+             y = py + math.sin(ang) * dist
+        end
+        
         enemies.spawnEnemy(state, kind, isElite, x, y)
     end
 
@@ -158,6 +173,28 @@ local function spawnWave(state, r)
 end
 
 local function startRoom(state, r)
+    -- Procedural Arena Generation
+    if state.world and state.world.generateArena then
+        local layout = 'random'
+        if r.roomIndex == r.bossRoom then layout = 'boss' end
+        state.world:generateArena({w=42, h=32, layout=layout})
+        
+        -- Teleport player to safe spawn
+        if state.world.spawnX and state.world.spawnY then
+            -- Ensure spawn is walkable
+            local sx, sy = state.world.spawnX, state.world.spawnY
+            if state.world.adjustToWalkable then
+                sx, sy = state.world:adjustToWalkable(sx, sy, 8)
+            end
+            state.player.x, state.player.y = sx, sy
+            state.camera.x = state.player.x - love.graphics.getWidth()/2
+            state.camera.y = state.player.y - love.graphics.getHeight()/2
+            
+            -- Add brief screen fade for smoother transition
+            state.roomTransitionFade = 1.0  -- Will fade out over time
+        end
+    end
+    
     r.roomCenterX, r.roomCenterY = state.player.x, state.player.y
     r.waveIndex = 1
     r.wavesTotal = 2
@@ -167,7 +204,9 @@ local function startRoom(state, r)
     r.rewardChest = nil
     state.doors = state.doors or {}
     clearList(state.doors)
-
+    clearList(state.text) -- clear old texts
+    clearList(state.enemyBullets) -- safety clear
+    
     -- QoL: entering a new room refreshes dash charges to keep the flow fast (Hades-like rooms pacing).
     do
         local p = state.player
@@ -228,6 +267,18 @@ local function spawnRewardChest(state, r)
 
     local cx = r.roomCenterX or state.player.x
     local cy = r.roomCenterY or state.player.y
+    -- Ensure chest doesn't spawn in a wall (e.g., center pillar)
+    if state.world and state.world.enabled and state.world.adjustToWalkable then
+        -- Use a larger search radius (12 tiles approx 384px) to ensure we find a valid spot
+        local ax, ay = state.world:adjustToWalkable(cx, cy, 12)
+        if ax and ay then
+            cx, cy = ax, ay
+        elseif state.world.sampleValidFloor then
+            -- Absolute fallback: Find ANY valid floor tile
+            cx, cy = state.world:sampleValidFloor(50)
+        end
+    end
+
     local rewardType = r.roomRewardType
     if rewardType == nil then
         local cycle = r.rewardCycle
@@ -284,8 +335,6 @@ local function spawnDoors(state, r)
     state.doors = state.doors or {}
     clearList(state.doors)
 
-    local cx = r.roomCenterX or state.player.x
-    local cy = r.roomCenterY or state.player.y
     local cycle = r.rewardCycle
     if type(cycle) ~= 'table' or #cycle <= 0 then
         cycle = {'weapon', 'passive', 'augment'}
@@ -312,15 +361,45 @@ local function spawnDoors(state, r)
         if math.random() < 0.5 then leftKind = specialKind else rightKind = specialKind end
     end
 
-    local offset = 150
+    -- Calculate door positions near the bottom of the arena, in walkable areas
     local w, h = 54, 86
     local size = 70
-    table.insert(state.doors, {x = cx - offset, y = cy, w = w, h = h, size = size, kind = 'door', rewardType = leftType, roomKind = leftKind})
-    table.insert(state.doors, {x = cx + offset, y = cy, w = w, h = h, size = size, kind = 'door', rewardType = rightType, roomKind = rightKind})
+    local world = state.world
+    
+    local leftX, leftY, rightX, rightY
+    
+    if world and world.enabled and world.pixelW then
+        -- Place doors at bottom-left and bottom-right of walkable area
+        local ts = world.tileSize or 32
+        local arenaW = world.pixelW
+        local arenaH = world.pixelH
+        
+        -- Target positions: near the bottom, 1/3 and 2/3 across horizontally
+        leftX = arenaW * 0.3
+        rightX = arenaW * 0.7
+        leftY = arenaH * 0.75
+        rightY = arenaH * 0.75
+        
+        -- Adjust to walkable positions
+        if world.adjustToWalkable then
+            leftX, leftY = world:adjustToWalkable(leftX, leftY, 10)
+            rightX, rightY = world:adjustToWalkable(rightX, rightY, 10)
+        end
+    else
+        -- Fallback: use player position with offset
+        local cx = r.roomCenterX or state.player.x
+        local cy = r.roomCenterY or state.player.y
+        local offset = 150
+        leftX, leftY = cx - offset, cy + 80
+        rightX, rightY = cx + offset, cy + 80
+    end
+    
+    table.insert(state.doors, {x = leftX, y = leftY, w = w, h = h, size = size, kind = 'door', rewardType = leftType, roomKind = leftKind})
+    table.insert(state.doors, {x = rightX, y = rightY, w = w, h = h, size = size, kind = 'door', rewardType = rightType, roomKind = rightKind})
 
     table.insert(state.texts, {
-        x = cx,
-        y = cy - 120,
+        x = state.player.x,
+        y = state.player.y - 120,
         text = "CHOOSE NEXT ROOM",
         color = {0.9, 0.9, 1},
         life = 1.4

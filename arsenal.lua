@@ -271,10 +271,11 @@ function arsenal.startRun(state, opts)
         state.rooms.enabled = false
         campaign.startRun(state)
     else
-        state.world = nil
         state.mission = nil
         state.campaign = nil
         if state.rooms then state.rooms.enabled = true end
+        state.world = world.new({w=40, h=30}) -- pre-init world for rooms
+        state.world.enabled = true
     end
 
     if not state.inventory.weapons or not next(state.inventory.weapons) then

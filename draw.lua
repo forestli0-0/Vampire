@@ -536,46 +536,98 @@ function draw.renderWorld(state)
     end
     love.graphics.translate(-state.camera.x, -state.camera.y)
 
-    -- 背景平铺
-    local bg = state.bgTile
-    if bg then
-        local tileW, tileH = bg.w, bg.h
-        local offsetX = state.camera.x % tileW
-        local offsetY = state.camera.y % tileH
-        local startX = state.camera.x - offsetX - tileW
-        local startY = state.camera.y - offsetY - tileH
-        local w, h = love.graphics.getWidth(), love.graphics.getHeight()
-        for x = startX, state.camera.x + w + tileW, tileW do
-            for y = startY, state.camera.y + h + tileH, tileH do
-                love.graphics.draw(bg.image, x, y)
+    -- Background: Infinite tiling for Survival, or Void for Arena
+    local world = state.world
+    local isArena = (world and world.enabled and world.tiles)
+    
+    if isArena then
+        -- === ARENA MODE: Void outside, grass inside ===
+        
+        -- 1. First, draw a HUGE void rectangle covering everything visible and beyond
+        -- This ensures anything outside the arena is pure black
+        love.graphics.setColor(0.02, 0.02, 0.03, 1)
+        local camX, camY = state.camera.x or 0, state.camera.y or 0
+        local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
+        love.graphics.rectangle('fill', camX - 100, camY - 100, sw + 200, sh + 200)
+        
+        -- 2. Draw Floor Tiles (Grass) only within the arena bounds
+        local ts = world.tileSize
+        
+        -- Clamp visible range to actual map bounds
+        local minCx = math.max(1, math.floor(camX / ts) + 1)
+        local maxCx = math.min(world.w, math.floor((camX + sw) / ts) + 2)
+        local minCy = math.max(1, math.floor(camY / ts) + 1)
+        local maxCy = math.min(world.h, math.floor((camY + sh) / ts) + 2)
+        
+        local bg = state.bgTile
+        if bg and bg.image then
+            local bw, bh = bg.w, bg.h
+            love.graphics.setColor(1, 1, 1, 1)
+            for cy = minCy, maxCy do
+                local row = (cy - 1) * world.w
+                local tileY = (cy - 1) * ts
+                for cx = minCx, maxCx do
+                    local tileIdx = row + cx
+                    if tileIdx >= 1 and tileIdx <= #world.tiles and world.tiles[tileIdx] == 0 then
+                        local tileX = (cx - 1) * ts
+                        local u = tileX % bw
+                        local v = tileY % bh
+                        local q = love.graphics.newQuad(u, v, ts, ts, bw, bh)
+                        love.graphics.draw(bg.image, q, tileX, tileY)
+                    end
+                end
+            end
+        else
+            -- Fallback: solid green floor
+            love.graphics.setColor(0.18, 0.22, 0.18, 1.0)
+            for cy = minCy, maxCy do
+                local row = (cy - 1) * world.w
+                local tileY = (cy - 1) * ts
+                for cx = minCx, maxCx do
+                    local tileIdx = row + cx
+                    if tileIdx >= 1 and tileIdx <= #world.tiles and world.tiles[tileIdx] == 0 then
+                        love.graphics.rectangle('fill', (cx - 1) * ts, tileY, ts, ts)
+                    end
+                end
             end
         end
-    end
 
-    -- Procedural world walls (tilemap prototype)
-    local world = state.world
-    if world and world.enabled and world.tiles and world.w and world.h and world.tileSize then
-        local ts = world.tileSize
-        local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
-        local camX, camY = state.camera.x or 0, state.camera.y or 0
-
-        local minCx = math.max(1, math.floor(camX / ts) + 1)
-        local maxCx = math.min(world.w, math.floor((camX + sw) / ts) + 1)
-        local minCy = math.max(1, math.floor(camY / ts) + 1)
-        local maxCy = math.min(world.h, math.floor((camY + sh) / ts) + 1)
-
-        local wallCol = (world and world.wallColor) or {0.10, 0.10, 0.11}
-        love.graphics.setColor(wallCol[1] or 0.10, wallCol[2] or 0.10, wallCol[3] or 0.11, 1.0)
+        -- 3. Draw Walls
+        local wallCol = (world and world.wallColor) or {0.12, 0.12, 0.14}
+        love.graphics.setColor(wallCol[1] or 0.12, wallCol[2] or 0.12, wallCol[3] or 0.14, 1.0)
         for cy = minCy, maxCy do
             local row = (cy - 1) * world.w
-            local y = (cy - 1) * ts
+            local tileY = (cy - 1) * ts
             for cx = minCx, maxCx do
-                if world.tiles[row + cx] == 1 then
-                    love.graphics.rectangle('fill', (cx - 1) * ts, y, ts, ts)
+                local tileIdx = row + cx
+                if tileIdx >= 1 and tileIdx <= #world.tiles and world.tiles[tileIdx] == 1 then
+                    local tileX = (cx - 1) * ts
+                    love.graphics.rectangle('fill', tileX, tileY, ts, ts)
+                    -- Subtle bevel
+                    love.graphics.setColor(0.2, 0.2, 0.25, 0.3)
+                    love.graphics.rectangle('line', tileX + 1, tileY + 1, ts - 2, ts - 2)
+                    love.graphics.setColor(wallCol[1] or 0.12, wallCol[2] or 0.12, wallCol[3] or 0.14, 1.0)
                 end
             end
         end
         love.graphics.setColor(1, 1, 1, 1)
+
+    else
+        -- === SURVIVAL MODE: Infinite grass tiling ===
+        local bg = state.bgTile
+        if bg then
+            local tileW, tileH = bg.w, bg.h
+            local offsetX = state.camera.x % tileW
+            local offsetY = state.camera.y % tileH
+            local startX = state.camera.x - offsetX - tileW
+            local startY = state.camera.y - offsetY - tileH
+            local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+            for x = startX, state.camera.x + w + tileW, tileW do
+                for y = startY, state.camera.y + h + tileH, tileH do
+                    love.graphics.draw(bg.image, x, y)
+                end
+            end
+        end
     end
 
     -- 大蒜圈 / 灵魂吞噬者圈（统一用 shader 范围场，避免占位素材 + bloom 过曝）
@@ -1581,6 +1633,14 @@ end
 function draw.render(state)
     draw.renderWorld(state)
     draw.renderUI(state)
+    
+    -- Room transition fade overlay
+    if state.roomTransitionFade and state.roomTransitionFade > 0 then
+        local alpha = state.roomTransitionFade
+        love.graphics.setColor(0, 0, 0, alpha)
+        love.graphics.rectangle('fill', 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
+        love.graphics.setColor(1, 1, 1, 1)
+    end
 end
 
 return draw

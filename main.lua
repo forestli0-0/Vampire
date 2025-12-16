@@ -93,6 +93,12 @@ function love.update(dt)
     state.gameTimer = state.gameTimer + dt
     pickups.updateMagnetSpawns(state, dt)
     if state.updateEffects then state.updateEffects(dt) end
+    
+    -- Room transition fade
+    if state.roomTransitionFade and state.roomTransitionFade > 0 then
+        state.roomTransitionFade = state.roomTransitionFade - dt * 3  -- Fade out over ~0.33 seconds
+        if state.roomTransitionFade < 0 then state.roomTransitionFade = 0 end
+    end
 
     -- 核心更新顺序：玩家 → 武器 → 子弹 → 刷怪
     player.updateMovement(state, dt)
