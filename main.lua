@@ -200,7 +200,10 @@ function love.keypressed(key)
     -- UI Demo toggle (F8)
     if uiDemo.keypressed(key) then return end
     -- UI system key handling
-    if ui.keypressed(key) then return end
+    -- Special case: Allow Tab to pass through for ARSENAL mode (weapon switch)
+    if not (key == 'tab' and state.gameState == 'ARSENAL') then
+        if ui.keypressed(key) then return end
+    end
     
     if testmode.keypressed(state, key) then return end
     if state.gameState == 'ARSENAL' then

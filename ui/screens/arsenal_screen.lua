@@ -597,7 +597,9 @@ end
 
 function arsenalScreen.keypressed(gameState, key)
     -- Let UI system handle Tab/Enter/Arrow keys first
-    if ui.core.enabled and ui.keypressed(key) then
+    -- Let UI system handle Enter/Arrow keys first
+    -- Note: We skip 'tab' here so it falls through to arsenal.lua for weapon switching
+    if key ~= 'tab' and ui.core.enabled and ui.keypressed(key) then
         return true
     end
     
