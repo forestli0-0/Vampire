@@ -1682,9 +1682,10 @@ function draw.renderUI(state)
         
         -- MOD count for all categories
         local modsModule = require('mods')
-        local p = state.player
-        local activeSlot = p.activeSlot or 'primary'
-        local activeKey = p.weaponSlots and p.weaponSlots[activeSlot]
+        local inv = state.inventory or {}
+        local activeSlot = inv.activeSlot or 'ranged'
+        local slotData = inv.weaponSlots and inv.weaponSlots[activeSlot]
+        local activeKey = slotData and slotData.key
         
         -- Count equipped mods for each category
         local wfSlots = modsModule.getSlots(state, 'warframe', nil)

@@ -817,13 +817,16 @@ end
 
 -- Try to start reloading the active weapon
 function weapons.startReload(state)
-    local p = state.player
-    if not p then return false end
-    local activeSlot = p.activeSlot or 'primary'
-    local weaponKey = p.weaponSlots and p.weaponSlots[activeSlot]
-    if not weaponKey then return false end
+    local inv = state.inventory
+    if not inv then return false end
     
-    local w = state.inventory and state.inventory.weapons and state.inventory.weapons[weaponKey]
+    -- WF-style: Read from inventory.activeSlot and inventory.weaponSlots
+    local activeSlot = inv.activeSlot or 'ranged'
+    local slotData = inv.weaponSlots and inv.weaponSlots[activeSlot]
+    if not slotData then return false end
+    
+    local weaponKey = slotData.key
+    local w = inv.weapons and inv.weapons[weaponKey]
     if not w then return false end
     if w.isReloading then return false end
     if w.magazine == nil then return false end -- No ammo weapon (melee)

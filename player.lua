@@ -392,10 +392,9 @@ end
 function player.keypressed(state, key)
     if not state or state.gameState ~= 'PLAYING' then return false end
     
-    -- Weapon slot switching (1/2/3 keys)
-    if key == '1' then return player.switchWeaponSlot(state, 'primary') end
-    if key == '2' then return player.switchWeaponSlot(state, 'secondary') end
-    if key == '3' then return player.switchWeaponSlot(state, 'melee') end
+    -- Weapon slot switching (1=ranged, 2=melee for 2-slot system)
+    if key == '1' then return player.switchWeaponSlot(state, 'ranged') end
+    if key == '2' then return player.switchWeaponSlot(state, 'melee') end
     
     -- Reload (R key)
     if key == 'r' then
@@ -413,9 +412,10 @@ function player.keypressed(state, key)
     -- M key: Test MOD system (all categories)
     if key == 'm' then
         local mods = require('mods')
-        local p = state.player
-        local activeSlot = p.activeSlot or 'primary'
-        local activeKey = p.weaponSlots and p.weaponSlots[activeSlot]
+        local inv = state.inventory
+        local activeSlot = inv and inv.activeSlot or 'ranged'
+        local slotData = inv and inv.weaponSlots and inv.weaponSlots[activeSlot]
+        local activeKey = slotData and slotData.key
         
         -- Equip test mods for all categories
         mods.equipTestMods(state, 'warframe', nil)
