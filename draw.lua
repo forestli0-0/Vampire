@@ -1378,18 +1378,104 @@ function draw.renderUI(state)
         local gap = 4
         local thickness = 2
         
-        love.graphics.setColor(1, 0.3, 0.3, 0.9)
-        love.graphics.setLineWidth(thickness)
-        -- Horizontal lines
-        love.graphics.line(mx - size, my, mx - gap, my)
-        love.graphics.line(mx + gap, my, mx + size, my)
-        -- Vertical lines
-        love.graphics.line(mx, my - size, mx, my - gap)
-        love.graphics.line(mx, my + gap, mx, my + size)
-        -- Center dot
-        love.graphics.setColor(1, 0.4, 0.4, 0.8)
-        love.graphics.circle('fill', mx, my, 2)
+        -- Sniper mode: enhanced reticle at world position
+        local isSniperMode = state.player.sniperAim and state.player.sniperAim.active
+        if isSniperMode then
+            -- Convert world position to screen position
+            local worldX = state.player.sniperAim.worldX or state.player.x
+            local worldY = state.player.sniperAim.worldY or state.player.y
+            local screenX = worldX - state.camera.x
+            local screenY = worldY - state.camera.y
+            
+            size = 18
+            gap = 6
+            thickness = 3
+            
+            -- Vignette effect (subtle darkening)
+            local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+            love.graphics.setColor(0, 0, 0, 0.25)
+            love.graphics.rectangle('fill', 0, 0, w, h)
+            
+            -- Draw aim line from player to target
+            local playerScreenX = state.player.x - state.camera.x
+            local playerScreenY = state.player.y - state.camera.y
+            love.graphics.setColor(0.3, 1, 0.3, 0.3)
+            love.graphics.setLineWidth(1)
+            love.graphics.line(playerScreenX, playerScreenY, screenX, screenY)
+            
+            -- Sniper crosshair (green) at sniper aim position
+            love.graphics.setColor(0.3, 1, 0.3, 0.95)
+            love.graphics.setLineWidth(thickness)
+            -- Horizontal lines
+            love.graphics.line(screenX - size - 8, screenY, screenX - gap, screenY)
+            love.graphics.line(screenX + gap, screenY, screenX + size + 8, screenY)
+            -- Vertical lines
+            love.graphics.line(screenX, screenY - size - 8, screenX, screenY - gap)
+            love.graphics.line(screenX, screenY + gap, screenX, screenY + size + 8)
+            -- Outer circle
+            love.graphics.circle('line', screenX, screenY, size + 4)
+            -- Center dot
+            love.graphics.setColor(0.4, 1, 0.4, 0.9)
+            love.graphics.circle('fill', screenX, screenY, 2)
+        else
+            -- Normal precision aim crosshair
+            love.graphics.setColor(1, 0.3, 0.3, 0.9)
+            love.graphics.setLineWidth(thickness)
+            -- Horizontal lines
+            love.graphics.line(mx - size, my, mx - gap, my)
+            love.graphics.line(mx + gap, my, mx + size, my)
+            -- Vertical lines
+            love.graphics.line(mx, my - size, mx, my - gap)
+            love.graphics.line(mx, my + gap, mx, my + size)
+            -- Center dot
+            love.graphics.setColor(1, 0.4, 0.4, 0.8)
+            love.graphics.circle('fill', mx, my, 2)
+        end
+        
         love.graphics.setLineWidth(1)
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+    
+    -- Bow charge bar (above player)
+    local p = state.player
+    if p and p.bowCharge and p.bowCharge.isCharging then
+        local chargeTime = p.bowCharge.chargeTime or 0
+        local maxCharge = 2.0  -- Match weapon definition
+        local chargeRatio = math.min(1, chargeTime / maxCharge)
+        
+        -- World to screen conversion
+        local px = p.x - state.camera.x + love.graphics.getWidth() / 2 - state.camera.x
+        local py = p.y - state.camera.y + love.graphics.getHeight() / 2 - state.camera.y - 40
+        
+        -- Bar dimensions
+        local barW, barH = 60, 8
+        local barX, barY = px - barW / 2, py
+        
+        -- Background
+        love.graphics.setColor(0, 0, 0, 0.7)
+        love.graphics.rectangle('fill', barX - 1, barY - 1, barW + 2, barH + 2)
+        
+        -- Fill color (changes when full charge)
+        local fillColor = {0.5, 0.85, 1.0}
+        if chargeRatio >= 1.0 then
+            -- Full charge: pulse effect
+            local pulse = (math.sin(love.timer.getTime() * 12) + 1) * 0.5
+            fillColor = {0.7 + pulse * 0.3, 1.0, 0.4 + pulse * 0.3}
+        end
+        
+        love.graphics.setColor(fillColor[1], fillColor[2], fillColor[3], 0.9)
+        love.graphics.rectangle('fill', barX, barY, barW * chargeRatio, barH)
+        
+        -- Border
+        love.graphics.setColor(1, 1, 1, 0.8)
+        love.graphics.rectangle('line', barX, barY, barW, barH)
+        
+        -- Text
+        if chargeRatio >= 1.0 then
+            love.graphics.setColor(1, 1, 0.5, 0.95)
+            love.graphics.print("MAX", barX + barW / 2 - 12, barY - 12)
+        end
+        
         love.graphics.setColor(1, 1, 1, 1)
     end
 

@@ -256,6 +256,19 @@ function state.init()
             reserved = nil   -- Reserved for future class-specific passive (summoner summons, alchemist potions, etc.)
         },
         activeSlot = 'ranged', -- Currently active weapon slot
+        -- Bow charge state (hold to charge arrows)
+        bowCharge = {
+            isCharging = false,
+            startTime = 0,
+            chargeTime = 0,
+            weaponKey = nil
+        },
+        -- Sniper extended aim (Shift to aim beyond screen)
+        sniperAim = {
+            active = false,
+            worldX = 0,
+            worldY = 0
+        },
         stats = {
             moveSpeed = 180,
             might = 1.0,
@@ -801,15 +814,17 @@ function state.init()
         -- === SNIPERS (Primary) ===
         vectis = {
             type = 'weapon', name = "Vectis",
-            desc = "Single-shot sniper rifle. Extreme precision.",
+            desc = "Sniper rifle. [Shift: Sniper Mode]",
             maxLevel = 5,
             slotType = 'primary',
             weaponCategory = 'sniper',
             behavior = 'SHOOT_NEAREST',
+            sniperMode = true,
             tags = {'weapon', 'projectile', 'physical', 'sniper'},
             classWeight = { warrior = 1.0, mage = 1.5, beastmaster = 0.8 },
             base = { 
-                damage=120, cd=1.5, speed=800, range=1000, 
+                damage=120, cd=1.5, speed=1200, range=900, 
+                sniperRange=1500,
                 elements={'PUNCTURE','IMPACT'}, damageBreakdown={PUNCTURE=3, IMPACT=1},
                 critChance=0.30, critMultiplier=3.0, statusChance=0.25,
                 magazine=1, maxMagazine=1, reserve=72, maxReserve=72, reloadTime=0.9,
@@ -819,16 +834,18 @@ function state.init()
         },
         lanka = {
             type = 'weapon', name = "Lanka",
-            desc = "Corpus energy sniper. Charged shots.",
+            desc = "Corpus energy sniper. [Shift: Sniper Mode]",
             maxLevel = 5,
             slotType = 'primary',
             weaponCategory = 'sniper',
             behavior = 'SHOOT_NEAREST',
+            sniperMode = true,
             tags = {'weapon', 'projectile', 'energy', 'sniper'},
             classWeight = { warrior = 0.5, mage = 2.0, beastmaster = 1.0 },
             rare = true,
             base = { 
-                damage=100, cd=1.2, speed=700, range=900, 
+                damage=100, cd=1.2, speed=1200, range=900, 
+                sniperRange=1600,
                 elements={'ELECTRIC'}, damageBreakdown={ELECTRIC=1},
                 critChance=0.25, critMultiplier=2.5, statusChance=0.35,
                 magazine=10, maxMagazine=10, reserve=72, maxReserve=72, reloadTime=2.0,
@@ -840,11 +857,16 @@ function state.init()
         -- === BOWS (Primary) ===
         dread = {
             type = 'weapon', name = "Dread",
-            desc = "Stalker's bow. Guaranteed slash procs.",
+            desc = "Stalker's bow. [Hold: Charge Shot]",
             maxLevel = 5,
             slotType = 'primary',
             weaponCategory = 'bow',
-            behavior = 'SHOOT_NEAREST',
+            behavior = 'CHARGE_SHOT',
+            chargeEnabled = true,
+            maxChargeTime = 2.0,
+            minChargeMult = 0.5,
+            maxChargeMult = 2.0,
+            chargeSpeedBonus = true,
             tags = {'weapon', 'projectile', 'physical', 'bow', 'silent'},
             classWeight = { warrior = 1.0, mage = 1.0, beastmaster = 2.0 },
             rare = true,
@@ -852,25 +874,29 @@ function state.init()
                 damage=80, cd=0.8, speed=550, range=800, 
                 elements={'SLASH'}, damageBreakdown={SLASH=1},
                 critChance=0.50, critMultiplier=2.0, statusChance=0.45,
-                magazine=1, maxMagazine=1, reserve=72, maxReserve=72, reloadTime=0.5,
                 pierce=2
             },
             onUpgrade = function(w) w.damage = w.damage + 15; w.critChance = w.critChance + 0.05 end
         },
         paris = {
             type = 'weapon', name = "Paris",
-            desc = "Tenno longbow. Silent and deadly.",
+            desc = "Tenno longbow. [Hold: Charge Shot]",
             maxLevel = 5,
             slotType = 'primary',
             weaponCategory = 'bow',
-            behavior = 'SHOOT_NEAREST',
+            behavior = 'CHARGE_SHOT',
+            chargeEnabled = true,
+            maxChargeTime = 2.0,
+            minChargeMult = 0.5,
+            maxChargeMult = 2.0,
+            chargeSpeedBonus = true,
             tags = {'weapon', 'projectile', 'physical', 'bow', 'silent'},
             classWeight = { warrior = 1.0, mage = 1.0, beastmaster = 2.0 },
             base = { 
                 damage=60, cd=0.7, speed=500, range=750, 
                 elements={'PUNCTURE','IMPACT'}, damageBreakdown={PUNCTURE=3, IMPACT=1},
                 critChance=0.30, critMultiplier=2.0, statusChance=0.20,
-                magazine=1, maxMagazine=1, reserve=72, maxReserve=72, reloadTime=0.4
+                pierce=1
             },
             onUpgrade = function(w) w.damage = w.damage + 12 end
         },

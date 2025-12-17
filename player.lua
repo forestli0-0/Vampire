@@ -90,12 +90,82 @@ function player.updateFiring(state)
     -- Track precision aim mode for UI
     p.isPrecisionAim = isPrecisionAimMode()
     
+    -- Update sniper aim (Shift held with sniper equipped)
+    local activeWeaponKey = state.inventory and state.inventory.weaponSlots and state.inventory.weaponSlots[p.activeSlot]
+    local weaponDef = activeWeaponKey and state.catalog and state.catalog[activeWeaponKey]
+    local isSniperMode = weaponDef and weaponDef.sniperMode and p.isPrecisionAim
+    
+    if isSniperMode then
+        local screenW, screenH = love.graphics.getWidth(), love.graphics.getHeight()
+        local centerX, centerY = screenW / 2, screenH / 2
+        
+        if not p.sniperAim.active then
+            -- Just entered sniper mode: initialize cursor at player position
+            p.sniperAim.worldX = p.x
+            p.sniperAim.worldY = p.y
+            -- Set mouse to center for delta tracking
+            love.mouse.setPosition(centerX, centerY)
+        end
+        p.sniperAim.active = true
+        
+        -- Track mouse delta from center
+        local mx, my = love.mouse.getPosition()
+        local dx = mx - centerX
+        local dy = my - centerY
+        
+        -- Accumulate movement with sensitivity based on sniper range
+        local sensitivity = (weaponDef.sniperRange or 1500) / 300
+        p.sniperAim.worldX = p.sniperAim.worldX + dx * sensitivity
+        p.sniperAim.worldY = p.sniperAim.worldY + dy * sensitivity
+        
+        -- Reset mouse to center for continuous tracking
+        love.mouse.setPosition(centerX, centerY)
+        
+        -- Clamp to maximum sniper range from player
+        local maxRange = weaponDef.sniperRange or 1500
+        local offsetX = p.sniperAim.worldX - p.x
+        local offsetY = p.sniperAim.worldY - p.y
+        local dist = math.sqrt(offsetX * offsetX + offsetY * offsetY)
+        if dist > maxRange then
+            local scale = maxRange / dist
+            p.sniperAim.worldX = p.x + offsetX * scale
+            p.sniperAim.worldY = p.y + offsetY * scale
+        end
+    else
+        p.sniperAim.active = false
+    end
+    
     -- Update aim direction for UI crosshair
     if p.isPrecisionAim then
         local mx, my = getMouseWorldPos(state)
         p.aimX, p.aimY = mx, my
     else
         p.aimX, p.aimY = nil, nil
+    end
+    
+    -- Update bow charge (only for bow weapons)
+    local isBowWeapon = weaponDef and weaponDef.chargeEnabled
+    if isBowWeapon then
+        if p.isFiring and not profile.autoTrigger then
+            if not p.bowCharge.isCharging and not p.bowCharge.pendingRelease then
+                -- Start charging
+                p.bowCharge.isCharging = true
+                p.bowCharge.pendingRelease = false
+                p.bowCharge.startTime = state.gameTimer or 0
+                p.bowCharge.chargeTime = 0
+                p.bowCharge.weaponKey = activeWeaponKey
+            elseif p.bowCharge.isCharging then
+                -- Update charge time
+                p.bowCharge.chargeTime = (state.gameTimer or 0) - p.bowCharge.startTime
+                local maxCharge = weaponDef.maxChargeTime or 2.0
+                if p.bowCharge.chargeTime > maxCharge then
+                    p.bowCharge.chargeTime = maxCharge
+                end
+            end
+        elseif not p.isFiring and p.bowCharge.isCharging then
+            -- Released: mark for firing in next weapon update
+            p.bowCharge.pendingRelease = true
+        end
     end
 end
 

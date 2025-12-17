@@ -413,17 +413,29 @@ function Behaviors.SHOOT_NEAREST(state, weaponKey, w, stats, params, sx, sy)
     local isPlayerWeapon = (w.owner == nil or w.owner == 'player')
     local weaponDef = state.catalog and state.catalog[weaponKey]
     local aimDx, aimDy = nil, nil
-    if isPlayerWeapon and player.getAimDirection then
-        aimDx, aimDy = player.getAimDirection(state, weaponDef)
-    end
-    
+   
+    local p = state.player
     local baseAngle = nil
     local dist = range
     
-    if aimDx and aimDy then
-        -- Precision aim: use player's aim direction
-        baseAngle = math.atan2(aimDy, aimDx)
-    else
+    -- Sniper mode: extended range and cursor-based targeting
+    if isPlayerWeapon and weaponDef and weaponDef.sniperMode and p and p.sniperAim and p.sniperAim.active then
+        -- Use extended sniper range
+        local sniperRange = weaponDef.sniperRange or (range * 2)
+        dist = sniperRange
+        -- Aim at cursor position
+        local dx = p.sniperAim.worldX - sx
+        local dy = p.sniperAim.worldY - sy
+        baseAngle = math.atan2(dy, dx)
+    elseif isPlayerWeapon and player.getAimDirection then
+        -- Normal precision aim: use player's aim direction
+        aimDx, aimDy = player.getAimDirection(state, weaponDef)
+        if aimDx and aimDy then
+            baseAngle = math.atan2(aimDy, aimDx)
+        end
+    end
+    
+    if not baseAngle then
         -- Auto-aim: find nearest enemy
         local t = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
         if t then
@@ -573,6 +585,79 @@ function Behaviors.MELEE_SWING(state, weaponKey, w, stats, params, sx, sy)
     end
     
     return hitCount > 0
+end
+
+-- Bow charge shot behavior - hold to charge for damage boost
+function Behaviors.CHARGE_SHOT(state, weaponKey, w, stats, params, sx, sy)
+    local p = state.player
+    if not p or not p.bowCharge then return false end
+    
+    -- Wait for charge release (pendingRelease flag set by player.lua)
+    if not p.bowCharge.pendingRelease then
+        return false
+    end
+    
+    -- Get charge time
+    local chargeTime = p.bowCharge.chargeTime or 0
+    local weaponDef = state.catalog and state.catalog[weaponKey]
+    local maxChargeTime = weaponDef and weaponDef.maxChargeTime or 2.0
+    local minChargeMult = weaponDef and weaponDef.minChargeMult or 0.5
+    local maxChargeMult = weaponDef and weaponDef.maxChargeMult or 2.0
+    
+    -- Calculate charge multiplier (linear interpolation)
+    local t = math.min(1, chargeTime / maxChargeTime)
+    local chargeMult = minChargeMult + t * (maxChargeMult - minChargeMult)
+    
+    -- Modify stats copy
+    local modStats = {}
+    for k, v in pairs(stats) do modStats[k] = v end
+    modStats.damage = stats.damage * chargeMult
+    
+    -- Speed bonus with charge
+    if weaponDef and weaponDef.chargeSpeedBonus then
+        modStats.speed = (stats.speed or 600) * (0.5 + 0.5 * chargeMult)
+    end
+    
+    -- Full charge crit bonus (+25%)
+    if t >= 1.0 then
+        modStats.critChance = (stats.critChance or 0) + 0.25
+    end
+    
+    -- Fire arrow
+   local range = math.max(1, math.floor(modStats.range or 600))
+    local losOpts = state.world and state.world.enabled and {requireLOS = true} or nil
+    local aimDx, aimDy = nil, nil
+    if player.getAimDirection then
+        aimDx, aimDy = player.getAimDirection(state, weaponDef)
+    end
+    
+    local baseAngle = nil
+    if aimDx and aimDy then
+        baseAngle = math.atan2(aimDy, aimDx)
+    else
+        local t_enemy = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
+        if t_enemy then
+            baseAngle = math.atan2(t_enemy.y - sy, t_enemy.x - sx)
+        end
+    end
+    
+    if baseAngle then
+        if state.playSfx then state.playSfx('shoot') end
+        local target = {x = sx + math.cos(baseAngle) * range, y = sy + math.sin(baseAngle) * range}
+        weapons.spawnProjectile(state, weaponKey, sx, sy, target, modStats)
+        
+        -- Reset charge state
+        p.bowCharge.isCharging = false
+        p.bowCharge.pendingRelease = false
+        p.bowCharge.chargeTime = 0
+        return true
+    end
+    
+    -- No target, reset charge
+    p.bowCharge.isCharging = false
+    p.bowCharge.pendingRelease = false
+    p.bowCharge.chargeTime = 0
+    return false
 end
 
 function Behaviors.SHOOT_DIRECTIONAL(state, weaponKey, w, stats, params, sx, sy)
@@ -795,13 +880,14 @@ function weapons.update(state, dt)
                 local weaponSlot = w.slotType or def.slotType or 'ranged'
                 local isInActiveSlot = (weaponSlot == activeSlot)
                 
-                -- Check if player is firing (required for most weapons unless pet/aura/melee)
-                -- Auras, melee, and pet weapons always fire when ready (use their own state machines)
+                -- Check if player is firing (required for most weapons unless pet/aura/melee/charge)
+                -- Auras, melee, charge shots, and pet weapons fire with their own logic
                 -- autoTrigger meta item bypasses the firing requirement
                 local isAura = (behaviorName == 'AURA')
                 local isMelee = (behaviorName == 'MELEE_SWING')
+                local isChargeShot = (behaviorName == 'CHARGE_SHOT')
                 local hasAutoTrigger = state.profile and state.profile.autoTrigger
-                local needsFiring = isPlayerWeapon and not isAura and not isMelee and not hasAutoTrigger
+                local needsFiring = isPlayerWeapon and not isAura and not isMelee and not isChargeShot and not hasAutoTrigger
                 local canFire = not needsFiring or (state.player.isFiring == true)
                 
                 -- Skip if player weapon not in active slot
