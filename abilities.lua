@@ -268,7 +268,35 @@ function abilities.update(state, dt)
         abilities.applyPassive(state)
     end
     
-    -- Energy regen
+    -- Apply warframe MODs on first frame if not applied
+    if not p.warframeModsApplied then
+        local mods = require('mods')
+        local slots = mods.getSlots(state, 'warframe', nil)
+        local hasModsEquipped = false
+        for _, m in ipairs(slots) do if m then hasModsEquipped = true break end end
+        
+        if hasModsEquipped then
+            p.stats = p.stats or {}
+            -- Apply warframe mods to player stats
+            local modded = mods.applyWarframeMods(state, p.stats)
+            for k, v in pairs(modded) do
+                p.stats[k] = v
+            end
+            -- Also apply to direct player fields
+            if modded.maxHp then p.maxHp = modded.maxHp end
+            if modded.maxEnergy then p.maxEnergy = modded.maxEnergy end
+            if modded.energyRegen then p.energyRegen = modded.energyRegen end
+            if modded.speed then p.stats.speed = modded.speed end
+            if modded.armor then p.stats.armor = modded.armor end
+            
+            if state.texts then
+                table.insert(state.texts, {x=p.x, y=p.y-40, text="角色MOD已生效", color={0.5, 0.8, 1}, life=1.5})
+            end
+        end
+        p.warframeModsApplied = true
+    end
+    
+    -- Energy regen (with MOD bonus)
     local regen = p.energyRegen or 2
     p.energy = math.min(p.maxEnergy or 100, (p.energy or 0) + regen * dt)
     
