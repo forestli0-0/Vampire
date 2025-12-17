@@ -274,6 +274,31 @@ local function startRoom(state, r)
             r.lifeSupportCapsuleTimer = 15  -- first capsule in 15s
             table.insert(state.texts, {x=state.player.x, y=state.player.y-50, text="存活60秒!", color={0.6, 0.9, 1}, life=2})
         end
+        
+        -- Spawn ammo crates in room
+        state.floorPickups = state.floorPickups or {}
+        local numCrates = 1 + (r.roomIndex >= 3 and 1 or 0)  -- 1 crate early, 2 later
+        for _ = 1, numCrates do
+            local crateX, crateY
+            if state.world and state.world.sampleSpawn then
+                crateX, crateY = state.world:sampleSpawn(state.player.x, state.player.y, 100, 400, 8)
+            else
+                -- Fallback: offset from room center
+                local angle = math.random() * 6.28
+                local dist = 80 + math.random() * 120
+                crateX = r.roomCenterX + math.cos(angle) * dist
+                crateY = r.roomCenterY + math.sin(angle) * dist
+            end
+            if crateX and crateY then
+                table.insert(state.floorPickups, {
+                    x = crateX, 
+                    y = crateY, 
+                    size = 20, 
+                    kind = 'ammo',
+                    fullRefill = true  -- Ammo crates fully refill
+                })
+            end
+        end
     end
     
     -- Mission type label

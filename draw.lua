@@ -880,6 +880,19 @@ function draw.renderWorld(state)
                 love.graphics.line(item.x - 3, item.y - 4, item.x + 3, item.y - 4)
                 love.graphics.line(item.x - 3, item.y, item.x + 3, item.y)
                 love.graphics.line(item.x - 2, item.y + 4, item.x + 2, item.y + 4)
+            elseif item.kind == 'ammo' then
+                -- Ammo Crate (placeholder box)
+                love.graphics.setColor(0.5, 0.55, 0.45, 0.95)
+                love.graphics.rectangle('fill', item.x - 10, item.y - 8, 20, 16, 3, 3)
+                love.graphics.setColor(0.7, 0.75, 0.6, 0.9)
+                love.graphics.rectangle('line', item.x - 11, item.y - 9, 22, 18, 3, 3)
+                love.graphics.setColor(0.2, 0.2, 0.15, 0.9)
+                love.graphics.setLineWidth(2)
+                love.graphics.line(item.x - 7, item.y - 2, item.x + 7, item.y - 2)
+                love.graphics.line(item.x - 5, item.y + 2, item.x + 5, item.y + 2)
+                love.graphics.setLineWidth(1)
+                love.graphics.setColor(0.9, 0.95, 0.8, 0.85)
+                love.graphics.printf("AMMO", item.x - 30, item.y + 10, 60, "center")
             end
         end
         if isGlow then love.graphics.setBlendMode("alpha") end
