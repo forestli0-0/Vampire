@@ -146,20 +146,16 @@ function projectiles.updatePlayerBullets(state, dt)
         if not handled then
             local ox, oy = b.x, b.y
             updateBulletGuidance(state, b, dt)
-            -- WF weapons + legacy weapons
-            if b.type == 'wand' or b.type == 'holy_wand' or b.type == 'fire_wand' or b.type == 'hellfire' or b.type == 'oil_bottle' or b.type == 'heavy_hammer' or b.type == 'dagger' or b.type == 'thousand_edge' or b.type == 'static_orb' or b.type == 'thunder_loop' or b.type == 'debug_effect' or b.type == 'augment_shard' or
-               b.type == 'braton' or b.type == 'boltor' or b.type == 'hek' or b.type == 'strun' or b.type == 'vectis' or b.type == 'lanka' or b.type == 'dread' or b.type == 'paris' or b.type == 'lato' or b.type == 'lex' or b.type == 'atomos' then
-                b.x = b.x + b.vx * dt
-                b.y = b.y + b.vy * dt
-                if b.type ~= 'oil_bottle' then
-                    b.rotation = math.atan2(b.vy, b.vx)
-                end
-            elseif b.type == 'axe' then
+            
+            -- Special projectiles with unique movement patterns
+            if b.type == 'axe' then
+                -- Axe: arcing projectile with gravity
                 b.x = b.x + b.vx * dt
                 b.y = b.y + b.vy * dt
                 b.vy = b.vy + 1000 * dt
                 b.rotation = b.rotation + 10 * dt
             elseif b.type == 'death_spiral' then
+                -- Death Spiral: spinning radial projectile
                 local ang = math.atan2(b.vy, b.vx) + (b.angularVel or 0) * dt
                 local spd = math.sqrt(b.vx * b.vx + b.vy * b.vy)
                 b.vx = math.cos(ang) * spd
@@ -167,6 +163,13 @@ function projectiles.updatePlayerBullets(state, dt)
                 b.x = b.x + b.vx * dt
                 b.y = b.y + b.vy * dt
                 b.rotation = (b.rotation or 0) + 8 * dt
+            else
+                -- Default: linear movement for all other projectiles
+                b.x = b.x + b.vx * dt
+                b.y = b.y + b.vy * dt
+                if b.type ~= 'oil_bottle' then
+                    b.rotation = math.atan2(b.vy, b.vx)
+                end
             end
 
             local world = state.world
@@ -187,6 +190,7 @@ function projectiles.updatePlayerBullets(state, dt)
                 for j = #state.enemies, 1, -1 do
                     local e = state.enemies[j]
                     if util.checkCollision(b, e) then
+                        -- Special weapon-specific collision handling
                         if b.type == 'oil_bottle' then
                             -- Apply oil to target and splash neighbors, then disappear
                             local effectData
@@ -217,7 +221,30 @@ function projectiles.updatePlayerBullets(state, dt)
                             table.remove(state.bullets, i)
                             hit = true
                             break
-                        elseif b.type == 'fire_wand' or b.type == 'hellfire' then
+                        elseif b.type == 'death_spiral' then
+                            -- Death spiral: multi-hit without pierce reduction
+                            b.hitTargets = b.hitTargets or {}
+                            if not b.hitTargets[e] then
+                                b.hitTargets[e] = true
+                                local instance = buildInstanceFromBullet(b)
+                                local result = calculator.applyHit(state, e, instance)
+                                if state and state.augments and state.augments.dispatch then
+                                    state.augments.dispatch(state, 'onProjectileHit', {bullet = b, enemy = e, result = result, player = state.player, weaponKey = b.parentWeaponKey or b.type})
+                                end
+                            end
+                        elseif b.type == 'axe' then
+                            -- Axe: multi-hit without pierce reduction
+                            b.hitTargets = b.hitTargets or {}
+                            if not b.hitTargets[e] then
+                                b.hitTargets[e] = true
+                                local instance = buildInstanceFromBullet(b)
+                                local result = calculator.applyHit(state, e, instance)
+                                if state and state.augments and state.augments.dispatch then
+                                    state.augments.dispatch(state, 'onProjectileHit', {bullet = b, enemy = e, result = result, player = state.player, weaponKey = b.parentWeaponKey or b.type})
+                                end
+                            end
+                        else
+                            -- Default collision handling for all other projectiles
                             b.hitTargets = b.hitTargets or {}
                             if not b.hitTargets[e] then
                                 b.hitTargets[e] = true
@@ -231,69 +258,31 @@ function projectiles.updatePlayerBullets(state, dt)
                                     state.augments.dispatch(state, 'onProjectileHit', {bullet = b, enemy = e, result = result, player = state.player, weaponKey = b.parentWeaponKey or b.type})
                                 end
                                 tryRicochet(state, b, e.x, e.y)
-                                -- Ignite nearby oiled enemies in splash radius
-                                local splash = b.splashRadius or 0
-                                if splash > 0 then
-                                    local splashSq = splash * splash
-                                    for jj, o in ipairs(state.enemies) do
-                                        if jj ~= j then
-                                            local dx = o.x - e.x
-                                            local dy = o.y - e.y
-                                            if dx*dx + dy*dy <= splashSq then
-                                                if o.status and o.status.oiled then
-                                                    calculator.applyStatus(state, o, instance, 1)
+                                
+                                -- Special handling for fire weapons with splash
+                                if b.type == 'fire_wand' or b.type == 'hellfire' then
+                                    local splash = b.splashRadius or 0
+                                    if splash > 0 then
+                                        local splashSq = splash * splash
+                                        for jj, o in ipairs(state.enemies) do
+                                            if jj ~= j then
+                                                local dx = o.x - e.x
+                                                local dy = o.y - e.y
+                                                if dx*dx + dy*dy <= splashSq then
+                                                    if o.status and o.status.oiled then
+                                                        calculator.applyStatus(state, o, instance, 1)
+                                                    end
                                                 end
                                             end
                                         end
                                     end
                                 end
+                                
                                 b.pierce = (b.pierce or 1) - 1
                                 if b.pierce <= 0 then
                                     table.remove(state.bullets, i)
                                     hit = true
                                     break
-                                end
-                            end
-                        elseif b.type == 'wand' or b.type == 'holy_wand' or b.type == 'heavy_hammer' or b.type == 'dagger' or b.type == 'thousand_edge' or b.type == 'static_orb' or b.type == 'thunder_loop' or b.type == 'debug_effect' or b.type == 'augment_shard' or
-                               b.type == 'braton' or b.type == 'boltor' or b.type == 'hek' or b.type == 'strun' or b.type == 'vectis' or b.type == 'lanka' or b.type == 'dread' or b.type == 'paris' or b.type == 'lato' or b.type == 'lex' or b.type == 'atomos' then
-                            b.hitTargets = b.hitTargets or {}
-                            if not b.hitTargets[e] then
-                                b.hitTargets[e] = true
-                                local effectData
-                                if b.effectDuration or b.effectRange or b.chain or b.allowRepeat then
-                                    effectData = {duration = b.effectDuration, range = b.effectRange, chain = b.chain, allowRepeat = b.allowRepeat}
-                                end
-                                local instance = buildInstanceFromBullet(b, effectData)
-                                local result = calculator.applyHit(state, e, instance)
-                                if state and state.augments and state.augments.dispatch then
-                                    state.augments.dispatch(state, 'onProjectileHit', {bullet = b, enemy = e, result = result, player = state.player, weaponKey = b.parentWeaponKey or b.type})
-                                end
-                                tryRicochet(state, b, e.x, e.y)
-                                b.pierce = (b.pierce or 1) - 1
-                                if b.pierce <= 0 then
-                                    table.remove(state.bullets, i)
-                                    hit = true
-                                    break
-                                end
-                            end
-                        elseif b.type == 'axe' then
-                            b.hitTargets = b.hitTargets or {}
-                            if not b.hitTargets[e] then
-                                b.hitTargets[e] = true
-                                local instance = buildInstanceFromBullet(b)
-                                local result = calculator.applyHit(state, e, instance)
-                                if state and state.augments and state.augments.dispatch then
-                                    state.augments.dispatch(state, 'onProjectileHit', {bullet = b, enemy = e, result = result, player = state.player, weaponKey = b.parentWeaponKey or b.type})
-                                end
-                            end
-                        elseif b.type == 'death_spiral' then
-                            b.hitTargets = b.hitTargets or {}
-                            if not b.hitTargets[e] then
-                                b.hitTargets[e] = true
-                                local instance = buildInstanceFromBullet(b)
-                                local result = calculator.applyHit(state, e, instance)
-                                if state and state.augments and state.augments.dispatch then
-                                    state.augments.dispatch(state, 'onProjectileHit', {bullet = b, enemy = e, result = result, player = state.player, weaponKey = b.parentWeaponKey or b.type})
                                 end
                             end
                         end
