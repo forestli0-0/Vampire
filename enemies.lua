@@ -1616,6 +1616,38 @@ function enemies.update(state, dt)
                                     end
                                 end
                             end
+                            
+                            -- MOD DROP for exploreMode (same logic as rooms mode)
+                            local modDropChance = e.isElite and 0.80 or 0.25  -- DEBUG HIGH RATE
+                            print("[MOD DROP] Checking drop chance: " .. modDropChance .. " for " .. (e.isElite and "ELITE" or "normal"))
+                            if math.random() < modDropChance then
+                                print("[MOD DROP] Drop triggered!")
+                                local modsModule = require('mods')
+                                local categories = {'warframe', 'weapons', 'companion'}
+                                local category = categories[math.random(#categories)]
+                                print("[MOD DROP] Category: " .. category)
+                                local pool = modsModule.buildDropPool(category)
+                                print("[MOD DROP] Pool size: " .. #pool)
+                                local rolled = modsModule.rollMod(pool, e.isElite and 0.5 or 0)
+                                if rolled then
+                                    print("[MOD DROP] Rolled: " .. rolled.key .. " (" .. rolled.rarity .. ")")
+                                    modsModule.addToRunInventory(state, rolled.key, rolled.category, 0, rolled.rarity)
+                                    local rarityDef = modsModule.RARITY[rolled.rarity] or modsModule.RARITY.COMMON
+                                    local modDef = modsModule.getCatalog(category)[rolled.key]
+                                    local modName = modDef and modDef.name or rolled.key
+                                    print("[MOD DROP] Adding text: MOD: " .. modName)
+                                    table.insert(state.texts, {
+                                        x = e.x, y = e.y - 50,
+                                        text = "MOD: " .. modName,
+                                        color = rarityDef.color,
+                                        life = 1.5,
+                                        scale = 1.2
+                                    })
+                                    if state.playSfx then state.playSfx('levelup') end
+                                else
+                                    print("[MOD DROP] ERROR: rollMod returned nil!")
+                                end
+                            end
                         else
                             local roomsMode = (state.runMode == 'rooms')
                             -- WF-style drops: health orb, energy orb, resources, rare MOD
