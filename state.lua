@@ -1720,7 +1720,8 @@ function state.init()
     state.directorState = { event60 = false, event120 = false }
     state.shakeAmount = 0
 
-    -- Run structure: 'rooms' (Hades-like room flow) or 'survival' (timed director).
+    -- Run structure: 'rooms' (Hades-like room flow) or 'survival' (timed director) or 'explore' (Mission).
+    -- Default to Rooms (Dev Mode). Explore is for production content.
     state.runMode = 'rooms'
     state.rooms = {
         enabled = true,

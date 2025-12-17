@@ -325,9 +325,28 @@ function arsenal.startRun(state, opts)
     else
         state.mission = nil
         state.campaign = nil
-        if state.rooms then state.rooms.enabled = true end
-        state.world = world.new({w=40, h=30}) -- pre-init world for rooms
+        
+        -- Create world with immediate arena generation to avoid showing default map
+        state.world = world.new({w=42, h=32})
         state.world.enabled = true
+        -- Immediately generate arena layout (don't wait for rooms.update)
+        if state.world.generateArena then
+            state.world:generateArena({w=42, h=32, layout='random'})
+        end
+        
+        -- Place player at arena spawn
+        if state.world.spawnX and state.world.spawnY then
+            state.player.x = state.world.spawnX
+            state.player.y = state.world.spawnY
+        end
+        
+        -- Reset Rooms state to ensure clean generation
+        state.rooms = state.rooms or {}
+        state.rooms.enabled = true
+        state.rooms.phase = 'between_rooms'  -- Skip 'init' since we already generated
+        state.rooms.roomIndex = 0
+        state.rooms.timer = 0.1  -- Short delay before Room 1 starts
+        state.roomTransitionFade = 1.0 -- Force black screen fade-in
     end
 
     if not state.inventory.weaponSlots.ranged and not state.inventory.weaponSlots.melee then
@@ -533,6 +552,9 @@ function arsenal.keypressed(state, key)
     elseif key == 'f' then
         arsenal.startRun(state, {runMode = 'explore'})
         return true
+    elseif key == 'r' then
+        arsenal.startRun(state, {runMode = 'rooms'})
+        return true
     end
 
     return false
@@ -652,7 +674,7 @@ function arsenal.draw(state)
     end
 
     love.graphics.setColor(0.9, 0.9, 0.9)
-    love.graphics.printf("E: equip   Tab: weapon   P: pet   C: class   T: auto-trigger   Enter: start", 0, h - 60, w, "center")
+    love.graphics.printf("E: equip   Tab: weapon   P: pet   C: class   T: auto-trigger   F: explore   Enter: start(rooms)", 0, h - 60, w, "center")
 
     if a.message then
         love.graphics.setColor(1, 0.8, 0.3)

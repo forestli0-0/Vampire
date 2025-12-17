@@ -388,7 +388,8 @@ local function buildLeftColumn(gameState, parent)
     local startBtn = ui.Button.new({
         x = x, y = y,
         w = LAYOUT.leftW - 4, h = 26,
-        text = "开始 (Enter)",
+        text = "开始测试 (Enter)",
+        tooltip = "房间模式 (默认) | 按 F 进入探索任务",
         normalColor = {0.2, 0.5, 0.3, 1},
         hoverColor = {0.3, 0.6, 0.4, 1}
     })
@@ -608,7 +609,8 @@ end
 
 function arsenalScreen.startRun(gameState)
     local arsenal = require('arsenal')
-    arsenal.startRun(gameState)
+    -- Explicitly pass the current mode to avoid ambiguity or residuals
+    arsenal.startRun(gameState, {runMode = gameState.runMode or 'rooms'})
 end
 
 function arsenalScreen.keypressed(gameState, key)
