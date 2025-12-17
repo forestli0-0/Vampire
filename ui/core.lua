@@ -41,6 +41,9 @@ core.dragPreview = nil     -- Custom drag preview function
 
 function core.init()
     scaling.recalculate()
+    -- Load fonts
+    theme.loadFonts()
+    
     core.time = 0
     core.hover = nil
     core.focus = nil

@@ -4,6 +4,41 @@
 local theme = {}
 
 -------------------------------------------
+-- Fonts (Chinese support)
+-------------------------------------------
+theme.fonts = {}
+local fontPath = "fonts/ZZGFBHV1.otf"
+
+-- Load fonts at different sizes (called after love.load)
+function theme.loadFonts()
+    local ok, err = pcall(function()
+        theme.fonts.small = love.graphics.newFont(fontPath, 10)
+        theme.fonts.normal = love.graphics.newFont(fontPath, 12)
+        theme.fonts.medium = love.graphics.newFont(fontPath, 14)
+        theme.fonts.large = love.graphics.newFont(fontPath, 18)
+        theme.fonts.title = love.graphics.newFont(fontPath, 24)
+    end)
+    
+    if not ok then
+        print("[UI Theme] Failed to load font: " .. tostring(err))
+        -- Fallback to default font
+        theme.fonts.small = love.graphics.newFont(10)
+        theme.fonts.normal = love.graphics.newFont(12)
+        theme.fonts.medium = love.graphics.newFont(14)
+        theme.fonts.large = love.graphics.newFont(18)
+        theme.fonts.title = love.graphics.newFont(24)
+    end
+end
+
+-- Get font by name
+function theme.getFont(name)
+    if not theme.fonts.normal then
+        theme.loadFonts()
+    end
+    return theme.fonts[name] or theme.fonts.normal or love.graphics.getFont()
+end
+
+-------------------------------------------
 -- Color Palette
 -------------------------------------------
 theme.colors = {

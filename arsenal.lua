@@ -6,6 +6,18 @@ local campaign = require('campaign')
 
 local arsenal = {}
 
+-- New UI screen (lazy loaded to avoid circular deps)
+local arsenalScreen = nil
+local function getArsenalScreen()
+    if not arsenalScreen then
+        arsenalScreen = require('ui.screens.arsenal_screen')
+    end
+    return arsenalScreen
+end
+
+-- Flag to use new UI (set to true to enable)
+arsenal.useNewUI = true
+
 local MAX_SLOTS = 4
 
 local function tagsMatch(weaponTags, targetTags)
@@ -209,6 +221,12 @@ function arsenal.init(state)
             break
         end
     end
+    
+    -- Initialize new UI if enabled
+    if arsenal.useNewUI then
+        local screen = getArsenalScreen()
+        screen.init(state)
+    end
 end
 
 function arsenal.update(state, dt)
@@ -219,6 +237,12 @@ function arsenal.update(state, dt)
         if a.messageTimer <= 0 then
             a.message = nil
         end
+    end
+    
+    -- Update new UI if enabled
+    if arsenal.useNewUI then
+        local screen = getArsenalScreen()
+        screen.update(state, dt)
     end
 end
 
@@ -363,6 +387,14 @@ end
 function arsenal.keypressed(state, key)
     local a = state.arsenal
     if not a then return false end
+    
+    -- Delegate to new UI first if enabled
+    if arsenal.useNewUI then
+        local screen = getArsenalScreen()
+        if screen.keypressed(state, key) then
+            return true
+        end
+    end
 
     if key == 'p' or key == 'o' then
         local list = a.petList or {}
@@ -374,6 +406,11 @@ function arsenal.keypressed(state, key)
             local petName = (state.catalog[petKey] and state.catalog[petKey].name) or petKey
             setMessage(state, "Pet: " .. tostring(petName))
             if state.saveProfile then state.saveProfile(state.profile) end
+            -- Rebuild UI to reflect change
+            if arsenal.useNewUI then
+                local screen = getArsenalScreen()
+                screen.rebuild(state)
+            end
         end
         return true
     end
@@ -387,6 +424,11 @@ function arsenal.keypressed(state, key)
             state.profile.modTargetWeapon = weaponKey
             setMessage(state, "Weapon: " .. tostring((state.catalog[weaponKey] and state.catalog[weaponKey].name) or weaponKey))
             if state.saveProfile then state.saveProfile(state.profile) end
+            -- Rebuild UI to reflect change
+            if arsenal.useNewUI then
+                local screen = getArsenalScreen()
+                screen.rebuild(state)
+            end
         end
         return true
     end
@@ -401,6 +443,11 @@ function arsenal.keypressed(state, key)
             local classDef = state.classes and state.classes[classKey]
             local className = (classDef and classDef.name) or classKey
             setMessage(state, "Class: " .. tostring(className))
+            -- Rebuild UI to reflect change
+            if arsenal.useNewUI then
+                local screen = getArsenalScreen()
+                screen.rebuild(state)
+            end
         end
         return true
     end
@@ -452,6 +499,14 @@ function arsenal.keypressed(state, key)
 end
 
 function arsenal.draw(state)
+    -- Use new UI if enabled
+    if arsenal.useNewUI then
+        local screen = getArsenalScreen()
+        screen.draw(state)
+        return
+    end
+    
+    -- Legacy draw code below
     local a = state.arsenal or {}
     local w, h = love.graphics.getWidth(), love.graphics.getHeight()
 
