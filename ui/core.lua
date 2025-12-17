@@ -714,6 +714,8 @@ function core.setRoot(rootWidget)
     core.hover = nil
     core.pressed = nil
     core.dragging = nil
+    core.tooltipWidget = nil  -- Clear tooltip to prevent ghost tooltips
+    core.tooltipTimer = 0
     
     core.root = rootWidget
     

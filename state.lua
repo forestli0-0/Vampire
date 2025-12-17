@@ -235,8 +235,20 @@ function state.init()
     state.testArena = false
     state.pendingLevelUps = 0
     state.gameTimer = 0
-    state.font = love.graphics.newFont(14)
-    state.titleFont = love.graphics.newFont(24)
+    -- Use Chinese-supporting font for the entire game
+    local fontPath = "fonts/ZZGFBHV1.otf"
+    local ok, font = pcall(love.graphics.newFont, fontPath, 14)
+    if ok then
+        state.font = font
+    else
+        state.font = love.graphics.newFont(14)
+    end
+    local ok2, titleFont = pcall(love.graphics.newFont, fontPath, 24)
+    if ok2 then
+        state.titleFont = titleFont
+    else
+        state.titleFont = love.graphics.newFont(24)
+    end
 
     state.player = {
         x = 400, y = 300,

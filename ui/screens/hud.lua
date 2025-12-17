@@ -174,20 +174,23 @@ local function buildCombatFrame(gameState, parent)
     parent:addChild(widgets.energyBar)
     
     -- Weapon Slots (To the left of abilities)
-    local weaponTotalW = 240 -- Width for 3 weapons
+    -- Default: 2 slots (ranged, melee). 3rd slot (extra) is conditional.
+    local slotCount = 2  -- Only 2 by default
+    local slotW = 90
+    local weaponTotalW = slotCount * slotW + (slotCount - 1) * gap
     local weaponStartX = startX - weaponTotalW - 20
     local weaponY = endY - 50 -- Slightly higher
     
     widgets.weaponSlots = {}
-    -- 3 slots: ranged (1), melee (2), extra (3)
-    local weaponKeys = {'1', '2', '3'}
+    -- 2 slots: ranged (1), melee (2)
+    local weaponKeys = {'1', '2'}
     for i, key in ipairs(weaponKeys) do
-        local wx = weaponStartX + (i-1) * (70 + gap)
+        local wx = weaponStartX + (i-1) * (slotW + gap)
         local slotH = 50
         
         local panel = ui.Panel.new({
             x = wx, y = weaponY,
-            w = 70, h = slotH,
+            w = slotW, h = slotH,
             bgColor = {0.1, 0.1, 0.1, 0.6},
             borderColor = {0.3, 0.3, 0.3, 1},
             borderWidth = 1,
@@ -204,23 +207,34 @@ local function buildCombatFrame(gameState, parent)
         panel:addChild(label)
         
         local name = ui.Text.new({
-            x = 16, y = 4, w = 50,
+            x = 16, y = 4, w = 70,
             text = "Weapon",
             color = theme.colors.text
         })
         panel:addChild(name)
         
+        -- Ammo display: horizontal layout
         local ammo = ui.Text.new({
-            x = 4, y = 28,
+            x = 4, y = 22, w = 82,
             text = "--/--",
             color = theme.colors.text_dim
         })
         panel:addChild(ammo)
         
+        -- Reserve display below
+        local reserve = ui.Text.new({
+            x = 4, y = 36, w = 82,
+            text = "",
+            color = {0.6, 0.7, 0.8, 0.8},
+            font = theme.getFont('small')
+        })
+        panel:addChild(reserve)
+        
         widgets.weaponSlots[i] = {
             panel = panel,
             name = name,
-            ammo = ammo
+            ammo = ammo,
+            reserve = reserve
         }
     end
 end
@@ -380,15 +394,24 @@ function hud.update(gameState, dt)
                 local def = gameState.catalog and gameState.catalog[weaponInst.key]
                 slotData.name:setText(def and def.name or weaponInst.key)
                 
-                -- Ammo
+                -- Ammo: Magazine on first line, Reserve below
                 if weaponInst.magazine then
-                    slotData.ammo:setText(string.format("%d / %d", weaponInst.magazine, weaponInst.reserve or 0))
+                    slotData.ammo:setText(string.format("%d / %d", weaponInst.magazine, weaponInst.maxMagazine or weaponInst.magazine))
+                    if slotData.reserve then
+                        slotData.reserve:setText(string.format("Reserve: %d", weaponInst.reserve or 0))
+                    end
                 else
                     slotData.ammo:setText("∞")
+                    if slotData.reserve then
+                        slotData.reserve:setText("")
+                    end
                 end
             else
                  slotData.name:setText("Empty")
                  slotData.ammo:setText("")
+                 if slotData.reserve then
+                     slotData.reserve:setText("")
+                 end
             end
         end
     end
