@@ -1444,8 +1444,8 @@ function draw.renderUI(state)
         local chargeRatio = math.min(1, chargeTime / maxCharge)
         
         -- World to screen conversion
-        local px = p.x - state.camera.x + love.graphics.getWidth() / 2 - state.camera.x
-        local py = p.y - state.camera.y + love.graphics.getHeight() / 2 - state.camera.y - 40
+        local px = p.x - state.camera.x
+        local py = p.y - state.camera.y - 40
         
         -- Bar dimensions
         local barW, barH = 60, 8

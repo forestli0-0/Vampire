@@ -633,6 +633,16 @@ function Behaviors.CHARGE_SHOT(state, weaponKey, w, stats, params, sx, sy)
         local t_enemy = enemies.findNearestEnemy(state, range, sx, sy, losOpts)
         if t_enemy then
             baseAngle = math.atan2(t_enemy.y - sy, t_enemy.x - sx)
+        else
+            -- No target found: Manual aim fallback (Dry Fire)
+            if love and love.mouse then
+                local mx, my = love.mouse.getPosition()
+                local camX = state.camera and state.camera.x or 0
+                local camY = state.camera and state.camera.y or 0
+                baseAngle = math.atan2((my + camY) - sy, (mx + camX) - sx)
+            else
+                baseAngle = (p.facing or 1) > 0 and 0 or math.pi
+            end
         end
     end
     

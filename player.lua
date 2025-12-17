@@ -80,11 +80,14 @@ function player.updateFiring(state)
     local p = state.player
     local profile = state.profile or {}
     
+    -- Manual input tracking (essential for charge weapons that need true key state)
+    local manualAttack = isAttackKeyDown()
+    
     -- Auto-trigger meta item bypasses manual attack requirement
     if profile.autoTrigger then
         p.isFiring = true
     else
-        p.isFiring = isAttackKeyDown()
+        p.isFiring = manualAttack
     end
     
     -- Track precision aim mode for UI
@@ -145,11 +148,39 @@ function player.updateFiring(state)
         p.aimX, p.aimY = nil, nil
     end
     
+    -- Reset bow charge if weapon changed or no longer holding a bow
+    if p.bowCharge.isCharging and p.bowCharge.weaponKey ~= activeWeaponKey then
+        p.bowCharge.isCharging = false
+        p.bowCharge.pendingRelease = false
+        p.bowCharge.chargeTime = 0
+    end
+
+    -- Update bow charge (only for bow weapons)
     -- Update bow charge (only for bow weapons)
     local isBowWeapon = weaponDef and weaponDef.chargeEnabled
     if isBowWeapon then
-        if p.isFiring and not profile.autoTrigger then
-            if not p.bowCharge.isCharging and not p.bowCharge.pendingRelease then
+        local shouldCharge = manualAttack
+        local maxCharge = weaponDef.maxChargeTime or 2.0
+        
+        -- Auto-trigger logic: spam attacks (charge -> immediate release)
+        if not manualAttack and profile.autoTrigger and not p.bowCharge.pendingRelease then
+            if not p.bowCharge.isCharging then
+                 -- Start charge cycle
+                 shouldCharge = true
+            else
+                 -- Already charging? Release immediately for rapid fire (no charge)
+                 shouldCharge = false
+            end
+        end
+
+        if shouldCharge then 
+            -- Intercept any pending release (e.g. from auto-trigger) and convert back to charging
+            if p.bowCharge.pendingRelease then
+                p.bowCharge.pendingRelease = false
+                p.bowCharge.isCharging = true
+            end
+
+            if not p.bowCharge.isCharging then
                 -- Start charging
                 p.bowCharge.isCharging = true
                 p.bowCharge.pendingRelease = false
@@ -159,14 +190,15 @@ function player.updateFiring(state)
             elseif p.bowCharge.isCharging then
                 -- Update charge time
                 p.bowCharge.chargeTime = (state.gameTimer or 0) - p.bowCharge.startTime
-                local maxCharge = weaponDef.maxChargeTime or 2.0
                 if p.bowCharge.chargeTime > maxCharge then
                     p.bowCharge.chargeTime = maxCharge
                 end
             end
-        elseif not p.isFiring and p.bowCharge.isCharging then
+        elseif not shouldCharge and p.bowCharge.isCharging then
             -- Released: mark for firing in next weapon update
             p.bowCharge.pendingRelease = true
+            -- Note: We keep isCharging=true until the weapon actually fires (consumes pendingRelease)
+            -- This ensures the UI can still show the charge bar until the shot goes off
         end
     end
 end
