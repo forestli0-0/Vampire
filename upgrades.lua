@@ -140,6 +140,11 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
             goto continue_catalog
         end
 
+        -- Skip hidden/deprecated items (VS-style passives, etc.)
+        if item.hidden or item.deprecated then
+            goto continue_catalog
+        end
+
         -- evolved-only武器不进入随机池；已经进化后隐藏基础武器
         local skip = false
         if item.evolvedOnly then

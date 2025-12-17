@@ -707,60 +707,73 @@ function state.init()
             evolvedOnly = true,
             onUpgrade = function(w) end
         },
+        -- ===================================================================
+        -- DEPRECATED PASSIVES (VS-style, hidden from upgrade pools)
+        -- These effects are now handled by the WF MOD system
+        -- Kept for backward save compatibility only
+        -- ===================================================================
         spinach = {
             type = 'passive', name = "Spinach",
-            desc = "Increases damage of tagged weapons by 10%.",
+            desc = "[DEPRECATED] Use MOD: Serration instead.",
             maxLevel = 5,
+            hidden = true, deprecated = true,
             targetTags = {'weapon'},
             effect = { damage = 0.1 }
         },
         tome = {
             type = 'passive', name = "Empty Tome",
-            desc = "Reduces cooldowns of projectile and magic weapons by 8%.",
+            desc = "[DEPRECATED] Use MOD: Speed Trigger instead.",
             maxLevel = 5,
+            hidden = true, deprecated = true,
             targetTags = {'projectile', 'magic'},
             effect = { cd = -0.08 }
         },
         boots = {
             type = 'passive', name = "Boots",
-            desc = "Increases movement speed and boosts projectile speed by 5%.",
+            desc = "[DEPRECATED] Use MOD: Rush instead.",
             maxLevel = 5,
+            hidden = true, deprecated = true,
             targetTags = {'projectile'},
             effect = { speed = 0.05 },
             onUpgrade = function() state.player.stats.moveSpeed = state.player.stats.moveSpeed * 1.1 end
         },
         duplicator = {
             type = 'passive', name = "Duplicator",
-            desc = "Adds +1 projectile to weapons per level.",
+            desc = "[DEPRECATED] Use MOD: Split Chamber instead.",
             maxLevel = 2,
+            hidden = true, deprecated = true,
             targetTags = {'weapon'},
             effect = { amount = 1 }
         },
         candelabrador = {
             type = 'passive', name = "Candelabrador",
-            desc = "Increases weapon area by 10%.",
+            desc = "[DEPRECATED] Weapon area is now base stat.",
             maxLevel = 5,
+            hidden = true, deprecated = true,
             targetTags = {'weapon'},
             effect = { area = 0.1 }
         },
         spellbinder = {
             type = 'passive', name = "Spellbinder",
-            desc = "Extends weapon duration by 10%.",
+            desc = "[DEPRECATED] Duration is now base stat.",
             maxLevel = 5,
+            hidden = true, deprecated = true,
             targetTags = {'weapon'},
             effect = { duration = 0.1 }
         },
         attractorb = {
             type = 'passive', name = "Attractorb",
-            desc = "Greatly increases pickup range.",
+            desc = "[DEPRECATED] Pickup range removed (no XP gems).",
             maxLevel = 5,
+            hidden = true, deprecated = true,
             targetTags = {'weapon'},
             onUpgrade = function() state.player.stats.pickupRange = state.player.stats.pickupRange + 40 end
         },
         pummarola = {
             type = 'passive', name = "Pummarola",
-            desc = "Regenerates health over time.",
+            desc = "[DEPRECATED] Use health orbs or WF abilities.",
             maxLevel = 5,
+            hidden = true, deprecated = true,
             targetTags = {'weapon'},
             onUpgrade = function()
                 state.player.stats.regen = (state.player.stats.regen or 0) + 0.25
@@ -769,36 +782,41 @@ function state.init()
         },
         bracer = {
             type = 'passive', name = "Bracer",
-            desc = "Increases projectile speed.",
+            desc = "[DEPRECATED] Projectile speed is base stat.",
             maxLevel = 5,
+            hidden = true, deprecated = true,
             targetTags = {'projectile', 'physical', 'fast'},
             effect = { speed = 0.08 }
         },
         armor = {
             type = 'passive', name = "Armor",
-            desc = "Reduces incoming damage.",
+            desc = "[DEPRECATED] Use MOD: Steel Fiber instead.",
             maxLevel = 5,
+            hidden = true, deprecated = true,
             targetTags = {'weapon'},
             onUpgrade = function() state.player.stats.armor = (state.player.stats.armor or 0) + 1 end
         },
         clover = {
             type = 'passive', name = "Clover",
-            desc = "Increases Critical Hit Chance by 10%.",
+            desc = "[DEPRECATED] Use MOD: Point Strike instead.",
             maxLevel = 5,
+            hidden = true, deprecated = true,
             targetTags = {'weapon'},
             effect = { critChance = 0.10 }
         },
         skull = {
             type = 'passive', name = "Titanium Skull",
-            desc = "Increases Critical Damage by 20%.",
+            desc = "[DEPRECATED] Use MOD: Vital Sense instead.",
             maxLevel = 5,
+            hidden = true, deprecated = true,
             targetTags = {'weapon'},
             effect = { critMultiplier = 0.20 }
         },
         venom_vial = {
             type = 'passive', name = "Venom Vial",
-            desc = "Increases Status Effect Chance by 20%.",
+            desc = "[DEPRECATED] Use MOD: Status Matrix instead.",
             maxLevel = 5,
+            hidden = true, deprecated = true,
             targetTags = {'weapon'},
             effect = { statusChance = 0.20 }
         },
