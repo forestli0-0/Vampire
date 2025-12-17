@@ -385,20 +385,21 @@ function core.mousereleased(x, y, button)
     -- Handle drag drop
     if core.dragging and button == 1 then
         local dropped = false
+        local dragSource = core.dragging -- Cache locally in case setRoot clears global state
         
         if core.dropTarget then
             -- Notify drop target
             if core.dropTarget.onDrop then
-                dropped = core.dropTarget:onDrop(core.dragData, core.dragging, lx, ly)
+                dropped = core.dropTarget:onDrop(core.dragData, dragSource, lx, ly)
             end
-            if core.dropTarget.onDragLeave then
-                core.dropTarget:onDragLeave(core.dragData, core.dragging)
+            if core.dropTarget and core.dropTarget.onDragLeave then
+                core.dropTarget:onDragLeave(core.dragData, dragSource)
             end
         end
         
         -- Notify source widget
-        if core.dragging.onDragEnd then
-            core.dragging:onDragEnd(dropped, core.dropTarget, lx, ly)
+        if dragSource and dragSource.onDragEnd then
+            dragSource:onDragEnd(dropped, core.dropTarget, lx, ly)
         end
         
         -- Clear drag state

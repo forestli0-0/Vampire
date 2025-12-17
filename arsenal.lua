@@ -336,6 +336,33 @@ function arsenal.startRun(state, opts)
             ranged = 'wand',      -- Default ranged weapon
             melee = 'heavy_hammer' -- Default melee weapon
         }
+
+        -- Override with selected weapon from Arsenal
+        local selectedKey = state.profile and state.profile.modTargetWeapon
+        local startSlot = 'ranged'
+        
+        if selectedKey then
+            local def = state.catalog[selectedKey]
+            -- Check if it's a valid weapon and determine slot
+            if def and def.type == 'weapon' then
+                local slot = def.slot or 'ranged' -- Default to ranged if not specified
+                -- Some melee weapons might not have explicit 'slot' field, usually inferred?
+                -- Checking weapons.lua or catalog definitions would be safer, but let's assume 'melee' tag or similar?
+                -- For now, relying on catalog 'slot' property or inferring from name/tags if possible.
+                -- Actually, let's look at how weapons.equipToSlot determines it?
+                -- weapons.equipToSlot takes explicit slot context.
+                
+                -- Simple inference: 'sword', 'hammer', 'axe' -> melee?
+                -- Better: check if we have explicit slot data.
+                -- If not, let's assume it replaces the default for its likely type.
+                if def.slot == 'melee' or def.tags and tagsMatch(def.tags, {'melee'}) then
+                    slot = 'melee'
+                end
+                
+                defaultLoadout[slot] = selectedKey
+                startSlot = slot
+            end
+        end
         
         -- Equip to slots using new slot system
         for slot, weaponKey in pairs(defaultLoadout) do
@@ -345,8 +372,8 @@ function arsenal.startRun(state, opts)
             end
         end
         
-        -- Start with ranged weapon active
-        state.inventory.activeSlot = 'ranged'
+        -- Start with selected weapon active
+        state.inventory.activeSlot = startSlot
     end
 
     if not opts.skipStartingPet then
