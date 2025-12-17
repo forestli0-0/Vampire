@@ -376,13 +376,86 @@ function orbiter.buildUI()
 end
 
 function orbiter.exit()
-    -- Apply run mods to player stats
-    if state.player and state.player.stats then
-        local newStats = mods.applyRunWarframeMods(state, state.player.stats)
-        for k, v in pairs(newStats) do
-            state.player.stats[k] = v
+    -- Apply run mods to player
+    -- MODs can affect both player-level and stats-level attributes
+    local p = state.player
+    if not p then
+        state.gameState = 'PLAYING'
+        return
+    end
+    
+    -- Save base stats if not already saved (first time entering orbiter in this run)
+    if not state._basePlayerStats then
+        state._basePlayerStats = {
+            maxHp = p.maxHp or 100,
+            maxShield = p.maxShield or 0,
+            maxEnergy = p.maxEnergy or 100,
+            armor = p.stats and p.stats.armor or 0,
+            moveSpeed = p.stats and p.stats.moveSpeed or 180,
+            might = p.stats and p.stats.might or 1.0,
+            energyRegen = p.stats and p.stats.energyRegen or 0
+        }
+    end
+    
+    local base = state._basePlayerStats
+    
+    -- Build combined base stats for warframe MOD calculation
+    local baseStats = {
+        -- Player-level attributes (will be mapped back)
+        maxHp = base.maxHp,
+        maxShield = base.maxShield,
+        maxEnergy = base.maxEnergy,
+        
+        -- Stats-level attributes
+        armor = base.armor,
+        speed = base.moveSpeed,  -- MOD uses 'speed', player uses 'moveSpeed'
+        moveSpeed = base.moveSpeed,
+        might = base.might,
+        
+        -- Ability stats (additive bonuses)
+        abilityStrength = 0,
+        abilityEfficiency = 0,
+        abilityDuration = 0,
+        abilityRange = 0,
+        energyRegen = base.energyRegen
+    }
+    
+    -- Apply run mods
+    local modded = mods.applyRunWarframeMods(state, baseStats)
+    
+    -- Apply results back to player
+    -- Player-level attributes
+    if modded.maxHp then 
+        local oldMaxHp = p.maxHp or 100
+        p.maxHp = math.floor(modded.maxHp)
+        -- Also heal proportionally if maxHp increased
+        if p.maxHp > oldMaxHp then
+            p.hp = math.min(p.maxHp, p.hp + (p.maxHp - oldMaxHp))
         end
     end
+    if modded.maxShield then p.maxShield = math.floor(modded.maxShield) end
+    if modded.maxEnergy then p.maxEnergy = math.floor(modded.maxEnergy) end
+    
+    -- Stats-level attributes
+    if p.stats then
+        if modded.armor then p.stats.armor = modded.armor end
+        if modded.moveSpeed then p.stats.moveSpeed = modded.moveSpeed end
+        if modded.speed then p.stats.moveSpeed = modded.speed end  -- Handle 'speed' MOD stat
+        if modded.might then p.stats.might = modded.might end
+        
+        -- Ability bonuses (these are additive percentages)
+        p.stats.abilityStrength = 1.0 + (modded.abilityStrength or 0)
+        p.stats.abilityEfficiency = 1.0 + (modded.abilityEfficiency or 0)
+        p.stats.abilityDuration = 1.0 + (modded.abilityDuration or 0)
+        p.stats.abilityRange = 1.0 + (modded.abilityRange or 0)
+        if modded.energyRegen then p.stats.energyRegen = modded.energyRegen end
+    end
+    
+    -- Debug output
+    print("[ORBITER] Applied run MODs:")
+    print("  maxHp: " .. base.maxHp .. " -> " .. tostring(p.maxHp))
+    print("  armor: " .. base.armor .. " -> " .. tostring(p.stats and p.stats.armor))
+    print("  moveSpeed: " .. base.moveSpeed .. " -> " .. tostring(p.stats and p.stats.moveSpeed))
     
     -- Return to doors phase
     state.gameState = 'PLAYING'
