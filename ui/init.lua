@@ -193,4 +193,31 @@ function ui.layoutGrid(widgets, cols, cellW, cellH, x, y, spacing)
     end
 end
 
+-------------------------------------------
+-- Drag and Drop
+-------------------------------------------
+
+--- Check if currently dragging
+---@return boolean
+function ui.isDragging()
+    return ui.core.isDragging()
+end
+
+--- Get current drag data
+---@return table|nil
+function ui.getDragData()
+    return ui.core.getDragData()
+end
+
+--- Cancel current drag operation
+function ui.cancelDrag()
+    ui.core.cancelDrag()
+end
+
+--- Set custom drag preview renderer
+---@param fn function(dragData, x, y, sourceWidget)
+function ui.setDragPreview(fn)
+    ui.core.setDragPreview(fn)
+end
+
 return ui

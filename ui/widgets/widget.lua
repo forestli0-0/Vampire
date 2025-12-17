@@ -47,6 +47,12 @@ function Widget.new(opts)
     -- Custom data
     self.data = opts.data
     
+    -- Drag and drop
+    self.draggable = opts.draggable or false
+    self.acceptDrop = opts.acceptDrop or false
+    self.dragData = opts.dragData       -- Data to provide when dragged
+    self.dropHighlight = false          -- Visual state when drop target
+    
     return self
 end
 
@@ -344,6 +350,89 @@ function Widget:centerY()
     local scaling = require('ui.scaling')
     self.y = (scaling.LOGICAL_HEIGHT - self.h) / 2
     return self
+end
+
+-------------------------------------------
+-- Drag and Drop
+-------------------------------------------
+
+--- Make widget draggable
+---@param draggable boolean
+---@return self
+function Widget:setDraggable(draggable)
+    self.draggable = draggable
+    return self
+end
+
+--- Make widget accept drops
+---@param acceptDrop boolean
+---@return self
+function Widget:setAcceptDrop(acceptDrop)
+    self.acceptDrop = acceptDrop
+    return self
+end
+
+--- Set data to provide when dragged
+---@param data any
+---@return self
+function Widget:setDragData(data)
+    self.dragData = data
+    return self
+end
+
+--- Override to provide custom drag data
+--- Return false to prevent drag
+---@return table|boolean dragData or false to prevent
+function Widget:getDragData()
+    return self.dragData or {source = self}
+end
+
+--- Override to filter what can be dropped
+---@param dragData table The data being dragged
+---@param sourceWidget table The widget being dragged
+---@return boolean canAccept
+function Widget:canAcceptDrop(dragData, sourceWidget)
+    return true  -- Accept all by default
+end
+
+--- Called when drag starts on this widget
+function Widget:onDragStart(dragData, x, y)
+    self:emit('dragStart', dragData, x, y)
+end
+
+--- Called while dragging
+function Widget:onDragMove(x, y, dx, dy)
+    self:emit('dragMove', x, y, dx, dy)
+end
+
+--- Called when drag ends
+---@param dropped boolean Whether drop was successful
+---@param dropTarget table|nil The target widget (nil if cancelled)
+function Widget:onDragEnd(dropped, dropTarget, x, y)
+    self:emit('dragEnd', dropped, dropTarget, x, y)
+end
+
+--- Called when dragged item enters this widget (drop target)
+function Widget:onDragEnter(dragData, sourceWidget)
+    self.dropHighlight = true
+    self:emit('dragEnter', dragData, sourceWidget)
+end
+
+--- Called when dragged item leaves this widget (drop target)
+function Widget:onDragLeave(dragData, sourceWidget)
+    self.dropHighlight = false
+    self:emit('dragLeave', dragData, sourceWidget)
+end
+
+--- Called when item is dropped on this widget
+---@param dragData table The data being dropped
+---@param sourceWidget table The source widget
+---@param x number Drop position X
+---@param y number Drop position Y
+---@return boolean success Whether drop was accepted
+function Widget:onDrop(dragData, sourceWidget, x, y)
+    self:emit('drop', dragData, sourceWidget, x, y)
+    return true
 end
 
 return Widget

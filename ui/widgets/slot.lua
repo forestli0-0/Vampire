@@ -50,6 +50,12 @@ function Slot.new(opts)
     if self.w == 0 then self.w = theme.sizes.slot_size end
     if self.h == 0 then self.h = theme.sizes.slot_size end
     
+    -- Drag and drop - slots are draggable by default if they have content
+    self.draggable = opts.draggable ~= false  -- Default true
+    self.acceptDrop = opts.acceptDrop ~= false  -- Default true
+    self.dropHighlightColor = opts.dropHighlightColor or {0.3, 0.9, 0.5, 0.4}
+    self.dropRejectColor = opts.dropRejectColor or {0.9, 0.3, 0.3, 0.4}
+    
     return self
 end
 
@@ -144,6 +150,22 @@ function Slot:drawSelf()
             pulse
         )
         love.graphics.rectangle('fill', gx, gy, w, h, self.cornerRadius, self.cornerRadius)
+    end
+    
+    -- Draw drop highlight
+    if self.dropHighlight then
+        local core = require('ui.core')
+        local canAccept = true
+        if core.dragData and self.canAcceptDrop then
+            canAccept = self:canAcceptDrop(core.dragData, core.dragging)
+        end
+        local highlightColor = canAccept and self.dropHighlightColor or self.dropRejectColor
+        love.graphics.setColor(highlightColor)
+        love.graphics.rectangle('fill', gx, gy, w, h, self.cornerRadius, self.cornerRadius)
+        love.graphics.setColor(highlightColor[1], highlightColor[2], highlightColor[3], 1)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle('line', gx - 1, gy - 1, w + 2, h + 2, self.cornerRadius + 1, self.cornerRadius + 1)
+        love.graphics.setLineWidth(1)
     end
     
     -- Draw content
@@ -243,6 +265,80 @@ function Slot:onActivate()
     if self.locked then return end
     Widget.onActivate(self)
     self:emit('click', 0, 0)
+end
+
+-------------------------------------------
+-- Drag and Drop
+-------------------------------------------
+
+--- Get drag data for this slot
+function Slot:getDragData()
+    if self.locked or not self.content then
+        return false  -- Can't drag locked or empty slots
+    end
+    
+    return {
+        source = self,
+        content = self.content,
+        icon = self.icon,
+        iconColor = self.iconColor,
+        label = self.sublabel or (type(self.content) == 'string' and self.content) or 'Item'
+    }
+end
+
+--- Check if this slot can accept the dragged item
+function Slot:canAcceptDrop(dragData, sourceWidget)
+    if self.locked then return false end
+    -- Can always accept from other slots (swap or place)
+    return true
+end
+
+--- Handle drop on this slot
+function Slot:onDrop(dragData, sourceWidget, x, y)
+    if self.locked then return false end
+    
+    -- Emit drop event with full context
+    self:emit('drop', dragData, sourceWidget, x, y)
+    
+    -- If source is also a slot, we can swap contents
+    if sourceWidget and sourceWidget.setContent and sourceWidget.clearContent then
+        -- Store our current content
+        local myContent = self.content
+        local myIcon = self.icon
+        local myIconColor = self.iconColor
+        
+        -- Take content from source
+        self:setContent(dragData.content, dragData.icon, dragData.iconColor)
+        
+        -- Give our content to source (swap)
+        if myContent then
+            sourceWidget:setContent(myContent, myIcon, myIconColor)
+        else
+            sourceWidget:clearContent()
+        end
+        
+        return true
+    end
+    
+    -- Just accept the content
+    self:setContent(dragData.content, dragData.icon, dragData.iconColor)
+    return true
+end
+
+--- Called when drag starts from this slot
+function Slot:onDragStart(dragData, x, y)
+    Widget.onDragStart(self, dragData, x, y)
+    -- Visual feedback: dim the slot while dragging
+    self._wasDragging = true
+end
+
+--- Called when drag ends
+function Slot:onDragEnd(dropped, dropTarget, x, y)
+    Widget.onDragEnd(self, dropped, dropTarget, x, y)
+    self._wasDragging = false
+    
+    -- If dropped on a different slot, the swap was handled by onDrop
+    -- If dropped nowhere (cancelled), nothing happens
 end
 
 return Slot

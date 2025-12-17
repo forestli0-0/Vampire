@@ -23,6 +23,18 @@ core.mouseX = 0
 core.mouseY = 0
 core.mousePressed = {false, false, false}  -- Left, right, middle
 
+-- Drag state
+core.dragging = nil        -- Currently dragged widget
+core.dragData = nil        -- Data being dragged (from source widget)
+core.dragStartX = 0        -- Where drag started
+core.dragStartY = 0
+core.dragOffsetX = 0       -- Offset from widget origin to grab point
+core.dragOffsetY = 0
+core.dragThreshold = 4     -- Pixels to move before drag starts
+core.dragPending = nil     -- Widget that might start dragging
+core.dropTarget = nil      -- Current valid drop target
+core.dragPreview = nil     -- Custom drag preview function
+
 -------------------------------------------
 -- Initialization
 -------------------------------------------
@@ -33,6 +45,10 @@ function core.init()
     core.hover = nil
     core.focus = nil
     core.pressed = nil
+    core.dragging = nil
+    core.dragData = nil
+    core.dragPending = nil
+    core.dropTarget = nil
 end
 
 -------------------------------------------
@@ -165,12 +181,55 @@ function core.draw()
     core.root:draw()
     
     -- Draw tooltip on top
-    if core.tooltipWidget and core.tooltipWidget.tooltip then
+    if core.tooltipWidget and core.tooltipWidget.tooltip and not core.dragging then
         core.drawTooltip(core.tooltipWidget.tooltip, core.mouseX, core.mouseY)
+    end
+    
+    -- Draw drag preview on top of everything
+    if core.dragging then
+        core.drawDragPreview()
     end
     
     -- Pop scaling transform
     scaling.pop()
+end
+
+function core.drawDragPreview()
+    if not core.dragging then return end
+    
+    local x = core.mouseX - core.dragOffsetX
+    local y = core.mouseY - core.dragOffsetY
+    
+    -- Use custom preview if provided
+    if core.dragPreview then
+        core.dragPreview(core.dragData, x, y, core.dragging)
+        return
+    end
+    
+    -- Default preview: semi-transparent copy of widget
+    love.graphics.push()
+    love.graphics.translate(x - core.dragging.x, y - core.dragging.y)
+    
+    -- Draw with transparency
+    love.graphics.setColor(1, 1, 1, 0.7)
+    
+    local gx, gy = core.dragging:getGlobalPosition()
+    local w, h = core.dragging.w, core.dragging.h
+    
+    -- Draw ghost rectangle
+    love.graphics.setColor(theme.colors.accent[1], theme.colors.accent[2], theme.colors.accent[3], 0.5)
+    love.graphics.rectangle('fill', gx, gy, w, h, 2, 2)
+    love.graphics.setColor(theme.colors.accent[1], theme.colors.accent[2], theme.colors.accent[3], 0.9)
+    love.graphics.rectangle('line', gx, gy, w, h, 2, 2)
+    
+    -- Draw drag data label if available
+    if core.dragData and type(core.dragData) == 'table' and core.dragData.label then
+        love.graphics.setColor(1, 1, 1, 0.9)
+        love.graphics.printf(core.dragData.label, gx, gy + h/2 - 7, w, 'center')
+    end
+    
+    love.graphics.pop()
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 function core.drawTooltip(text, x, y)
@@ -223,12 +282,44 @@ end
 function core.mousemoved(x, y, dx, dy)
     if not core.enabled then return false end
     
-    -- Position is already tracked in update()
-    -- This is called for any additional move handling
+    local lx, ly = scaling.toLogical(x, y)
+    local ldx, ldy = dx / scaling.getScale(), dy / scaling.getScale()
     
+    -- Check if we should start dragging (pending drag + threshold)
+    if core.dragPending and not core.dragging then
+        local distX = math.abs(lx - core.dragStartX)
+        local distY = math.abs(ly - core.dragStartY)
+        if distX > core.dragThreshold or distY > core.dragThreshold then
+            core.startDrag(core.dragPending, lx, ly)
+        end
+    end
+    
+    -- Update drag
+    if core.dragging then
+        -- Find drop target
+        local newDropTarget = core.findDropTarget(lx, ly)
+        
+        if newDropTarget ~= core.dropTarget then
+            -- Drop target changed
+            if core.dropTarget and core.dropTarget.onDragLeave then
+                core.dropTarget:onDragLeave(core.dragData, core.dragging)
+            end
+            core.dropTarget = newDropTarget
+            if core.dropTarget and core.dropTarget.onDragEnter then
+                core.dropTarget:onDragEnter(core.dragData, core.dragging)
+            end
+        end
+        
+        -- Notify dragging widget
+        if core.dragging.onDragMove then
+            core.dragging:onDragMove(lx, ly, ldx, ldy)
+        end
+        
+        return true
+    end
+    
+    -- Regular drag (widget that handles onDrag)
     if core.pressed and core.pressed.onDrag then
-        local lx, ly = scaling.toLogical(x, y)
-        local ldx, ldy = dx / scaling.getScale(), dy / scaling.getScale()
         core.pressed:onDrag(lx, ly, ldx, ldy)
         return true
     end
@@ -258,6 +349,17 @@ function core.mousepressed(x, y, button)
         core.pressed = widget
         core.setFocus(widget)
         
+        -- Check if widget is draggable
+        if button == 1 and widget.draggable then
+            core.dragPending = widget
+            core.dragStartX = lx
+            core.dragStartY = ly
+            -- Calculate offset from widget origin
+            local gx, gy = widget:getGlobalPosition()
+            core.dragOffsetX = lx - gx
+            core.dragOffsetY = ly - gy
+        end
+        
         if widget.onPress then
             widget:onPress(button, lx, ly)
         end
@@ -276,6 +378,38 @@ function core.mousereleased(x, y, button)
     local lx, ly = scaling.toLogical(x, y)
     core.mousePressed[button] = false
     
+    -- Handle drag drop
+    if core.dragging and button == 1 then
+        local dropped = false
+        
+        if core.dropTarget then
+            -- Notify drop target
+            if core.dropTarget.onDrop then
+                dropped = core.dropTarget:onDrop(core.dragData, core.dragging, lx, ly)
+            end
+            if core.dropTarget.onDragLeave then
+                core.dropTarget:onDragLeave(core.dragData, core.dragging)
+            end
+        end
+        
+        -- Notify source widget
+        if core.dragging.onDragEnd then
+            core.dragging:onDragEnd(dropped, core.dropTarget, lx, ly)
+        end
+        
+        -- Clear drag state
+        core.dragging = nil
+        core.dragData = nil
+        core.dragPending = nil
+        core.dropTarget = nil
+        core.dragPreview = nil
+        
+        return true
+    end
+    
+    -- Clear pending drag
+    core.dragPending = nil
+    
     local wasPressed = core.pressed
     core.pressed = nil
     
@@ -284,8 +418,8 @@ function core.mousereleased(x, y, button)
             wasPressed:onRelease(button, lx, ly)
         end
         
-        -- Check if release was on same widget (click)
-        if wasPressed.contains and wasPressed:contains(lx, ly) then
+        -- Check if release was on same widget (click) - only if not dragging
+        if not core.dragging and wasPressed.contains and wasPressed:contains(lx, ly) then
             if button == 1 and wasPressed.onClick then
                 wasPressed:onClick(lx, ly)
             elseif button == 2 and wasPressed.onRightClick then
@@ -431,6 +565,124 @@ end
 -- Called on window resize
 function core.resize(w, h)
     scaling.recalculate()
+end
+
+-------------------------------------------
+-- Drag and Drop
+-------------------------------------------
+
+--- Start dragging a widget
+---@param widget table The widget to drag
+---@param x number Logical X position
+---@param y number Logical Y position
+function core.startDrag(widget, x, y)
+    if not widget then return end
+    if core.dragging then return end  -- Already dragging
+    
+    -- Get drag data from widget
+    local dragData = nil
+    if widget.getDragData then
+        dragData = widget:getDragData()
+    else
+        dragData = widget.dragData or {source = widget}
+    end
+    
+    if dragData == false then
+        -- Widget refused to start drag
+        core.dragPending = nil
+        return
+    end
+    
+    core.dragging = widget
+    core.dragData = dragData
+    core.dragPending = nil
+    
+    -- Hide tooltip while dragging
+    core.tooltipWidget = nil
+    core.tooltipTimer = 0
+    
+    -- Notify widget
+    if widget.onDragStart then
+        widget:onDragStart(dragData, x, y)
+    end
+    
+    -- Emit event
+    widget:emit('dragStart', dragData, x, y)
+end
+
+--- Find a valid drop target at position
+---@param x number Logical X
+---@param y number Logical Y
+---@return table|nil Drop target widget or nil
+function core.findDropTarget(x, y)
+    if not core.root then return nil end
+    if not core.dragging then return nil end
+    
+    local function findDroppable(widget)
+        if not widget or not widget.visible or not widget.enabled then
+            return nil
+        end
+        
+        -- Check children first (reverse order)
+        if widget.children then
+            for i = #widget.children, 1, -1 do
+                local child = widget.children[i]
+                local found = findDroppable(child)
+                if found then return found end
+            end
+        end
+        
+        -- Check self - must be different from source and accept drops
+        if widget ~= core.dragging and widget.acceptDrop and widget:contains(x, y) then
+            -- Check if widget accepts this drag data
+            local accepts = true
+            if widget.canAcceptDrop then
+                accepts = widget:canAcceptDrop(core.dragData, core.dragging)
+            end
+            if accepts then
+                return widget
+            end
+        end
+        
+        return nil
+    end
+    
+    return findDroppable(core.root)
+end
+
+--- Cancel current drag operation
+function core.cancelDrag()
+    if not core.dragging then return end
+    
+    -- Notify source
+    if core.dragging.onDragEnd then
+        core.dragging:onDragEnd(false, nil, core.mouseX, core.mouseY)
+    end
+    
+    -- Clear state
+    core.dragging = nil
+    core.dragData = nil
+    core.dragPending = nil
+    core.dropTarget = nil
+    core.dragPreview = nil
+end
+
+--- Check if currently dragging
+---@return boolean
+function core.isDragging()
+    return core.dragging ~= nil
+end
+
+--- Get current drag data
+---@return table|nil
+function core.getDragData()
+    return core.dragData
+end
+
+--- Set custom drag preview renderer
+---@param fn function(dragData, x, y, sourceWidget)
+function core.setDragPreview(fn)
+    core.dragPreview = fn
 end
 
 return core

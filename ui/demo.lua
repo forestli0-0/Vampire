@@ -39,7 +39,7 @@ local function createDemo()
     
     local subtitle = ui.Text.new({
         x = 0, y = 40, w = 640,
-        text = "Press F8 to close | Tab to navigate | Enter to activate",
+        text = "F8 to close | Tab to navigate | Drag slots to swap items",
         color = theme.colors.text_dim,
         align = 'center'
     })
@@ -177,13 +177,13 @@ local function createDemo()
     end)
     root:addChild(healBtn)
     
-    -- === Right Column: Slots ===
+    -- === Right Column: Slots (with Drag & Drop) ===
     colX = 360
     colY = 80
     
     local slotLabel = ui.Text.new({
         x = colX, y = colY,
-        text = "Slots:",
+        text = "Slots (drag to swap):",
         color = theme.colors.text
     })
     root:addChild(slotLabel)
@@ -192,20 +192,42 @@ local function createDemo()
     local selectedSlot = nil
     local slots = {}
     
+    -- First row of draggable slots
+    local slotColors = {theme.colors.accent, theme.colors.warning, theme.colors.success, theme.colors.danger}
     for i = 1, 4 do
         local slot = ui.Slot.new({
             x = colX + (i - 1) * 40, y = colY,
             w = 36, h = 36,
             content = (i <= 2) and ("item" .. i) or nil,
-            iconColor = (i == 1) and theme.colors.accent or theme.colors.warning,
-            tooltip = (i <= 2) and ("Slot " .. i .. " - Item equipped") or ("Slot " .. i .. " - Empty"),
-            sublabel = (i == 1) and "Lv3" or nil
+            iconColor = slotColors[i],
+            tooltip = (i <= 2) and ("Slot " .. i .. " - Drag me!") or ("Slot " .. i .. " - Drop here"),
+            sublabel = (i == 1) and "Lv3" or ((i == 2) and "Lv1" or nil)
         })
         slot:on('click', function(self)
             if selectedSlot then selectedSlot:setSelected(false) end
             self:setSelected(true)
             selectedSlot = self
-            print("Slot " .. i .. " selected")
+            print("Slot " .. i .. " clicked")
+        end)
+        slot:on('drop', function(self, dragData, source)
+            print("Dropped " .. tostring(dragData.content) .. " onto slot " .. i)
+        end)
+        root:addChild(slot)
+        table.insert(slots, slot)
+    end
+    colY = colY + 42
+    
+    -- Second row of slots
+    for i = 5, 8 do
+        local slot = ui.Slot.new({
+            x = colX + (i - 5) * 40, y = colY,
+            w = 36, h = 36,
+            content = (i == 5) and "item5" or nil,
+            iconColor = (i == 5) and {0.8, 0.5, 0.9, 1} or slotColors[(i-4)],
+            tooltip = "Slot " .. i
+        })
+        slot:on('drop', function(self, dragData, source)
+            print("Dropped " .. tostring(dragData.content) .. " onto slot " .. i)
         end)
         root:addChild(slot)
         table.insert(slots, slot)
