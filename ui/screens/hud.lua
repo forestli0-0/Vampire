@@ -240,21 +240,24 @@ local function buildCombatFrame(gameState, parent)
 end
 
 local function buildObjectiveFrame(gameState, parent)
-    -- Simple top center text
-    local panelW = 300
+    -- Objective panel below the wave/room info (draw.lua shows room at Y=40)
+    local panelW = 320
+    local panelH = 20
     local panel = ui.Panel.new({
-        x = LAYOUT.objX - panelW/2, y = LAYOUT.objY,
-        w = panelW, h = 24,
-        bgColor = {0, 0, 0, 0} -- Transparent
+        x = LAYOUT.objX - panelW/2, y = 60,  -- Below wave info
+        w = panelW, h = panelH,
+        bgColor = {0, 0, 0, 0.4},  -- Slight background for readability
+        cornerRadius = 4
     })
     parent:addChild(panel)
     
     widgets.objectiveText = ui.Text.new({
-        x = 0, y = 0, w = panelW,
-        text = "OBJECTIVE",
+        x = 0, y = 2, w = panelW,
+        text = "",
         align = 'center',
         color = {1, 1, 1, 0.9},
-        shadow = true
+        shadow = true,
+        font = theme.getFont('small')
     })
     panel:addChild(widgets.objectiveText)
     widgets.objectivePanel = panel
@@ -416,13 +419,48 @@ function hud.update(gameState, dt)
         end
     end
     
-    -- Mission Objective
-    if widgets.objectiveText then
-        local st = gameState.campaign and gameState.campaign.stageType or 'boss'
-        if st == 'boss' then
-            widgets.objectiveText:setText("OBJECTIVE: DEFEAT THE TARGET")
+    -- Mission Objective (based on rooms mode mission type)
+    if widgets.objectiveText and widgets.objectivePanel then
+        local r = gameState.rooms or {}
+        local missionType = r.missionType or 'exterminate'
+        local phase = r.phase or 'init'
+        
+        -- Only show objective during active gameplay phases
+        if phase == 'doors' or phase == 'between_rooms' or phase == 'init' then
+            widgets.objectivePanel.visible = false
         else
-            widgets.objectiveText:setText("OBJECTIVE: SURVIVE / EXTRACT")
+            widgets.objectivePanel.visible = true
+            
+            local objText = ""
+            local objColor = {1, 1, 1, 0.9}
+            
+            if missionType == 'exterminate' then
+                local alive = 0
+                for _, e in ipairs(gameState.enemies or {}) do
+                    if e and (e.health or e.hp or 0) > 0 and not e.isDummy then
+                        alive = alive + 1
+                    end
+                end
+                objText = string.format("歼灭: 消灭所有敌人 (%d)", alive)
+                objColor = {1.0, 0.6, 0.5, 1}
+            elseif missionType == 'defense' then
+                local obj = r.defenseObjective
+                if obj then
+                    local hpPct = math.floor((obj.hp / obj.maxHp) * 100)
+                    objText = string.format("防御: 保护目标 (HP: %d%%)", hpPct)
+                else
+                    objText = "防御: 保护目标"
+                end
+                objColor = {0.5, 0.85, 1.0, 1}
+            elseif missionType == 'survival' then
+                local remaining = math.max(0, (r.survivalTarget or 60) - (r.survivalTimer or 0))
+                local lifeSupport = r.lifeSupport or 100
+                objText = string.format("生存: %d秒 | 生命支援: %.0f%%", math.ceil(remaining), lifeSupport)
+                objColor = {0.5, 1.0, 0.6, 1}
+            end
+            
+            widgets.objectiveText:setText(objText)
+            widgets.objectiveText.color = objColor
         end
     end
 end
