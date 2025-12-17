@@ -382,13 +382,15 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
     local baseSize = wStats.size or 6
     local size = baseSize * area
     local bullet = {
-        type=type, x=x, y=y, vx=math.cos(angle)*spd, vy=math.sin(angle)*spd,
+        type=type, x=x, y=y, spawnX=x, spawnY=y, vx=math.cos(angle)*spd, vy=math.sin(angle)*spd,
         life=wStats.life or 2, size=size, damage=finalDmg, effectType=effectType, weaponTags=weaponTags,
         pierce=wStats.pierce or 1, rotation=angle,
         effectDuration=wStats.duration, splashRadius=wStats.splashRadius, effectRange=wStats.staticRange, chain=wStats.chain, allowRepeat=wStats.allowRepeat,
         elements=wStats.elements, damageBreakdown=wStats.damageBreakdown,
         critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance,
-        hitSizeScale=hitScale
+        hitSizeScale=hitScale,
+        -- Falloff parameters
+        falloffStart=wStats.falloffStart, falloffEnd=wStats.falloffEnd, falloffMin=wStats.falloffMin
     }
     table.insert(state.bullets, bullet)
     if state and state.augments and state.augments.dispatch then

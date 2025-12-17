@@ -725,16 +725,17 @@ function state.init()
         -- === RIFLES (Primary) ===
         braton = {
             type = 'weapon', name = "Braton",
-            desc = "Standard assault rifle. Balanced stats.",
+            desc = "Standard automatic rifle. Balanced and reliable.",
             maxLevel = 5,
             slotType = 'primary',
             weaponCategory = 'rifle',
             behavior = 'SHOOT_NEAREST',
             tags = {'weapon', 'projectile', 'physical', 'rifle'},
-            classWeight = { warrior = 1.5, mage = 0.8, beastmaster = 1.0 },
+            classWeight = { warrior = 1.2, mage = 0.8, beastmaster = 1.5 },
             base = { 
                 damage=18, cd=0.12, speed=600, range=700, 
                 elements={'IMPACT','PUNCTURE'}, damageBreakdown={IMPACT=1, PUNCTURE=1},
+                falloffStart=400, falloffEnd=700, falloffMin=0.5,
                 critChance=0.12, critMultiplier=1.6, statusChance=0.06,
                 magazine=45, maxMagazine=45, reserve=270, maxReserve=270, reloadTime=2.0
             },
@@ -742,16 +743,17 @@ function state.init()
         },
         boltor = {
             type = 'weapon', name = "Boltor",
-            desc = "Fires bolts that pin enemies. High puncture.",
+            desc = "Fires heavy bolts. High puncture damage.",
             maxLevel = 5,
             slotType = 'primary',
             weaponCategory = 'rifle',
             behavior = 'SHOOT_NEAREST',
             tags = {'weapon', 'projectile', 'physical', 'rifle'},
-            classWeight = { warrior = 2.0, mage = 0.5, beastmaster = 1.0 },
+            classWeight = { warrior = 1.5, mage = 0.5, beastmaster = 1.2 },
             base = { 
-                damage=25, cd=0.15, speed=500, range=650, 
+                damage=25, cd=0.15, speed=550, range=750, 
                 elements={'PUNCTURE'}, damageBreakdown={PUNCTURE=1},
+                falloffStart=400, falloffEnd=750, falloffMin=0.5,
                 critChance=0.10, critMultiplier=1.8, statusChance=0.14,
                 magazine=60, maxMagazine=60, reserve=360, maxReserve=360, reloadTime=2.6
             },
@@ -886,6 +888,7 @@ function state.init()
             base = { 
                 damage=18, cd=0.2, speed=550, range=500, 
                 elements={'IMPACT','PUNCTURE'}, damageBreakdown={IMPACT=1, PUNCTURE=1},
+                falloffStart=250, falloffEnd=500, falloffMin=0.4,
                 critChance=0.06, critMultiplier=1.8, statusChance=0.06,
                 magazine=15, maxMagazine=15, reserve=210, maxReserve=210, reloadTime=1.2
             },
@@ -903,6 +906,7 @@ function state.init()
             base = { 
                 damage=50, cd=0.6, speed=500, range=600, 
                 elements={'IMPACT','PUNCTURE'}, damageBreakdown={IMPACT=2, PUNCTURE=1},
+                falloffStart=250, falloffEnd=600, falloffMin=0.4,
                 critChance=0.20, critMultiplier=2.0, statusChance=0.10,
                 magazine=6, maxMagazine=6, reserve=120, maxReserve=120, reloadTime=2.3
             },
@@ -921,6 +925,7 @@ function state.init()
             base = { 
                 damage=8, cd=0.05, speed=400, range=400, 
                 elements={'HEAT'}, damageBreakdown={HEAT=1},
+                falloffStart=200, falloffEnd=400, falloffMin=0.5,
                 critChance=0.05, critMultiplier=1.5, statusChance=0.35,
                 magazine=70, maxMagazine=70, reserve=210, maxReserve=210, reloadTime=2.0,
                 life=0.8, duration=2.0, chain=3, staticRange=100

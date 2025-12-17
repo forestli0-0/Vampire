@@ -124,6 +124,23 @@ local function normalizeElements(effectType, provided)
     return nil
 end
 
+-- Calculate distance damage falloff multiplier (Warframe-style)
+local function calculateFalloff(distance, falloffStart, falloffEnd, falloffMin)
+    if not falloffStart or not falloffEnd or not distance then
+        return 1.0 -- No falloff
+    end
+    
+    if distance <= falloffStart then
+        return 1.0 -- Full damage
+    elseif distance >= falloffEnd then
+        return falloffMin or 1.0 -- Minimum damage
+    else
+        -- Linear interpolation between start and end
+        local t = (distance - falloffStart) / (falloffEnd - falloffStart)
+        return 1.0 - t * (1.0 - (falloffMin or 1.0))
+    end
+end
+
 function calculator.createInstance(params)
     params = params or {}
     local rawElements = normalizeElements(params.effectType, params.elements) or {}
@@ -178,6 +195,24 @@ function calculator.createInstance(params)
     end
 
     local elements, combinedDamageByType = combineElements(rawElements, damageByType)
+    
+    -- Apply distance falloff if specified
+    local falloffMult = 1.0
+    if params.distance and params.falloffStart then
+        falloffMult = calculateFalloff(
+            params.distance,
+            params.falloffStart,
+            params.falloffEnd,
+            params.falloffMin or 1.0
+        )
+        -- Apply falloff to base damage
+        baseDamage = math.floor(baseDamage * falloffMult + 0.5)
+        -- Apply falloff to damage by type
+        for k, v in pairs(combinedDamageByType) do
+            combinedDamageByType[k] = math.floor(v * falloffMult + 0.5)
+        end
+    end
+    
     return {
         damage = baseDamage,
         critChance = params.critChance or 0,
@@ -190,7 +225,8 @@ function calculator.createInstance(params)
         knockForce = params.knockForce or params.knockback or 0,
         elements = elements,
         damageBreakdown = breakdown,
-        damageByType = combinedDamageByType
+        damageByType = combinedDamageByType,
+        falloffMult = falloffMult  -- Store for debugging
     }
 end
 

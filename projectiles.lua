@@ -94,7 +94,16 @@ local function tryRicochet(state, b, fromX, fromY)
     return true
 end
 
-local function buildInstanceFromBullet(bullet, effectData, knock, knockForce)
+
+local function buildInstanceFromBullet(bullet, enemy, effectData, knock, knockForce)
+    -- Calculate distance from bullet spawn to enemy
+    local distance = nil
+    if bullet and enemy and bullet.spawnX and bullet.spawnY then
+        local dx = enemy.x - bullet.spawnX
+        local dy = enemy.y - bullet.spawnY
+        distance = math.sqrt(dx * dx + dy * dy)
+    end
+    
     return calculator.createInstance({
         damage = bullet.damage or 0,
         critChance = bullet.critChance or 0,
@@ -106,12 +115,17 @@ local function buildInstanceFromBullet(bullet, effectData, knock, knockForce)
         damageBreakdown = bullet.damageBreakdown,
         weaponTags = bullet.weaponTags,
         knock = knock,
-        knockForce = knockForce
+        knockForce = knockForce,
+        -- Falloff parameters
+        distance = distance,
+        falloffStart = bullet.falloffStart,
+        falloffEnd = bullet.falloffEnd,
+        falloffMin = bullet.falloffMin
     })
 end
 
 local function applyProjectileHit(state, enemy, bullet, effectData, knock, knockForce)
-    local instance = buildInstanceFromBullet(bullet, effectData, knock, knockForce)
+    local instance = buildInstanceFromBullet(bullet, enemy, effectData, knock, knockForce)
     return calculator.applyHit(state, enemy, instance)
 end
 
@@ -129,7 +143,7 @@ function projectiles.updatePlayerBullets(state, dt)
                 local radius = b.radius or (b.size or 0)
                 local r2 = radius * radius
                 local effectData = {duration = b.effectDuration or 1.2}
-                local instance = buildInstanceFromBullet(b, effectData)
+                local instance = buildInstanceFromBullet(b, e, effectData)
                 for _, e in ipairs(state.enemies) do
                     local dx = e.x - b.x
                     local dy = e.y - b.y
@@ -195,7 +209,7 @@ function projectiles.updatePlayerBullets(state, dt)
                             -- Apply oil to target and splash neighbors, then disappear
                             local effectData
                             if b.effectDuration then effectData = {duration = b.effectDuration} end
-                            local instance = buildInstanceFromBullet(b, effectData)
+                            local instance = buildInstanceFromBullet(b, e, effectData)
                             calculator.applyStatus(state, e, instance)
                             local splash = b.splashRadius or 0
                             if splash > 0 then
@@ -226,7 +240,7 @@ function projectiles.updatePlayerBullets(state, dt)
                             b.hitTargets = b.hitTargets or {}
                             if not b.hitTargets[e] then
                                 b.hitTargets[e] = true
-                                local instance = buildInstanceFromBullet(b)
+                                local instance = buildInstanceFromBullet(b, e)
                                 local result = calculator.applyHit(state, e, instance)
                                 if state and state.augments and state.augments.dispatch then
                                     state.augments.dispatch(state, 'onProjectileHit', {bullet = b, enemy = e, result = result, player = state.player, weaponKey = b.parentWeaponKey or b.type})
@@ -237,7 +251,7 @@ function projectiles.updatePlayerBullets(state, dt)
                             b.hitTargets = b.hitTargets or {}
                             if not b.hitTargets[e] then
                                 b.hitTargets[e] = true
-                                local instance = buildInstanceFromBullet(b)
+                                local instance = buildInstanceFromBullet(b, e)
                                 local result = calculator.applyHit(state, e, instance)
                                 if state and state.augments and state.augments.dispatch then
                                     state.augments.dispatch(state, 'onProjectileHit', {bullet = b, enemy = e, result = result, player = state.player, weaponKey = b.parentWeaponKey or b.type})
@@ -252,7 +266,7 @@ function projectiles.updatePlayerBullets(state, dt)
                                 if b.effectDuration or b.effectRange or b.chain or b.allowRepeat then
                                     effectData = {duration = b.effectDuration, range = b.effectRange, chain = b.chain, allowRepeat = b.allowRepeat}
                                 end
-                                local instance = buildInstanceFromBullet(b, effectData)
+                                local instance = buildInstanceFromBullet(b, e, effectData)
                                 local result = calculator.applyHit(state, e, instance)
                                 if state and state.augments and state.augments.dispatch then
                                     state.augments.dispatch(state, 'onProjectileHit', {bullet = b, enemy = e, result = result, player = state.player, weaponKey = b.parentWeaponKey or b.type})
