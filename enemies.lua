@@ -1603,56 +1603,52 @@ function enemies.update(state, dt)
                             end
                         else
                             local roomsMode = (state.runMode == 'rooms')
-                            local useXp = true
-                            if roomsMode and state.rooms and state.rooms.useXp == false then
-                                useXp = false
-                            end
-            
+                            -- WF-style drops: health orb, energy orb, resources, rare MOD
+                            
                             if e.isElite then
-                                local dropChest = true
-                                if roomsMode and state.rooms and state.rooms.eliteDropsChests == false then
-                                    dropChest = false
-                                end
-                                if dropChest then
-                                    table.insert(state.chests, {x=e.x, y=e.y, w=20, h=20})
+                                -- Elite drops: guaranteed resource + chance for health/energy/MOD
+                                local gain = 8 + math.floor((state.rooms and state.rooms.roomIndex) or 1)
+                                if state.gainGold then
+                                    state.gainGold(gain, {source = 'kill', enemy = e, x = e.x, y = e.y - 20, life = 0.65})
                                 else
-                                    if useXp then
-                                        if math.random() < 0.35 then
-                                            local kinds = roomsMode and {'magnet'} or {'chicken', 'magnet'}
-                                            local kind = kinds[math.random(#kinds)]
-                                            table.insert(state.floorPickups, {x=e.x, y=e.y, size=14, kind=kind})
-                                        else
-                                            table.insert(state.gems, {x=e.x, y=e.y, value=3})
-                                        end
-                                    else
-                                        local room = tonumber(state.rooms and state.rooms.roomIndex) or 1
-                                        local gain = 4 + math.max(0, math.min(6, room))
-                                        if state.gainGold then
-                                            state.gainGold(gain, {source = 'kill', enemy = e, x = e.x, y = e.y - 20, life = 0.65})
-                                        else
-                                            state.runCurrency = (state.runCurrency or 0) + gain
-                                            table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 0.65})
-                                        end
-                                    end
+                                    state.runCurrency = (state.runCurrency or 0) + gain
+                                    table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " CREDITS", color = {0.95, 0.9, 0.45}, life = 0.65})
+                                end
+                                
+                                -- Health orb (40% chance)
+                                if math.random() < 0.40 then
+                                    table.insert(state.floorPickups, {x=e.x + 15, y=e.y, size=12, kind='health_orb'})
+                                end
+                                -- Energy orb (35% chance)
+                                if math.random() < 0.35 then
+                                    table.insert(state.floorPickups, {x=e.x - 15, y=e.y, size=12, kind='energy_orb'})
+                                end
+                                -- Rare MOD drop (8% chance)
+                                if math.random() < 0.08 then
+                                    table.insert(state.floorPickups, {x=e.x, y=e.y + 15, size=14, kind='mod_card'})
                                 end
                             else
-                                if useXp then
-                                    if math.random() < 0.01 then
-                                        local kinds = roomsMode and {'magnet'} or {'chicken', 'magnet'}
-                                        local kind = kinds[math.random(#kinds)]
-                                        table.insert(state.floorPickups, {x=e.x, y=e.y, size=14, kind=kind})
-                                    else
-                                        table.insert(state.gems, {x=e.x, y=e.y, value=1})
-                                    end
-                                else
-                                    local gain = 1
-                                    if math.random() < 0.12 then gain = 2 end
+                                -- Normal enemy drops
+                                local roll = math.random()
+                                if roll < 0.08 then
+                                    -- Health orb (8% chance)
+                                    table.insert(state.floorPickups, {x=e.x, y=e.y, size=10, kind='health_orb'})
+                                elseif roll < 0.14 then
+                                    -- Energy orb (6% chance)
+                                    table.insert(state.floorPickups, {x=e.x, y=e.y, size=10, kind='energy_orb'})
+                                elseif roll < 0.22 then
+                                    -- Resources/credits (8% chance)
+                                    local gain = 1 + (math.random() < 0.3 and 1 or 0)
                                     if state.gainGold then
                                         state.gainGold(gain, {source = 'kill', enemy = e, x = e.x, y = e.y - 20, life = 0.55})
                                     else
                                         state.runCurrency = (state.runCurrency or 0) + gain
-                                        table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 0.55})
+                                        table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " CREDITS", color = {0.95, 0.9, 0.45}, life = 0.55})
                                     end
+                                end
+                                -- Rare ammo drop (5% chance if have ranged weapon)
+                                if math.random() < 0.05 then
+                                    table.insert(state.floorPickups, {x=e.x, y=e.y, size=10, kind='ammo'})
                                 end
                             end
                         end

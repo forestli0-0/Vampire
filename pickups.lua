@@ -326,6 +326,70 @@ function pickups.updateFloorPickups(state, dt)
                 else
                     consume = false
                 end
+            elseif item.kind == 'health_orb' then
+                -- WF-style health orb
+                local amt = item.amount or 15
+                local ctx = {kind = 'health_orb', amount = amt, player = p, item = item}
+                if state and state.augments and state.augments.dispatch then
+                    state.augments.dispatch(state, 'onPickup', ctx)
+                end
+                if ctx.cancel then
+                    if state and state.augments and state.augments.dispatch then
+                        state.augments.dispatch(state, 'pickupCancelled', ctx)
+                    end
+                    consume = false
+                else
+                    amt = ctx.amount or amt
+                    if p.hp < p.maxHp then
+                        p.hp = math.min(p.maxHp, p.hp + amt)
+                        table.insert(state.texts, {x=p.x, y=p.y-30, text="+" .. math.floor(amt) .. " HP", color={0.4, 1, 0.4}, life=1})
+                        if state.playSfx then state.playSfx('gem') end
+                        logger.pickup(state, 'health_orb')
+                        if state and state.augments and state.augments.dispatch then
+                            state.augments.dispatch(state, 'postPickup', ctx)
+                        end
+                    else
+                        consume = false -- Already at full HP
+                    end
+                end
+            elseif item.kind == 'energy_orb' then
+                -- WF-style energy orb (restores ability energy)
+                local amt = item.amount or 15
+                local maxEnergy = p.maxEnergy or 100
+                local current = p.energy or 0
+                if current < maxEnergy then
+                    p.energy = math.min(maxEnergy, current + amt)
+                    local gained = p.energy - current
+                    table.insert(state.texts, {x=p.x, y=p.y-30, text="+" .. math.floor(gained) .. " ENERGY", color={0.4, 0.6, 1}, life=1})
+                    if state.playSfx then state.playSfx('gem') end
+                    logger.pickup(state, 'energy_orb')
+                else
+                    consume = false -- Already at full energy
+                end
+            elseif item.kind == 'mod_card' then
+                -- WF-style MOD card drop - triggers mod selection
+                local ctx = {kind = 'mod_card', amount = 1, player = p, item = item}
+                if state and state.augments and state.augments.dispatch then
+                    state.augments.dispatch(state, 'onPickup', ctx)
+                end
+                if ctx.cancel then
+                    if state and state.augments and state.augments.dispatch then
+                        state.augments.dispatch(state, 'pickupCancelled', ctx)
+                    end
+                    consume = false
+                else
+                    -- Queue a MOD selection upgrade
+                    upgrades.queueLevelUp(state, 'mod_drop', {
+                        allowedTypes = {mod = true, augment = true},
+                        source = 'enemy_drop'
+                    })
+                    table.insert(state.texts, {x=p.x, y=p.y-30, text="MOD ACQUIRED!", color={0.9, 0.8, 0.2}, life=1.2})
+                    if state.playSfx then state.playSfx('gem') end
+                    logger.pickup(state, 'mod_card')
+                    if state and state.augments and state.augments.dispatch then
+                        state.augments.dispatch(state, 'postPickup', ctx)
+                    end
+                end
             elseif item.kind == 'life_support' then
                 -- Survival mission life support capsule
                 local r = state.rooms

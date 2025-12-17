@@ -854,13 +854,39 @@ function draw.renderWorld(state)
                 local label = (item.kind == 'pet_revive') and "REVIVE" or "PET"
                 if item.kind == 'pet_contract' and rk == 'shop' then label = "SWAP" end
                 love.graphics.printf(label, item.x - 40, item.y + 12, 80, "center")
+            elseif item.kind == 'health_orb' then
+                -- WF-style health orb (green glow)
+                love.graphics.setColor(0.2, 0.9, 0.3, 0.95)
+                love.graphics.circle('fill', item.x, item.y, 7)
+                love.graphics.setColor(0.4, 1, 0.5, 0.6)
+                love.graphics.circle('line', item.x, item.y, 9)
+                love.graphics.setColor(1, 1, 1, 0.9)
+                love.graphics.circle('fill', item.x - 2, item.y - 2, 2)
+            elseif item.kind == 'energy_orb' then
+                -- WF-style energy orb (blue glow)
+                love.graphics.setColor(0.2, 0.5, 1, 0.95)
+                love.graphics.circle('fill', item.x, item.y, 7)
+                love.graphics.setColor(0.4, 0.7, 1, 0.6)
+                love.graphics.circle('line', item.x, item.y, 9)
+                love.graphics.setColor(1, 1, 1, 0.9)
+                love.graphics.circle('fill', item.x - 2, item.y - 2, 2)
+            elseif item.kind == 'mod_card' then
+                -- WF-style MOD card drop (gold shine)
+                love.graphics.setColor(0.95, 0.85, 0.2, 0.95)
+                love.graphics.rectangle('fill', item.x - 6, item.y - 8, 12, 16, 2, 2)
+                love.graphics.setColor(1, 0.95, 0.5, 0.7)
+                love.graphics.rectangle('line', item.x - 7, item.y - 9, 14, 18, 2, 2)
+                love.graphics.setColor(0.3, 0.25, 0.1, 0.9)
+                love.graphics.line(item.x - 3, item.y - 4, item.x + 3, item.y - 4)
+                love.graphics.line(item.x - 3, item.y, item.x + 3, item.y)
+                love.graphics.line(item.x - 2, item.y + 4, item.x + 2, item.y + 4)
             end
         end
         if isGlow then love.graphics.setBlendMode("alpha") end
     end
 
-    -- 经验宝石
-    for _, g in ipairs(state.gems) do
+    -- 经验宝石 (DEPRECATED - Legacy VS system, kept for backward compatibility)
+    for _, g in ipairs(state.gems or {}) do
         local sprite = state.pickupSprites and state.pickupSprites['gem']
         
         love.graphics.setBlendMode("add")
