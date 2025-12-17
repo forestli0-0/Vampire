@@ -293,9 +293,7 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
         return opt
     end
 
-    if #evolvePool > 0 then
-        table.insert(state.upgradeOptions, takeRandom(evolvePool))
-    end
+    -- Removed Evolution Pool Logic due to WF system migration
     
     -- Starting guarantee: first 2 upgrades prioritize class-preferred items
     local upgradeCount = state.upgradeCount or 0
@@ -373,7 +371,6 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
         end
         if not choice then choice = takeWeighted(poolExisting) end
         if not choice then choice = takeWeighted(poolNew) end
-        if not choice then choice = takeRandom(evolvePool) end  -- Evolve pool stays random
         if not choice then break end
         table.insert(state.upgradeOptions, choice)
     end
@@ -424,17 +421,7 @@ function upgrades.applyUpgrade(state, opt)
     state.upgradeCount = (state.upgradeCount or 0) + 1
     
     if opt.evolveFrom then
-        -- 直接进化：移除基础武器，添加目标武器
-        local carryMods = state.inventory and state.inventory.weaponMods and state.inventory.weaponMods[opt.evolveFrom]
-        local owner = state.inventory and state.inventory.weapons and state.inventory.weapons[opt.evolveFrom] and state.inventory.weapons[opt.evolveFrom].owner
-        state.inventory.weapons[opt.evolveFrom] = nil
-        weapons.addWeapon(state, opt.key, owner)
-        if carryMods and state.inventory and state.inventory.weaponMods then
-            state.inventory.weaponMods[opt.key] = carryMods
-            state.inventory.weaponMods[opt.evolveFrom] = nil
-        end
-        logger.upgrade(state, opt, 1)
-        dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = 1})
+        -- This should be unreachable now, but kept safe
         return
     elseif opt.type == 'weapon' then
         if not state.inventory.weapons[opt.key] then
@@ -517,25 +504,6 @@ function upgrades.applyUpgrade(state, opt)
 end
 
 function upgrades.tryEvolveWeapon(state)
-    for key, w in pairs(state.inventory.weapons) do
-        local def = state.catalog[key]
-        if def.evolveInfo and w.level >= def.maxLevel then
-            local req = def.evolveInfo.require
-            if state.inventory.passives[req] then
-                local targetKey = def.evolveInfo.target
-                local targetDef = state.catalog[targetKey]
-                local carryMods = state.inventory and state.inventory.weaponMods and state.inventory.weaponMods[key]
-                local owner = w and w.owner
-                state.inventory.weapons[key] = nil
-                weapons.addWeapon(state, targetKey, owner)
-                if carryMods and state.inventory and state.inventory.weaponMods then
-                    state.inventory.weaponMods[targetKey] = carryMods
-                    state.inventory.weaponMods[key] = nil
-                end
-                return targetDef.name
-            end
-        end
-    end
     return nil
 end
 

@@ -21,38 +21,75 @@ local function addXp(state, amount)
     if state.noLevelUps or state.benchmarkMode then
         return
     end
+
+    -- Warframe-style Rank Cap: 30
+    if p.level >= 30 then
+        p.xp = 0
+        p.xpToNextLevel = 999999999
+        return
+    end
+
     while p.xp >= p.xpToNextLevel do
         p.level = p.level + 1
         p.xp = p.xp - p.xpToNextLevel
-        p.xpToNextLevel = math.floor(p.xpToNextLevel * 1.25)
+        
+        -- Warframe curve approximation (simplified)
+        p.xpToNextLevel = math.floor(p.xpToNextLevel * 1.5)
+        
         if state and state.augments and state.augments.dispatch then
             state.augments.dispatch(state, 'onLevelUp', {level = p.level, player = p})
         end
-        local giveUpgrade = true
-        if state.runMode == 'rooms' and state.rooms and state.rooms.xpGivesUpgrades == false then
-            giveUpgrade = false
+
+        -- WF Style: Leveling up just restores stats and shows a notification
+        -- No pause, no selection screen
+        p.hp = p.maxHp
+        p.energy = p.maxEnergy or 100
+        
+        if state.texts then
+            table.insert(state.texts, {
+                x = p.x, 
+                y = p.y - 80, 
+                text = "RANK UP! " .. p.level, 
+                color = {0.8, 1.0, 0.2}, 
+                life = 2.0,
+                scale = 1.5
+            })
         end
-        if giveUpgrade then
-            upgrades.queueLevelUp(state, 'xp')
-        end
+        
+        state.playSfx('levelup')
         logger.levelUp(state, p.level)
+        
+        if p.level >= 30 then
+            p.xp = 0
+            p.xpToNextLevel = 999999999
+            break
+        end
     end
 end
 
 function pickups.updateGems(state, dt)
     local p = state.player
+    local now = state.gameTimer or 0
     for i = #state.gems, 1, -1 do
         local g = state.gems[i]
+        local valid = true
+        
+        -- Default to auto-magnet after 1s
+        local age = now - (g.spawnTime or 0)
+        local autoMagnet = age > 1.0
+
         local dx = p.x - g.x
         local dy = p.y - g.y
         local distSq = dx*dx + dy*dy
 
-        local magnetized = g.magnetized
-        if magnetized or distSq < p.stats.pickupRange^2 then
+        if autoMagnet or g.magnetized or distSq < p.stats.pickupRange^2 then
             local a = math.atan2(dy, dx)
-            local speed = magnetized and 900 or 600
+            local speed = (g.magnetized or autoMagnet) and 900 or 600
+            
+            -- accelerate towards player
             g.x = g.x + math.cos(a) * speed * dt
             g.y = g.y + math.sin(a) * speed * dt
+            
             dx = p.x - g.x
             dy = p.y - g.y
             distSq = dx*dx + dy*dy
@@ -77,6 +114,8 @@ function pickups.updateGems(state, dt)
                     state.augments.dispatch(state, 'postPickup', ctx)
                 end
                 table.remove(state.gems, i)
+                -- Quieter/Faster pickup sound for particles? 
+                -- or keep gem sound but maybe pitch shift
                 if state.playSfx then state.playSfx('gem') end
             end
         end
@@ -176,37 +215,32 @@ function pickups.updateChests(state, dt)
                 end
 
                 local rewardType = c and c.rewardType or nil
-                local bonus = tonumber(c and c.bonusLevelUps) or 0
-                bonus = math.max(0, math.floor(bonus))
-
-                local function makeReq()
-                    if rewardType == 'weapon' or rewardType == 'passive' or rewardType == 'mod' or rewardType == 'augment' then
-                        return {allowedTypes = {[rewardType] = true}, rewardType = rewardType, source = 'chest', chestKind = c and c.kind}
-                    end
-                    return nil
-                end
-
-                local evolvedWeapon = upgrades.tryEvolveWeapon(state)
-                if evolvedWeapon then
-                    table.insert(state.texts, {x=p.x, y=p.y-50, text="EVOLVED! " .. evolvedWeapon, color={1, 0.84, 0}, life=2})
-                    for _ = 1, bonus do
-                        upgrades.queueLevelUp(state, 'chest_bonus', makeReq())
-                    end
-                    logger.pickup(state, 'chest_evolve')
+                
+                -- VS-Style Evolution removed. 
+                -- Generic chests now give a Mod Card (triggering selection) or pure Gold.
+                
+                if math.random() < 0.3 then
+                     -- Mod Drop
+                     upgrades.queueLevelUp(state, 'mod_drop', {
+                        allowedTypes = {mod = true, augment = true},
+                        source = 'chest'
+                    })
+                    table.insert(state.texts, {x=p.x, y=p.y-50, text="MOD FOUND!", color={0.2, 1, 0.2}, life=1.5})
+                    logger.pickup(state, 'chest_mod')
                 else
-                    -- 触发一次升级选项（模拟 VS 宝箱随机加成）
-                    upgrades.queueLevelUp(state, 'chest', makeReq())
-                    for _ = 1, bonus do
-                        upgrades.queueLevelUp(state, 'chest_bonus', makeReq())
+                    -- Gold Reward
+                    local gain = 50 + (state.rooms and state.rooms.roomIndex or 1) * 10
+                    if state.gainGold then
+                        state.gainGold(gain, {source = 'chest', x = p.x, y = p.y - 50, life = 1.0})
+                    else
+                        state.runCurrency = (state.runCurrency or 0) + gain
+                        table.insert(state.texts, {x = p.x, y = p.y - 50, text = "+" .. tostring(gain) .. " GOLD", color = {1, 0.9, 0.4}, life = 1.2})
                     end
-                    local suffix = rewardType and (" (" .. string.upper(rewardType) .. ")") or ""
-                    local bonusSuffix = (bonus > 0) and (" +" .. tostring(bonus)) or ""
-                    table.insert(state.texts, {x=p.x, y=p.y-50, text="CHEST!" .. suffix .. bonusSuffix, color={1, 1, 0}, life=1.5})
-                    logger.pickup(state, 'chest_reward')
+                    logger.pickup(state, 'chest_gold')
                 end
+
                 if state and state.augments and state.augments.dispatch then
                     ctx = ctx or {kind = 'chest', amount = 1, player = p, chest = c}
-                    ctx.evolvedWeapon = evolvedWeapon
                     state.augments.dispatch(state, 'postPickup', ctx)
                 end
                 table.remove(state.chests, i)

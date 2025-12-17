@@ -1582,6 +1582,21 @@ function enemies.update(state, dt)
 
                 if not isBossDefeated then
                     if not e.noDrops then
+                         -- XP / Affinity Drop (Always drops, WF style affinity)
+                        local xpValue = e.xp or (e.isElite and 50 or 10)
+                        if e.isBoss then xpValue = 500 end
+                        
+                        -- Spawn visual XP particle (Gem)
+                        if state.gems then
+                            table.insert(state.gems, {
+                                x = e.x, 
+                                y = e.y, 
+                                value = xpValue, 
+                                spawnTime = state.gameTimer or 0,
+                                magnetized = false
+                            })
+                        end
+
                         local exploreMode = (state.runMode == 'explore') or (state.world and state.world.enabled)
                         if exploreMode then
                             local gain = e.isElite and 6 or 1
