@@ -522,18 +522,20 @@ function state.init()
                 reserve=120, maxReserve=120,
                 reloadTime=1.5
             },
-            onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.9 end,
-            evolveInfo = { target='holy_wand', require='tome' }
+            onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.9 end
         },
         holy_wand = {
             type = 'weapon', name = "Holy Wand",
-            desc = "Evolved Magic Wand. Fires rapidly.",
-            maxLevel = 1,
+            desc = "Rapid-fire holy projectiles. High fire rate, moderate damage.",
+            maxLevel = 3,
+            slotType = 'primary',
             behavior = 'SHOOT_NEAREST',
             tags = {'weapon', 'projectile', 'magic'},
-            base = { damage=15, cd=0.16, speed=600, range=700, elements={'IMPACT'}, damageBreakdown={IMPACT=1}, critChance=0.05, critMultiplier=1.5, statusChance=0 },
-            evolvedOnly = true,
-            onUpgrade = function(w) end
+            classWeight = { warrior = 0.3, mage = 2.0, beastmaster = 0.8 },
+            rare = true, -- Rare weapon, lower spawn chance
+            base = { damage=15, cd=0.16, speed=600, range=700, elements={'IMPACT'}, damageBreakdown={IMPACT=1}, critChance=0.05, critMultiplier=1.5, statusChance=0,
+                magazine=60, maxMagazine=60, reserve=180, maxReserve=180, reloadTime=2.0 },
+            onUpgrade = function(w) w.damage = w.damage + 3 end
         },
         garlic = {
             type = 'weapon', name = "Garlic",
@@ -543,8 +545,7 @@ function state.init()
             tags = {'weapon', 'area', 'aura', 'magic'},
             classWeight = { warrior = 1.0, mage = 1.0, beastmaster = 2.0 },
             base = { damage=3, cd=0.35, radius=70, knockback=30, elements={'IMPACT'}, damageBreakdown={IMPACT=1}, critChance=0.05, critMultiplier=1.5, statusChance=0 },
-            onUpgrade = function(w) w.damage = w.damage + 2; w.radius = w.radius + 10 end,
-            evolveInfo = { target='soul_eater', require='pummarola' }
+            onUpgrade = function(w) w.damage = w.damage + 2; w.radius = w.radius + 10 end
         },
         axe = {
             type = 'weapon', name = "Axe",
@@ -554,18 +555,19 @@ function state.init()
             tags = {'weapon', 'projectile', 'physical', 'arc'},
             classWeight = { warrior = 2.0, mage = 0.5, beastmaster = 1.0 },
             base = { damage=30, cd=1.4, speed=450, area=1.5, elements={'SLASH','IMPACT'}, damageBreakdown={SLASH=7, IMPACT=3}, critChance=0.10, critMultiplier=2.5, statusChance=0 },
-            onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end,
-            evolveInfo = { target='death_spiral', require='spinach' }
+            onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end
         },
         death_spiral = {
             type = 'weapon', name = "Death Spiral",
-            desc = "Evolved Axe. Spirals out.",
-            maxLevel = 1,
+            desc = "Radial spinning blades. Hits all directions.",
+            maxLevel = 3,
+            slotType = 'secondary',
             behavior = 'SHOOT_RADIAL',
             tags = {'weapon', 'projectile', 'physical', 'arc'},
+            classWeight = { warrior = 2.0, mage = 0.5, beastmaster = 1.0 },
+            rare = true,
             base = { damage=40, cd=1.2, speed=500, area=2.0, elements={'SLASH','IMPACT'}, damageBreakdown={SLASH=7, IMPACT=3}, critChance=0.10, critMultiplier=2.5, statusChance=0 },
-            evolvedOnly = true,
-            onUpgrade = function(w) end
+            onUpgrade = function(w) w.damage = w.damage + 8 end
         },
         oil_bottle = {
             -- RESERVED for specialized Pet content in future.
@@ -587,8 +589,7 @@ function state.init()
             tags = {'weapon', 'projectile', 'fire', 'magic'},
             classWeight = { warrior = 0.5, mage = 2.0, beastmaster = 1.0 },
             base = { damage=15, cd=0.9, speed=450, range=700, elements={'HEAT'}, damageBreakdown={HEAT=1}, splashRadius=70, critChance=0.05, critMultiplier=1.5, statusChance=0.3 },
-            onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.95 end,
-            evolveInfo = { target='hellfire', require='candelabrador' }
+            onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.95 end
         },
         ice_ring = {
             type = 'weapon', name = "Ice Ring",
@@ -598,8 +599,7 @@ function state.init()
             tags = {'weapon', 'area', 'magic', 'ice'},
             classWeight = { warrior = 1.0, mage = 1.5, beastmaster = 1.5 },
             base = { damage=2, cd=2.5, radius=100, duration=6.0, elements={'COLD'}, damageBreakdown={COLD=1}, critChance=0.05, critMultiplier=1.5, statusChance=0.3 },
-            onUpgrade = function(w) w.radius = w.radius + 10; w.cd = w.cd * 0.95 end,
-            evolveInfo = { target='absolute_zero', require='spellbinder' }
+            onUpgrade = function(w) w.radius = w.radius + 10; w.cd = w.cd * 0.95 end
         },
         heavy_hammer = {
             type = 'weapon', name = "Warhammer",
@@ -613,8 +613,7 @@ function state.init()
             tags = {'weapon', 'physical', 'heavy', 'melee'},
             classWeight = { warrior = 2.0, mage = 0.5, beastmaster = 1.0 },
             base = { damage=40, cd=0.2, range=90, knockback=100, effectType='HEAVY', size=12, critChance=0.15, critMultiplier=2.0, statusChance=0.5 },
-            onUpgrade = function(w) w.damage = w.damage + 10 end,
-            evolveInfo = { target='earthquake', require='armor' }
+            onUpgrade = function(w) w.damage = w.damage + 10 end
         },
         dagger = {
             type = 'weapon', name = "Throwing Knife",
@@ -632,8 +631,7 @@ function state.init()
                 reserve=80, maxReserve=80,
                 reloadTime=1.0
             },
-            onUpgrade = function(w) w.damage = w.damage + 2 end,
-            evolveInfo = { target='thousand_edge', require='bracer' }
+            onUpgrade = function(w) w.damage = w.damage + 2 end
         },
         static_orb = {
             type = 'weapon', name = "Static Orb",
@@ -643,69 +641,83 @@ function state.init()
             tags = {'weapon', 'projectile', 'magic', 'electric'},
             classWeight = { warrior = 0.5, mage = 2.0, beastmaster = 1.5 },
             base = { damage=6, cd=1.25, speed=380, range=650, elements={'ELECTRIC'}, damageBreakdown={ELECTRIC=1}, duration=3.0, staticRange=160, chain=4, critChance=0.05, critMultiplier=1.5, statusChance=0.4 },
-            onUpgrade = function(w) w.damage = w.damage + 3; w.cd = w.cd * 0.95 end,
-            evolveInfo = { target='thunder_loop', require='duplicator' }
+            onUpgrade = function(w) w.damage = w.damage + 3; w.cd = w.cd * 0.95 end
         },
         soul_eater = {
             type = 'weapon', name = "Soul Eater",
-            desc = "Evolved Garlic. Huge aura that heals on hit.",
-            maxLevel = 1,
+            desc = "Massive vampiric aura. Heals on hit.",
+            maxLevel = 3,
+            slotType = 'melee',
             behavior = 'AURA',
             tags = {'weapon', 'area', 'aura', 'magic'},
+            classWeight = { warrior = 1.5, mage = 1.5, beastmaster = 2.0 },
+            rare = true,
             base = { damage=8, cd=0.3, radius=130, knockback=50, lifesteal=0.4, area=1.5, elements={'IMPACT'}, damageBreakdown={IMPACT=1}, critChance=0.05, critMultiplier=1.5, statusChance=0 },
-            evolvedOnly = true,
-            onUpgrade = function(w) end
+            onUpgrade = function(w) w.damage = w.damage + 3; w.radius = w.radius + 15 end
         },
         thousand_edge = {
             type = 'weapon', name = "Thousand Edge",
-            desc = "Evolved Throwing Knife. Rapid endless barrage.",
-            maxLevel = 1,
+            desc = "Ultra-rapid throwing daggers. Extreme fire rate.",
+            maxLevel = 3,
+            slotType = 'secondary',
             behavior = 'SHOOT_DIRECTIONAL',
             tags = {'weapon', 'projectile', 'physical', 'fast'},
-            base = { damage=7, cd=0.05, speed=650, range=550, elements={'SLASH'}, damageBreakdown={SLASH=1}, pierce=6, amount=1, critChance=0.20, critMultiplier=2.0, statusChance=0.2 },
-            evolvedOnly = true,
-            onUpgrade = function(w) end
+            classWeight = { warrior = 1.0, mage = 0.8, beastmaster = 2.5 },
+            rare = true,
+            base = { damage=7, cd=0.05, speed=650, range=550, elements={'SLASH'}, damageBreakdown={SLASH=1}, pierce=6, amount=1, critChance=0.20, critMultiplier=2.0, statusChance=0.2,
+                magazine=50, maxMagazine=50, reserve=150, maxReserve=150, reloadTime=1.5 },
+            onUpgrade = function(w) w.damage = w.damage + 2; w.pierce = w.pierce + 1 end
         },
         hellfire = {
             type = 'weapon', name = "Hellfire",
-            desc = "Evolved Fire Wand. Giant piercing fireballs.",
-            maxLevel = 1,
+            desc = "Giant piercing fireballs with massive splash.",
+            maxLevel = 3,
+            slotType = 'primary',
             behavior = 'SHOOT_NEAREST',
             tags = {'weapon', 'projectile', 'fire', 'magic'},
-            base = { damage=40, cd=0.6, speed=520, range=700, elements={'HEAT'}, damageBreakdown={HEAT=1}, splashRadius=140, pierce=12, size=18, area=1.3, life=3.0, statusChance=0.5 },
-            evolvedOnly = true,
-            onUpgrade = function(w) end
+            classWeight = { warrior = 0.5, mage = 2.5, beastmaster = 1.0 },
+            rare = true,
+            base = { damage=40, cd=0.6, speed=520, range=700, elements={'HEAT'}, damageBreakdown={HEAT=1}, splashRadius=140, pierce=12, size=18, area=1.3, life=3.0, statusChance=0.5,
+                magazine=15, maxMagazine=15, reserve=45, maxReserve=45, reloadTime=2.5 },
+            onUpgrade = function(w) w.damage = w.damage + 10; w.splashRadius = w.splashRadius + 20 end
         },
         absolute_zero = {
             type = 'weapon', name = "Absolute Zero",
-            desc = "Evolved Ice Ring. Persistent blizzard that chills and freezes foes.",
-            maxLevel = 1,
+            desc = "Persistent blizzard that chills and freezes foes.",
+            maxLevel = 3,
+            slotType = 'secondary',
             behavior = 'SPAWN',
             behaviorParams = { type = 'absolute_zero' },
             tags = {'weapon', 'area', 'magic', 'ice'},
+            classWeight = { warrior = 1.0, mage = 2.0, beastmaster = 1.5 },
+            rare = true,
             base = { damage=5, cd=2.2, radius=160, duration=2.5, elements={'COLD'}, damageBreakdown={COLD=1}, area=1.2, statusChance=0.6 },
-            evolvedOnly = true,
-            onUpgrade = function(w) end
+            onUpgrade = function(w) w.damage = w.damage + 2; w.duration = w.duration + 0.5 end
         },
         thunder_loop = {
             type = 'weapon', name = "Thunder Loop",
-            desc = "Evolved Static Orb. Stronger, larger electric fields.",
-            maxLevel = 1,
+            desc = "Chain lightning with extended range. High status.",
+            maxLevel = 3,
+            slotType = 'primary',
             behavior = 'SHOOT_NEAREST',
             tags = {'weapon', 'projectile', 'magic', 'electric'},
-            base = { damage=10, cd=1.1, speed=420, range=650, elements={'ELECTRIC'}, damageBreakdown={ELECTRIC=1}, duration=3.0, staticRange=220, pierce=1, amount=1, chain=10, allowRepeat=true, statusChance=0.5 },
-            evolvedOnly = true,
-            onUpgrade = function(w) end
+            classWeight = { warrior = 0.5, mage = 2.5, beastmaster = 1.5 },
+            rare = true,
+            base = { damage=10, cd=1.1, speed=420, range=650, elements={'ELECTRIC'}, damageBreakdown={ELECTRIC=1}, duration=3.0, staticRange=220, pierce=1, amount=1, chain=10, allowRepeat=true, statusChance=0.5,
+                magazine=25, maxMagazine=25, reserve=75, maxReserve=75, reloadTime=2.0 },
+            onUpgrade = function(w) w.damage = w.damage + 3; w.chain = w.chain + 2 end
         },
         earthquake = {
             type = 'weapon', name = "Earthquake",
-            desc = "Evolved Warhammer. Quakes stun everything on screen.",
-            maxLevel = 1,
+            desc = "Global ground slam. Stuns everything on screen.",
+            maxLevel = 3,
+            slotType = 'melee',
             behavior = 'GLOBAL',
             tags = {'weapon', 'area', 'physical', 'heavy'},
+            classWeight = { warrior = 2.5, mage = 0.5, beastmaster = 1.0 },
+            rare = true,
             base = { damage=60, cd=2.5, area=2.2, knockback=120, effectType='HEAVY', elements={'IMPACT'}, damageBreakdown={IMPACT=1}, duration=0.6, statusChance=0.6 },
-            evolvedOnly = true,
-            onUpgrade = function(w) end
+            onUpgrade = function(w) w.damage = w.damage + 15; w.knockback = w.knockback + 20 end
         },
         -- ===================================================================
         -- DEPRECATED PASSIVES (VS-style, hidden from upgrade pools)
