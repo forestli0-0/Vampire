@@ -76,7 +76,7 @@ function UpgradeCard:buildContent()
     -- Current Level Info
     local curLv = 0
     if opt.type == 'weapon' and state.inventory.weapons[opt.key] then curLv = state.inventory.weapons[opt.key].level end
-    if opt.type == 'passive' and state.inventory.passives[opt.key] then curLv = state.inventory.passives[opt.key] end
+    -- Passive type removed
     if opt.type == 'mod' then
         local profile = state.profile
         local r = profile and profile.modRanks and profile.modRanks[opt.key]

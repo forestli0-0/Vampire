@@ -155,14 +155,9 @@ function weapons.calculateStats(state, weaponKey)
     local weaponDef = state.catalog[weaponKey]
     local weaponTags = weaponDef and weaponDef.tags or {}
 
-    for passiveKey, level in pairs(state.inventory.passives) do
-        local passiveDef = state.catalog[passiveKey]
-        if level and level > 0 and passiveDef and passiveDef.targetTags and passiveDef.effect then
-            if tagsMatch(weaponTags, passiveDef.targetTags) then
-                applyPassiveEffects(stats, passiveDef.effect, level)
-            end
-        end
-    end
+    -- Legacy Passives (loop) REMOVED
+    -- All power progression is now handled via state.inventory.weaponMods or base stats.
+
 
     local wm = state.inventory and state.inventory.weaponMods and state.inventory.weaponMods[weaponKey]
     for _, modKey in ipairs(getOrderedMods(state, weaponKey)) do

@@ -38,15 +38,8 @@ local function dispatch(state, eventName, ctx)
     end
 end
 
-local function canEvolve(state, key)
-    local def = state.catalog[key]
-    if not def or not def.evolveInfo then return false end
-    local w = state.inventory.weapons[key]
-    if not w or w.level < def.maxLevel then return false end
-    if def.evolveInfo.require and not state.inventory.passives[def.evolveInfo.require] then return false end
-    if state.inventory.weapons[def.evolveInfo.target] then return false end
-    return true
-end
+-- canEvolve removed
+
 
 function upgrades.generateUpgradeOptions(state, request, allowFallback)
     if allowFallback == nil then allowFallback = true end
@@ -64,7 +57,7 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
 
     local function isOwned(itemType, itemKey)
         if itemType == 'weapon' then return state.inventory.weapons[itemKey] ~= nil end
-        if itemType == 'passive' then return state.inventory.passives[itemKey] ~= nil end
+
         if itemType == 'mod' then return state.profile and state.profile.ownedMods and state.profile.ownedMods[itemKey] == true end
         if itemType == 'augment' then return state.inventory.augments and state.inventory.augments[itemKey] ~= nil end
         if itemType == 'pet' then
@@ -176,7 +169,7 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
             end
             local currentLevel = 0
             if item.type == 'weapon' and state.inventory.weapons[key] then currentLevel = state.inventory.weapons[key].level end
-            if item.type == 'passive' and state.inventory.passives[key] then currentLevel = state.inventory.passives[key] end
+
             if item.type == 'mod' then
                 local profile = state.profile
                 local r = profile and profile.modRanks and profile.modRanks[key]
@@ -436,11 +429,8 @@ function upgrades.applyUpgrade(state, opt)
             dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = w.level})
         end
     elseif opt.type == 'passive' then
-        if not state.inventory.passives[opt.key] then state.inventory.passives[opt.key] = 0 end
-        state.inventory.passives[opt.key] = state.inventory.passives[opt.key] + 1
-        logger.upgrade(state, opt, state.inventory.passives[opt.key])
-        if opt.def.onUpgrade then opt.def.onUpgrade() end
-        dispatch(state, 'onUpgradeChosen', {opt = opt, player = state.player, level = state.inventory.passives[opt.key]})
+        -- DEPRECATED: Passives removed.
+        return
     elseif opt.type == 'mod' then
         -- Mods are loadout-only and apply per-weapon when equipped.
         -- If enabled as an in-run reward (debug), treat this as ranking up the mod and refresh weapon loadouts.
