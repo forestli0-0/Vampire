@@ -23,7 +23,11 @@ local pets = require('pets')
 local world = require('world')
 local mission = require('mission')
 local ui = require('ui')
+local ui = require('ui')
 local hud = require('ui.screens.hud')
+local levelupScreen = require('ui.screens.levelup')
+local shopScreen = require('ui.screens.shop')
+local gameoverScreen = require('ui.screens.gameover')
 
 -- Enable new HUD
 draw.useNewHUD = true
@@ -102,13 +106,22 @@ function love.update(dt)
     end
     
     -- 升级/死亡界面下暂停主循环
-    if state.gameState == 'LEVEL_UP' or state.gameState == 'SHOP' then return end
-    if state.gameState == 'GAME_OVER' then
-        if love.keyboard.isDown('r') then love.load() end
+    if state.gameState == 'LEVEL_UP' then
+        if not levelupScreen.isActive() then
+            levelupScreen.init(state)
+        end
         return
     end
-    if state.gameState == 'GAME_CLEAR' then
-        if love.keyboard.isDown('r') then love.load() end
+    if state.gameState == 'SHOP' then
+        if not shopScreen.isActive() then
+            shopScreen.init(state)
+        end
+        return
+    end
+    if state.gameState == 'GAME_OVER' or state.gameState == 'GAME_CLEAR' then
+        if not gameoverScreen.isActive() then
+             gameoverScreen.init(state)
+        end
         return
     end
 
@@ -234,19 +247,11 @@ function love.keypressed(key)
     end
 
     if state.gameState == 'SHOP' then
-        local shop = state.shop or {}
-        if key == '0' or key == 'escape' or key == 'backspace' then
-            state.shop = nil
-            state.gameState = 'PLAYING'
-            return
-        end
-        local idx = tonumber(key)
-        if idx and shop.options and idx >= 1 and idx <= #shop.options then
-            local opt = shop.options[idx]
-            if opt and opt.onBuy then
-                opt.onBuy(state, opt, shop)
-            end
-        end
+        if shopScreen.keypressed(key) then return end
+        return
+    end
+    if state.gameState == 'GAME_OVER' or state.gameState == 'GAME_CLEAR' then
+        if gameoverScreen.keypressed(key) then return end
         return
     end
     if key == 'f5' then benchmark.toggle(state) end
@@ -277,54 +282,7 @@ function love.keypressed(key)
     -- 等级界面：按数字选择升级
     if debugmenu.keypressed(state, key) then return end
     if state.gameState == 'LEVEL_UP' then
-        local function finalizeLevelUp()
-            state.pendingWeaponSwap = nil
-            if state.pendingLevelUps > 0 then
-                state.pendingLevelUps = state.pendingLevelUps - 1
-                local nextReq = nil
-                if state.pendingUpgradeRequests and #state.pendingUpgradeRequests > 0 then
-                    nextReq = table.remove(state.pendingUpgradeRequests, 1)
-                end
-                state.activeUpgradeRequest = nextReq
-                upgrades.generateUpgradeOptions(state, nextReq)
-                state.gameState = 'LEVEL_UP'
-            else
-                state.activeUpgradeRequest = nil
-                state.pendingUpgradeRequests = {}
-                state.gameState = 'PLAYING'
-            end
-        end
-
-        if state.pendingWeaponSwap and state.pendingWeaponSwap.opt then
-            if key == '0' or key == 'escape' or key == 'backspace' then
-                state.pendingWeaponSwap = nil
-                return
-            end
-            local idx = tonumber(key)
-            if idx then
-                local weaponKeys = upgrades.getWeaponKeys(state)
-                local oldKey = weaponKeys[idx]
-                if oldKey then
-                    state.inventory.weapons[oldKey] = nil
-                    upgrades.applyUpgrade(state, state.pendingWeaponSwap.opt)
-                    finalizeLevelUp()
-                end
-            end
-            return
-        end
-
-        local idx = tonumber(key)
-        if idx and idx >= 1 and idx <= #state.upgradeOptions then
-            local opt = state.upgradeOptions[idx]
-            if opt and opt.type == 'weapon' and not opt.evolveFrom and not state.inventory.weapons[opt.key] then
-                local maxWeapons = upgrades.getMaxWeapons(state)
-                if maxWeapons > 0 and upgrades.countWeapons(state) >= maxWeapons then
-                    state.pendingWeaponSwap = {opt = opt}
-                    return
-                end
-            end
-            upgrades.applyUpgrade(state, opt)
-            finalizeLevelUp()
-        end
+        if levelupScreen.keypressed(key) then return end
+        return
     end
 end

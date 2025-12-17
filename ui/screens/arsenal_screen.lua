@@ -112,7 +112,9 @@ local function calculateCapacity(gameState, weaponKey)
             local def = getModDef(gameState, modKey)
             local cost = (def and def.cost) or 4
             local rank = getModRank(gameState, modKey)
-            used = used + cost * rank
+            -- Warframe Mod Cost: Base + Rank (assuming rank 1 is base)
+            -- If rank serves as 0-based level + 1, then rank-1 is the added cost
+            used = used + cost + (rank - 1)
         end
     end
     
@@ -630,7 +632,7 @@ function arsenalScreen.keypressed(gameState, key)
         local currentIdx = selectedModCard and selectedModCard.cardIndex or 1
         local newIdx = currentIdx
         
-        local cols = math.floor((640 - LAYOUT.margin * 2) / (LAYOUT.libraryCardW + LAYOUT.librarySpacing))
+        local cols = math.floor((LAYOUT.rightW - 8) / (LAYOUT.libraryCardW + LAYOUT.libraryCardSpacing))
         
         if key == 'left' then newIdx = currentIdx - 1
         elseif key == 'right' then newIdx = currentIdx + 1

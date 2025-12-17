@@ -174,13 +174,13 @@ local function buildCombatFrame(gameState, parent)
     parent:addChild(widgets.energyBar)
     
     -- Weapon Slots (To the left of abilities)
-    local weaponTotalW = 160 -- Estimated width for 2 weapons
+    local weaponTotalW = 240 -- Width for 3 weapons
     local weaponStartX = startX - weaponTotalW - 20
     local weaponY = endY - 50 -- Slightly higher
     
     widgets.weaponSlots = {}
-    -- Assuming 2 slots: ranged (1), melee (2)
-    local weaponKeys = {'1', '2'}
+    -- 3 slots: ranged (1), melee (2), extra (3)
+    local weaponKeys = {'1', '2', '3'}
     for i, key in ipairs(weaponKeys) do
         local wx = weaponStartX + (i-1) * (70 + gap)
         local slotH = 50
@@ -319,11 +319,11 @@ function hud.update(gameState, dt)
                 local cd = (stats and stats.dashCooldown) or 1
                 local t = dash.rechargeTimer or 0
                 local ratio = 1 - (t / cd) -- Timer counts down usually? Or up?
-                -- Check draw.lua logic: t counts UP to cd? No, Step 1465 says t / cd.
-                -- Usually rechargeTimer counts down? 
                 -- draw.lua 1476: t = dash.rechargeTimer. ratio = t/cd.
                 
-                -- Let's assume ratio is correct.
+                -- Recharge timer counts UP from 0 to cd (see player.tickDashRecharge)
+                local ratio = t / cd
+
                 -- Map to partial bar? Complex. Just show total %?
                 -- Let's show current charges as chunks? Bar widget doesn't support chunks yet.
                 -- Just show total fill.
@@ -359,7 +359,10 @@ function hud.update(gameState, dt)
         local activeSlot = inv.activeSlot or 'ranged'
         
         for i, slotData in pairs(widgets.weaponSlots) do
-            local slotKey = (i == 1) and 'ranged' or 'melee'
+            local slotKey = 'ranged'
+            if i == 2 then slotKey = 'melee' end
+            if i == 3 then slotKey = 'extra' end
+            
             local isActive = (slotKey == activeSlot)
             
             -- Highlight active
