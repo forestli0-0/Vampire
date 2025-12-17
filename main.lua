@@ -28,6 +28,7 @@ local hud = require('ui.screens.hud')
 local levelupScreen = require('ui.screens.levelup')
 local shopScreen = require('ui.screens.shop')
 local gameoverScreen = require('ui.screens.gameover')
+local orbiterScreen = require('ui.screens.orbiter')
 
 -- Enable new HUD
 draw.useNewHUD = true
@@ -118,6 +119,14 @@ function love.update(dt)
         end
         return
     end
+    if state.gameState == 'ORBITER' then
+        orbiterScreen.update(dt)
+        -- Also update rooms to detect when orbiter exits
+        if state.runMode == 'rooms' then
+            rooms.update(state, dt)
+        end
+        return
+    end
     if state.gameState == 'GAME_OVER' or state.gameState == 'GAME_CLEAR' then
         if not gameoverScreen.isActive() then
              gameoverScreen.init(state)
@@ -181,6 +190,10 @@ function love.draw()
         testmode.draw(state)
         return
     end
+    if state.gameState == 'ORBITER' then
+        orbiterScreen.draw()
+        return
+    end
     
     bloom.preDraw()
     -- 渲染世界并叠加调试菜单
@@ -201,10 +214,16 @@ function love.resize(w, h)
 end
 
 function love.mousemoved(x, y, dx, dy)
+    if state.gameState == 'ORBITER' then
+        orbiterScreen.mousemoved(x, y)
+    end
     ui.mousemoved(x, y, dx, dy)
 end
 
 function love.mousepressed(x, y, button)
+    if state.gameState == 'ORBITER' then
+        if orbiterScreen.mousepressed(x, y, button) then return end
+    end
     if ui.mousepressed(x, y, button) then return end
     -- Other mouse press handling can go here
 end
@@ -251,6 +270,10 @@ function love.keypressed(key)
 
     if state.gameState == 'SHOP' then
         if shopScreen.keypressed(key) then return end
+        return
+    end
+    if state.gameState == 'ORBITER' then
+        if orbiterScreen.keypressed(key) then return end
         return
     end
     if state.gameState == 'GAME_OVER' or state.gameState == 'GAME_CLEAR' then

@@ -1638,9 +1638,28 @@ function enemies.update(state, dt)
                                 if math.random() < 0.35 then
                                     table.insert(state.floorPickups, {x=e.x - 15, y=e.y, size=12, kind='energy_orb'})
                                 end
-                                -- Rare MOD drop (8% chance)
-                                if math.random() < 0.08 then
-                                    table.insert(state.floorPickups, {x=e.x, y=e.y + 15, size=14, kind='mod_card'})
+                                -- Rare MOD drop (80% chance for elite - DEBUG HIGH RATE)
+                                if math.random() < 0.80 then
+                                    -- Use new in-run MOD drop system
+                                    local modsModule = require('mods')
+                                    local categories = {'warframe', 'weapons', 'companion'}
+                                    local category = categories[math.random(#categories)]
+                                    local pool = modsModule.buildDropPool(category)
+                                    local rolled = modsModule.rollMod(pool, 0.5) -- Elite has 50% bonus rare chance
+                                    if rolled then
+                                        modsModule.addToRunInventory(state, rolled.key, rolled.category, 0, rolled.rarity)
+                                        local rarityDef = modsModule.RARITY[rolled.rarity] or modsModule.RARITY.COMMON
+                                        local modDef = modsModule.getCatalog(category)[rolled.key]
+                                        local modName = modDef and modDef.name or rolled.key
+                                        table.insert(state.texts, {
+                                            x = e.x, y = e.y - 30,
+                                            text = "MOD: " .. modName,
+                                            color = rarityDef.color,
+                                            life = 1.5,
+                                            scale = 1.2
+                                        })
+                                        if state.playSfx then state.playSfx('levelup') end
+                                    end
                                 end
                             else
                                 -- Normal enemy drops
@@ -1664,6 +1683,27 @@ function enemies.update(state, dt)
                                 -- Rare ammo drop (5% chance if have ranged weapon)
                                 if math.random() < 0.05 then
                                     table.insert(state.floorPickups, {x=e.x, y=e.y, size=10, kind='ammo'})
+                                end
+                                -- Normal enemy MOD drop (25% chance - DEBUG HIGH RATE)
+                                if math.random() < 0.25 then
+                                    local modsModule = require('mods')
+                                    local categories = {'warframe', 'weapons', 'companion'}
+                                    local category = categories[math.random(#categories)]
+                                    local pool = modsModule.buildDropPool(category)
+                                    local rolled = modsModule.rollMod(pool, 0) -- No bonus rare chance
+                                    if rolled then
+                                        modsModule.addToRunInventory(state, rolled.key, rolled.category, 0, rolled.rarity)
+                                        local rarityDef = modsModule.RARITY[rolled.rarity] or modsModule.RARITY.COMMON
+                                        local modDef = modsModule.getCatalog(category)[rolled.key]
+                                        local modName = modDef and modDef.name or rolled.key
+                                        table.insert(state.texts, {
+                                            x = e.x, y = e.y - 30,
+                                            text = "MOD: " .. modName,
+                                            color = rarityDef.color,
+                                            life = 1.2
+                                        })
+                                        if state.playSfx then state.playSfx('gem') end
+                                    end
                                 end
                             end
                         end

@@ -313,6 +313,10 @@ end
 function arsenal.startRun(state, opts)
     opts = opts or {}
     state.applyPersistentMods()
+    
+    -- Initialize in-run MOD system (Roguelike)
+    local modsModule = require('mods')
+    modsModule.initRunMods(state)
 
     if opts.runMode then
         state.runMode = opts.runMode

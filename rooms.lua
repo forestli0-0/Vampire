@@ -674,8 +674,34 @@ function rooms.update(state, dt)
             return
         end
 
-        r.phase = 'doors'
-        spawnDoors(state, r)
+        -- Enter orbiter (ship) phase for MOD configuration
+        r.phase = 'orbiter'
+        state.gameState = 'ORBITER'
+        
+        -- Initialize orbiter UI
+        local ok, orbiterModule = pcall(require, 'ui.screens.orbiter')
+        if ok and orbiterModule and orbiterModule.init then
+            orbiterModule.init(state)
+        end
+        
+        table.insert(state.texts, {
+            x = state.player.x,
+            y = state.player.y - 80,
+            text = "进入飞船整备...",
+            color = {0.6, 0.8, 1},
+            life = 1.0
+        })
+        return
+    end
+
+    if r.phase == 'orbiter' then
+        -- Orbiter phase: waiting for player to finish configuration
+        -- This is handled by the orbiter.lua UI
+        -- When player exits orbiter, gameState becomes 'PLAYING' and we transition to doors
+        if state.gameState == 'PLAYING' then
+            r.phase = 'doors'
+            spawnDoors(state, r)
+        end
         return
     end
 
