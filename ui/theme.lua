@@ -61,6 +61,7 @@ theme.colors = {
     warning = {1.0, 0.70, 0.30, 1.0},        -- Orange
     danger = {1.0, 0.35, 0.35, 1.0},         -- Red
     success = {0.40, 0.90, 0.50, 1.0},       -- Green
+    gold = {1.0, 0.85, 0.30, 1.0},           -- Gold (for currency)
     
     -- Button states
     button_normal = {0.22, 0.22, 0.26, 1.0},
