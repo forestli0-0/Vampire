@@ -389,6 +389,12 @@ function arsenal.startRun(state, opts)
     state.player.ability.timer = 0
     
     state.gameState = 'PLAYING'
+    
+    -- Switch UI to HUD
+    if arsenal.useNewUI then
+        local hud = require('ui.screens.hud')
+        hud.init(state)
+    end
 end
 
 function arsenal.keypressed(state, key)

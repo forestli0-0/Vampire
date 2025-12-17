@@ -156,6 +156,14 @@ function ModCard.new(opts)
     return self
 end
 
+function ModCard:onActivate()
+    if self.owned then
+        -- Trigger equip action
+        self:emit('activate_mod', self)
+    end
+end
+
+
 function ModCard:update(dt)
     ui.Widget.update(self, dt)
     
@@ -503,7 +511,16 @@ local function buildRightColumn(gameState, parent)
             if selectedModCard then selectedModCard.selected = false end
             self.selected = true
             selectedModCard = self
+            ui.core.setFocus(self) -- Sync focus
         end)
+        
+        card:on('activate_mod', function(self)
+            -- Handle Enter/Space on focused card
+            local arsenal = require('arsenal')
+            arsenal.toggleEquip(gameState, self.modKey)
+            arsenalScreen.rebuild(gameState)
+        end)
+
         
         parent:addChild(card)
         table.insert(modCards, card)
@@ -563,6 +580,7 @@ function arsenalScreen.rebuild(gameState)
     if #modCards > 0 then
         modCards[1].selected = true
         selectedModCard = modCards[1]
+        ui.core.setFocus(modCards[1]) -- Sync focus
     end
 end
 
@@ -589,13 +607,6 @@ end
 function arsenalScreen.startRun(gameState)
     local arsenal = require('arsenal')
     arsenal.startRun(gameState)
-    
-    -- Initialize HUD
-    local hud = require('ui.screens.hud')
-    hud.init(gameState)
-    
-    -- Keep UI enabled but switch root to HUD
-    ui.core.enabled = true
 end
 
 function arsenalScreen.keypressed(gameState, key)
@@ -632,6 +643,7 @@ function arsenalScreen.keypressed(gameState, key)
             if selectedModCard then selectedModCard.selected = false end
             modCards[newIdx].selected = true
             selectedModCard = modCards[newIdx]
+            ui.core.setFocus(modCards[newIdx]) -- Sync focus
         end
         return true
     end
