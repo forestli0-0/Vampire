@@ -6,13 +6,8 @@ local campaign = require('campaign')
 
 local pickups = {}
 
--- DEPRECATED: VS-style timed magnet/chicken spawns
--- WF-style: Pickups come from enemy drops (health_orb, energy_orb, mod_card)
-function pickups.updateMagnetSpawns(state, dt)
-    -- Disabled: no longer spawn timed pickups
-    -- Health orbs and energy orbs come from enemy kills instead
-    return
-end
+
+-- updateMagnetSpawns removed
 
 local function addXp(state, amount)
     local p = state.player
@@ -257,51 +252,7 @@ function pickups.updateFloorPickups(state, dt)
         local item = state.floorPickups[i]
         if util.checkCollision({x=p.x, y=p.y, size=p.size}, item) then
             local consume = true
-            if item.kind == 'chicken' then
-                local amt = 30
-                local ctx = {kind = 'chicken', amount = amt, player = p, item = item}
-                if state and state.augments and state.augments.dispatch then
-                    state.augments.dispatch(state, 'onPickup', ctx)
-                end
-                if ctx.cancel then
-                    if state and state.augments and state.augments.dispatch then
-                        state.augments.dispatch(state, 'pickupCancelled', ctx)
-                    end
-                    consume = false
-                else
-                    amt = ctx.amount or amt
-                    ctx.amount = amt
-                    p.hp = math.min(p.maxHp, p.hp + amt)
-                    table.insert(state.texts, {x=p.x, y=p.y-30, text="+" .. math.floor(amt) .. " HP", color={1,0.7,0}, life=1})
-                    logger.pickup(state, 'chicken')
-                    if state and state.augments and state.augments.dispatch then
-                        state.augments.dispatch(state, 'postPickup', ctx)
-                    end
-                end
-            elseif item.kind == 'magnet' then
-                local ctx = {kind = 'magnet', amount = 1, player = p, item = item}
-                if state and state.augments and state.augments.dispatch then
-                    state.augments.dispatch(state, 'onPickup', ctx)
-                end
-                if ctx.cancel then
-                    if state and state.augments and state.augments.dispatch then
-                        state.augments.dispatch(state, 'pickupCancelled', ctx)
-                    end
-                    consume = false
-                end
-                if consume then
-                    -- 吸取全地图宝石
-                    for _, g in ipairs(state.gems) do
-                        g.magnetized = true
-                    end
-                    if #state.gems > 0 and state.playSfx then state.playSfx('gem') end
-                    table.insert(state.texts, {x=p.x, y=p.y-30, text="MAGNET!", color={0,0.8,1}, life=1})
-                    logger.pickup(state, 'magnet')
-                    if state and state.augments and state.augments.dispatch then
-                        state.augments.dispatch(state, 'postPickup', ctx)
-                    end
-                end
-            elseif item.kind == 'ammo' then
+            if item.kind == 'ammo' then
                 -- Ammo pickup: refill reserve ammo for all weapons
                 local amount = item.amount or 20
                 local refilled = false

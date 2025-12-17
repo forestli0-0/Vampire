@@ -2232,9 +2232,9 @@ function state.init()
             state.pickupSpriteScale[key] = scale or 1
         end
     end
-    loadPickup('chicken')
-    loadPickup('magnet')
-    loadPickup('gem', 0.01) -- adjust this scale if the gem sprite looks too big/small
+    -- VS pickups removed (chicken, magnet)
+    loadPickup('gem', 0.01) -- XP Gem / Affinity Orb
+
 
     -- 敌人子弹贴图
     state.enemySprites = {}

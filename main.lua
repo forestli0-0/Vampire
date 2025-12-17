@@ -132,7 +132,7 @@ function love.update(dt)
 
     -- 全局计时与场景效果
     state.gameTimer = state.gameTimer + dt
-    pickups.updateMagnetSpawns(state, dt)
+    -- pickups.updateMagnetSpawns removed
     if state.updateEffects then state.updateEffects(dt) end
 
     -- 核心更新顺序：玩家 → 武器 → 子弹 → 刷怪
