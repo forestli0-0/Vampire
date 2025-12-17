@@ -5,9 +5,10 @@ local pets = require('pets')
 local upgrades = {}
 
 function upgrades.getMaxWeapons(state)
-    local max = (state and state.maxWeaponsPerRun) or 6
-    max = tonumber(max) or 6
-    return math.max(0, math.floor(max))
+    -- WF-style: Strict 3 weapon slots (Primary, Secondary, Melee)
+    local max = (state and state.maxWeaponsPerRun) or 3
+    max = tonumber(max) or 3
+    return math.max(1, math.min(3, math.floor(max)))  -- Clamp to 1-3
 end
 
 function upgrades.countWeapons(state)

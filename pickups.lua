@@ -6,35 +6,12 @@ local campaign = require('campaign')
 
 local pickups = {}
 
+-- DEPRECATED: VS-style timed magnet/chicken spawns
+-- WF-style: Pickups come from enemy drops (health_orb, energy_orb, mod_card)
 function pickups.updateMagnetSpawns(state, dt)
-    if not state.magnetTimer then return end
-    if state.runMode == 'rooms' then
-        return
-    end
-    if state.runMode == 'explore' or (state.world and state.world.enabled) then
-        return
-    end
-    state.magnetTimer = state.magnetTimer - dt
-    if state.magnetTimer <= 0 then
-        local dist = math.random(450, 750)
-        local ang = math.random() * math.pi * 2
-        local px, py = state.player.x, state.player.y
-        local kinds = {'magnet', 'chicken'}
-        local kind = kinds[math.random(#kinds)]
-        local x = px + math.cos(ang) * dist
-        local y = py + math.sin(ang) * dist
-        local world = state.world
-        if world and world.enabled and world.adjustToWalkable then
-            x, y = world:adjustToWalkable(x, y, 14)
-        end
-        table.insert(state.floorPickups, {
-            x = x,
-            y = y,
-            size = 14,
-            kind = kind
-        })
-        state.magnetTimer = math.random(55, 70) -- roughly once a minute
-    end
+    -- Disabled: no longer spawn timed pickups
+    -- Health orbs and energy orbs come from enemy kills instead
+    return
 end
 
 local function addXp(state, amount)
