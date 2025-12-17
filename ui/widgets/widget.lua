@@ -149,14 +149,30 @@ end
 
 function Widget:drawSelf()
     -- Override in subclasses
-    -- Default: draw a debug rectangle
-    if self.w > 0 and self.h > 0 then
+    
+    -- Draw background if set
+    if self.bgColor then
         local gx, gy = self:getGlobalPosition()
-        love.graphics.setColor(0.3, 0.3, 0.3, 0.5)
+        love.graphics.setColor(self.bgColor)
         love.graphics.rectangle('fill', gx, gy, self.w, self.h)
-        love.graphics.setColor(0.5, 0.5, 0.5, 0.8)
-        love.graphics.rectangle('line', gx, gy, self.w, self.h)
+        
+        if self.borderColor then
+            love.graphics.setColor(self.borderColor)
+            love.graphics.setLineWidth(self.borderWidth or 1)
+            love.graphics.rectangle('line', gx, gy, self.w, self.h)
+            love.graphics.setLineWidth(1)
+        end
         love.graphics.setColor(1, 1, 1, 1)
+        return
+    end
+
+    -- Legacy/Debug behavior: only draw if explicitly NOT transparent
+    if not self.transparent and self.w > 0 and self.h > 0 then
+        -- Optional: Debug visual
+        -- local gx, gy = self:getGlobalPosition()
+        -- love.graphics.setColor(0.3, 0.3, 0.3, 0.5)
+        -- love.graphics.rectangle('fill', gx, gy, self.w, self.h)
+        -- love.graphics.setColor(1, 1, 1, 1)
     end
 end
 

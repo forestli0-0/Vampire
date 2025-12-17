@@ -76,6 +76,7 @@ end
 -------------------------------------------
 
 function core.setFocus(widget)
+    if widget and not widget.focusable then return end
     if core.focus == widget then return end
     
     local oldFocus = core.focus
@@ -453,8 +454,23 @@ function core.keypressed(key, scancode, isrepeat)
         end
     end
     
+    local function isDescendant(root, widget)
+        local curr = widget
+        while curr do
+            if curr == root then return true end
+            curr = curr.parent
+        end
+        return false
+    end
+    
     -- Enter/Space to activate focused widget
     if (key == 'return' or key == 'space') and core.focus then
+        -- Validate focus is still active in current hierarchy
+        if core.root and not isDescendant(core.root, core.focus) then
+            core.focus = nil
+            return false
+        end
+        
         if core.focus.onActivate then
             core.focus:onActivate()
             return true
@@ -686,6 +702,25 @@ end
 ---@param fn function(dragData, x, y, sourceWidget)
 function core.setDragPreview(fn)
     core.dragPreview = fn
+end
+
+function core.setRoot(rootWidget)
+    if core.root == rootWidget then return end
+    
+    -- Clear focus when switching root to prevent ghost inputs
+    -- This is critical for preventing keyboard shortcuts from being consumed by destroyed widgets
+    core.clearFocus()
+    core.hover = nil
+    core.pressed = nil
+    core.dragging = nil
+    
+    core.root = rootWidget
+    
+    -- Resize new root to fit screen if needed
+    if rootWidget and rootWidget.w == 0 then
+        rootWidget.w = love.graphics.getWidth() / scaling.getScale()
+        rootWidget.h = love.graphics.getHeight() / scaling.getScale()
+    end
 end
 
 return core

@@ -1435,14 +1435,21 @@ function draw.renderUI(state)
         end
     end
 
-    drawStatsPanel(state)
+    if not draw.useNewHUD then
+        drawStatsPanel(state)
+    end
     drawPetPanel(state)
 
     -- HUD
     local showXpHud = true
+    if draw.useNewHUD then showXpHud = false end -- Disable Legacy HUD loop if using new one
+
     if state.runMode == 'rooms' and state.rooms and state.rooms.useXp == false then
         showXpHud = false
     end
+
+    if not draw.useNewHUD then
+
 
     if showXpHud then
         love.graphics.setColor(0, 0, 1)
@@ -1710,6 +1717,8 @@ function draw.renderUI(state)
     local seconds = math.floor(state.gameTimer % 60)
     local timeStr = string.format("%02d:%02d", minutes, seconds)
     love.graphics.printf(timeStr, 0, 20, love.graphics.getWidth(), "center")
+    
+    end -- end if not draw.useNewHUD
 
     if state.runMode == 'rooms' and state.rooms and (state.rooms.roomIndex or 0) > 0 then
         local r = state.rooms
@@ -1988,6 +1997,7 @@ end
 -- Backward compatible entry point
 function draw.render(state)
     draw.renderWorld(state)
+    
     draw.renderUI(state)
     
     -- Room transition fade overlay

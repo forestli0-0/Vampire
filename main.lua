@@ -23,6 +23,10 @@ local pets = require('pets')
 local world = require('world')
 local mission = require('mission')
 local ui = require('ui')
+local hud = require('ui.screens.hud')
+
+-- Enable new HUD
+draw.useNewHUD = true
 
 -- 游戏启动时的初始化（状态、日志、默认武器等）
 function love.load()
@@ -52,6 +56,12 @@ function love.load()
     -- weapons.addWeapon(state, 'ice_ring')
     -- weapons.addWeapon(state, 'heavy_hammer')
 
+    -- Initialize HUD if starting directly in game
+    if state.gameState == 'PLAYING' then
+        hud.init(state)
+        ui.core.enabled = true
+    end
+
     if state.pendingScenarioId then
         arsenal.startRun(state, {skipStartingWeapon = true})
         testScenarios.apply(state, state.pendingScenarioId)
@@ -63,6 +73,11 @@ function love.load()
 end
 
 function love.update(dt)
+    -- HUD update
+    if state.gameState == 'PLAYING' then
+        hud.update(state, dt)
+    end
+    
     -- Update UI system
     ui.update(dt)
     
@@ -200,9 +215,16 @@ function love.keypressed(key)
     -- UI Demo toggle (F8)
     if uiDemo.keypressed(key) then return end
     -- UI system key handling
-    -- Special case: Allow Tab to pass through for ARSENAL mode (weapon switch)
-    if not (key == 'tab' and state.gameState == 'ARSENAL') then
+    -- Only process UI input during gameplay to avoid blocking Arsenal/Menu inputs
+    if state.gameState == 'PLAYING' then
         if ui.keypressed(key) then return end
+        
+        -- Press ESC to pause/return to Arsenal
+        if key == 'escape' then
+            state.gameState = 'ARSENAL'
+            arsenal.show(state)
+            return
+        end
     end
     
     if testmode.keypressed(state, key) then return end

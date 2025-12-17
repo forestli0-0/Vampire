@@ -590,9 +590,12 @@ function arsenalScreen.startRun(gameState)
     local arsenal = require('arsenal')
     arsenal.startRun(gameState)
     
-    -- Disable UI when game starts
-    ui.core.setRoot(nil)
-    ui.core.enabled = false
+    -- Initialize HUD
+    local hud = require('ui.screens.hud')
+    hud.init(gameState)
+    
+    -- Keep UI enabled but switch root to HUD
+    ui.core.enabled = true
 end
 
 function arsenalScreen.keypressed(gameState, key)

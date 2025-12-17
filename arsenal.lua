@@ -229,6 +229,13 @@ function arsenal.init(state)
     end
 end
 
+function arsenal.show(state)
+    if arsenal.useNewUI then
+        local screen = getArsenalScreen()
+        screen.rebuild(state)
+    end
+end
+
 function arsenal.update(state, dt)
     local a = state.arsenal
     if not a then return end
