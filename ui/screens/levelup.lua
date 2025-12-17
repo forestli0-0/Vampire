@@ -2,6 +2,7 @@
 -- Replaces legacy draw.lua rendering
 local ui = require('ui')
 local theme = ui.theme
+local upgrades = require('upgrades')
 
 local levelupScreen = {}
 

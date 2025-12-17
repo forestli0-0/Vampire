@@ -364,10 +364,10 @@ function player.tryDash(state, dirX, dirY)
     return true
 end
 
--- Switch active weapon slot (WF-style 1/2/3 switching)
+-- Switch active weapon slot (1=ranged, 2=melee)
 function player.switchWeaponSlot(state, slot)
     if not state or not state.player then return false end
-    local validSlots = {primary = true, secondary = true, melee = true}
+    local validSlots = {ranged = true, melee = true}
     if not validSlots[slot] then return false end
     
     local p = state.player

@@ -249,13 +249,13 @@ function state.init()
         dash = {charges = 2, maxCharges = 2, rechargeTimer = 0, timer = 0, dx = 1, dy = 0},
         class = 'warrior', -- Current class: warrior / mage / beastmaster
         ability = {cooldown = 0, timer = 0}, -- Q skill state
-        -- Weapon slots (WF-style 3 slot system)
+        -- Weapon slots (2-slot system: ranged + melee, with reserved slot for future class passive)
         weaponSlots = {
-            primary = nil,   -- Primary weapon key (rifles, bows, wands)
-            secondary = nil, -- Secondary weapon key (pistols, thrown)
-            melee = nil      -- Melee weapon key (hammers, swords)
+            ranged = nil,    -- Ranged weapon key (wands, bows, guns, thrown)
+            melee = nil,     -- Melee weapon key (hammers, swords, daggers)
+            reserved = nil   -- Reserved for future class-specific passive (summoner summons, alchemist potions, etc.)
         },
-        activeSlot = 'primary', -- Currently active weapon slot
+        activeSlot = 'ranged', -- Currently active weapon slot
         stats = {
             moveSpeed = 180,
             might = 1.0,
@@ -287,8 +287,9 @@ function state.init()
                 might = 1.1,
                 dashCharges = 3  -- Extra dash charge
             },
-            startWeapon = 'heavy_hammer',
-            preferredUpgrades = {'axe', 'armor', 'spinach'}, -- First upgrades favor these
+            startWeapon = 'heavy_hammer',  -- Fragor melee
+            startSecondary = 'lato',       -- Sidearm
+            preferredUpgrades = {'hek', 'boltor', 'dual_zoren'},
             ability = {
                 name = "War Cry",
                 cooldown = 8.0,
@@ -347,8 +348,9 @@ function state.init()
                 cooldown = 0.9, -- 10% faster cooldowns
                 critChance = 0.1 -- +10% crit chance
             },
-            startWeapon = 'wand',
-            preferredUpgrades = {'fire_wand', 'static_orb', 'tome', 'clover'}, -- Mage prefers ranged/crit
+            startWeapon = 'wand',          -- Magic Wand (legacy energy)
+            startSecondary = 'atomos',     -- Energy pistol
+            preferredUpgrades = {'fire_wand', 'static_orb', 'lanka', 'thunder_loop'},
             ability = {
                 name = "Blink",
                 cooldown = 5.0,
@@ -404,8 +406,9 @@ function state.init()
                 statusChance = 0.15, -- +15% status proc chance
                 petHpBonus = 0.25  -- +25% pet HP
             },
-            startWeapon = 'garlic',
-            preferredUpgrades = {'dagger', 'ice_ring', 'garlic'}, -- Beastmaster prefers status weapons
+            startWeapon = 'paris',         -- Bow (silent)
+            startSecondary = 'lex',        -- High-damage pistol
+            preferredUpgrades = {'dread', 'vectis', 'braton'},
             ability = {
                 name = "Summon Aid",
                 cooldown = 12.0,
@@ -508,16 +511,17 @@ function state.init()
         },
         wand = {
             type = 'weapon', name = "Magic Wand",
-            desc = "Fires at nearest enemy.",
+            desc = "[Legacy] Energy weapon. Fires at nearest enemy.",
             maxLevel = 5,
             slotType = 'primary',
+            weaponCategory = 'energy',  -- WF category
             behavior = 'SHOOT_NEAREST',
-            tags = {'weapon', 'projectile', 'magic'},
+            tags = {'weapon', 'projectile', 'magic', 'energy'},
             classWeight = { warrior = 0.5, mage = 2.0, beastmaster = 1.0 },
+            legacy = true,  -- Easter egg weapon from VS era
             base = { 
                 damage=8, cd=1.2, speed=380, range=600, 
                 critChance=0.05, critMultiplier=1.5, statusChance=0,
-                -- Ammo system
                 magazine=30, maxMagazine=30,
                 reserve=120, maxReserve=120,
                 reloadTime=1.5
@@ -526,48 +530,47 @@ function state.init()
         },
         holy_wand = {
             type = 'weapon', name = "Holy Wand",
-            desc = "Rapid-fire holy projectiles. High fire rate, moderate damage.",
+            desc = "[Legacy] Rapid-fire energy projectiles.",
             maxLevel = 3,
             slotType = 'primary',
+            weaponCategory = 'energy',
             behavior = 'SHOOT_NEAREST',
-            tags = {'weapon', 'projectile', 'magic'},
+            tags = {'weapon', 'projectile', 'magic', 'energy'},
             classWeight = { warrior = 0.3, mage = 2.0, beastmaster = 0.8 },
-            rare = true, -- Rare weapon, lower spawn chance
+            rare = true, legacy = true,
             base = { damage=15, cd=0.16, speed=600, range=700, elements={'IMPACT'}, damageBreakdown={IMPACT=1}, critChance=0.05, critMultiplier=1.5, statusChance=0,
                 magazine=60, maxMagazine=60, reserve=180, maxReserve=180, reloadTime=2.0 },
             onUpgrade = function(w) w.damage = w.damage + 3 end
         },
         garlic = {
-            type = 'weapon', name = "Garlic",
-            desc = "Damages enemies nearby.",
+            -- DEPRECATED: VS-style aura weapon
+            type = 'deprecated', name = "Garlic",
+            desc = "[Removed] VS-style aura weapon.",
             maxLevel = 5,
+            hidden = true, deprecated = true,
             behavior = 'AURA',
             tags = {'weapon', 'area', 'aura', 'magic'},
-            classWeight = { warrior = 1.0, mage = 1.0, beastmaster = 2.0 },
-            base = { damage=3, cd=0.35, radius=70, knockback=30, elements={'IMPACT'}, damageBreakdown={IMPACT=1}, critChance=0.05, critMultiplier=1.5, statusChance=0 },
-            onUpgrade = function(w) w.damage = w.damage + 2; w.radius = w.radius + 10 end
+            base = { damage=3, cd=0.35, radius=70, knockback=30 }
         },
         axe = {
-            type = 'weapon', name = "Axe",
-            desc = "High damage, high arc.",
+            -- DEPRECATED: VS-style random projectile
+            type = 'deprecated', name = "Axe",
+            desc = "[Removed] VS-style thrown weapon.",
             maxLevel = 5,
+            hidden = true, deprecated = true,
             behavior = 'SHOOT_RANDOM',
             tags = {'weapon', 'projectile', 'physical', 'arc'},
-            classWeight = { warrior = 2.0, mage = 0.5, beastmaster = 1.0 },
-            base = { damage=30, cd=1.4, speed=450, area=1.5, elements={'SLASH','IMPACT'}, damageBreakdown={SLASH=7, IMPACT=3}, critChance=0.10, critMultiplier=2.5, statusChance=0 },
-            onUpgrade = function(w) w.damage = w.damage + 10; w.cd = w.cd * 0.9 end
+            base = { damage=30, cd=1.4, speed=450, area=1.5 }
         },
         death_spiral = {
-            type = 'weapon', name = "Death Spiral",
-            desc = "Radial spinning blades. Hits all directions.",
+            -- DEPRECATED: Will be reimplemented as ability
+            type = 'deprecated', name = "Death Spiral",
+            desc = "[Removed] Will be reimplemented as ability.",
             maxLevel = 3,
-            slotType = 'secondary',
+            hidden = true, deprecated = true,
             behavior = 'SHOOT_RADIAL',
             tags = {'weapon', 'projectile', 'physical', 'arc'},
-            classWeight = { warrior = 2.0, mage = 0.5, beastmaster = 1.0 },
-            rare = true,
-            base = { damage=40, cd=1.2, speed=500, area=2.0, elements={'SLASH','IMPACT'}, damageBreakdown={SLASH=7, IMPACT=3}, critChance=0.10, critMultiplier=2.5, statusChance=0 },
-            onUpgrade = function(w) w.damage = w.damage + 8 end
+            base = { damage=40, cd=1.2, speed=500, area=2.0 }
         },
         oil_bottle = {
             -- RESERVED for specialized Pet content in future.
@@ -583,143 +586,385 @@ function state.init()
         },
         fire_wand = {
             type = 'weapon', name = "Fire Wand",
-            desc = "Ignites Oiled enemies.",
+            desc = "[Legacy] Energy weapon with heat damage.",
             maxLevel = 5,
+            slotType = 'primary',
+            weaponCategory = 'energy',
             behavior = 'SHOOT_NEAREST',
-            tags = {'weapon', 'projectile', 'fire', 'magic'},
+            tags = {'weapon', 'projectile', 'fire', 'magic', 'energy'},
             classWeight = { warrior = 0.5, mage = 2.0, beastmaster = 1.0 },
-            base = { damage=15, cd=0.9, speed=450, range=700, elements={'HEAT'}, damageBreakdown={HEAT=1}, splashRadius=70, critChance=0.05, critMultiplier=1.5, statusChance=0.3 },
+            legacy = true,
+            base = { damage=15, cd=0.9, speed=450, range=700, elements={'HEAT'}, damageBreakdown={HEAT=1}, splashRadius=70, critChance=0.05, critMultiplier=1.5, statusChance=0.3,
+                magazine=40, maxMagazine=40, reserve=120, maxReserve=120, reloadTime=1.8 },
             onUpgrade = function(w) w.damage = w.damage + 5; w.cd = w.cd * 0.95 end
         },
         ice_ring = {
-            type = 'weapon', name = "Ice Ring",
-            desc = "Chills nearby enemies, stacking to Freeze.",
+            -- DEPRECATED: VS-style aura weapon
+            type = 'deprecated', name = "Ice Ring",
+            desc = "[Removed] VS-style aura weapon.",
             maxLevel = 5,
+            hidden = true, deprecated = true,
             behavior = 'AURA',
             tags = {'weapon', 'area', 'magic', 'ice'},
-            classWeight = { warrior = 1.0, mage = 1.5, beastmaster = 1.5 },
-            base = { damage=2, cd=2.5, radius=100, duration=6.0, elements={'COLD'}, damageBreakdown={COLD=1}, critChance=0.05, critMultiplier=1.5, statusChance=0.3 },
-            onUpgrade = function(w) w.radius = w.radius + 10; w.cd = w.cd * 0.95 end
+            base = { damage=2, cd=2.5, radius=100 }
         },
         heavy_hammer = {
-            type = 'weapon', name = "Warhammer",
-            desc = "Shatters Frozen enemies for 3x Damage.",
+            type = 'weapon', name = "Fragor",
+            desc = "[Legacy] Heavy hammer with massive knockback.",
             maxLevel = 5,
             slotType = 'melee',
+            weaponCategory = 'melee',
             behavior = 'MELEE_SWING',
-            behaviorParams = {
-                arcWidth = 1.4,  -- ~80 degrees
-            },
+            behaviorParams = { arcWidth = 1.4 },
             tags = {'weapon', 'physical', 'heavy', 'melee'},
             classWeight = { warrior = 2.0, mage = 0.5, beastmaster = 1.0 },
+            legacy = true,
             base = { damage=40, cd=0.2, range=90, knockback=100, effectType='HEAVY', size=12, critChance=0.15, critMultiplier=2.0, statusChance=0.5 },
             onUpgrade = function(w) w.damage = w.damage + 10 end
         },
         dagger = {
-            type = 'weapon', name = "Throwing Knife",
-            desc = "Applies Slash Bleed that bypasses armor.",
+            -- DEPRECATED: VS-style throwing weapon
+            type = 'deprecated', name = "Throwing Knife",
+            desc = "[Removed] VS-style throwing weapon.",
             maxLevel = 5,
-            slotType = 'secondary',
+            hidden = true, deprecated = true,
             behavior = 'SHOOT_DIRECTIONAL',
             tags = {'weapon', 'projectile', 'physical', 'fast'},
-            classWeight = { warrior = 1.0, mage = 1.0, beastmaster = 2.0 },
-            base = { 
-                damage=4, cd=0.18, speed=600, range=550, 
-                critChance=0.20, critMultiplier=2.0, statusChance=0.2,
-                -- Ammo system
-                magazine=20, maxMagazine=20,
-                reserve=80, maxReserve=80,
-                reloadTime=1.0
-            },
-            onUpgrade = function(w) w.damage = w.damage + 2 end
+            base = { damage=4, cd=0.18, speed=600, range=550 }
         },
         static_orb = {
-            type = 'weapon', name = "Static Orb",
-            desc = "Electrocutes enemies, dealing AOE DoT and stunning.",
+            type = 'weapon', name = "Amprex",
+            desc = "[Legacy] Chain lightning energy weapon.",
             maxLevel = 5,
+            slotType = 'primary',
+            weaponCategory = 'energy',
             behavior = 'SHOOT_NEAREST',
-            tags = {'weapon', 'projectile', 'magic', 'electric'},
+            tags = {'weapon', 'projectile', 'magic', 'electric', 'energy'},
             classWeight = { warrior = 0.5, mage = 2.0, beastmaster = 1.5 },
-            base = { damage=6, cd=1.25, speed=380, range=650, elements={'ELECTRIC'}, damageBreakdown={ELECTRIC=1}, duration=3.0, staticRange=160, chain=4, critChance=0.05, critMultiplier=1.5, statusChance=0.4 },
-            onUpgrade = function(w) w.damage = w.damage + 3; w.cd = w.cd * 0.95 end
+            legacy = true,
+            base = { damage=6, cd=0.08, speed=380, range=650, elements={'ELECTRIC'}, damageBreakdown={ELECTRIC=1}, duration=3.0, staticRange=160, chain=4, critChance=0.20, critMultiplier=2.0, statusChance=0.4,
+                magazine=100, maxMagazine=100, reserve=300, maxReserve=300, reloadTime=2.0 },
+            onUpgrade = function(w) w.damage = w.damage + 3; w.chain = w.chain + 1 end
         },
         soul_eater = {
-            type = 'weapon', name = "Soul Eater",
-            desc = "Massive vampiric aura. Heals on hit.",
+            -- DEPRECATED: VS-style aura weapon
+            type = 'deprecated', name = "Soul Eater",
+            desc = "[Removed] VS-style vampiric aura.",
             maxLevel = 3,
-            slotType = 'melee',
+            hidden = true, deprecated = true,
             behavior = 'AURA',
             tags = {'weapon', 'area', 'aura', 'magic'},
-            classWeight = { warrior = 1.5, mage = 1.5, beastmaster = 2.0 },
-            rare = true,
-            base = { damage=8, cd=0.3, radius=130, knockback=50, lifesteal=0.4, area=1.5, elements={'IMPACT'}, damageBreakdown={IMPACT=1}, critChance=0.05, critMultiplier=1.5, statusChance=0 },
-            onUpgrade = function(w) w.damage = w.damage + 3; w.radius = w.radius + 15 end
+            base = { damage=8, cd=0.3, radius=130, knockback=50, lifesteal=0.4 }
         },
         thousand_edge = {
-            type = 'weapon', name = "Thousand Edge",
-            desc = "Ultra-rapid throwing daggers. Extreme fire rate.",
+            -- DEPRECATED: VS-style throwing weapon
+            type = 'deprecated', name = "Thousand Edge",
+            desc = "[Removed] VS-style throwing weapon.",
             maxLevel = 3,
-            slotType = 'secondary',
+            hidden = true, deprecated = true,
             behavior = 'SHOOT_DIRECTIONAL',
             tags = {'weapon', 'projectile', 'physical', 'fast'},
-            classWeight = { warrior = 1.0, mage = 0.8, beastmaster = 2.5 },
-            rare = true,
-            base = { damage=7, cd=0.05, speed=650, range=550, elements={'SLASH'}, damageBreakdown={SLASH=1}, pierce=6, amount=1, critChance=0.20, critMultiplier=2.0, statusChance=0.2,
-                magazine=50, maxMagazine=50, reserve=150, maxReserve=150, reloadTime=1.5 },
-            onUpgrade = function(w) w.damage = w.damage + 2; w.pierce = w.pierce + 1 end
+            base = { damage=7, cd=0.05, speed=650, range=550, pierce=6 }
         },
         hellfire = {
-            type = 'weapon', name = "Hellfire",
-            desc = "Giant piercing fireballs with massive splash.",
+            type = 'weapon', name = "Ignis",
+            desc = "[Legacy] Flame thrower energy weapon.",
             maxLevel = 3,
             slotType = 'primary',
+            weaponCategory = 'energy',
             behavior = 'SHOOT_NEAREST',
-            tags = {'weapon', 'projectile', 'fire', 'magic'},
+            tags = {'weapon', 'projectile', 'fire', 'magic', 'energy'},
             classWeight = { warrior = 0.5, mage = 2.5, beastmaster = 1.0 },
-            rare = true,
-            base = { damage=40, cd=0.6, speed=520, range=700, elements={'HEAT'}, damageBreakdown={HEAT=1}, splashRadius=140, pierce=12, size=18, area=1.3, life=3.0, statusChance=0.5,
-                magazine=15, maxMagazine=15, reserve=45, maxReserve=45, reloadTime=2.5 },
-            onUpgrade = function(w) w.damage = w.damage + 10; w.splashRadius = w.splashRadius + 20 end
+            rare = true, legacy = true,
+            base = { damage=15, cd=0.05, speed=520, range=400, elements={'HEAT'}, damageBreakdown={HEAT=1}, splashRadius=80, pierce=99, size=10, area=1.3, life=0.5, statusChance=0.5,
+                magazine=200, maxMagazine=200, reserve=400, maxReserve=400, reloadTime=2.0 },
+            onUpgrade = function(w) w.damage = w.damage + 5 end
         },
         absolute_zero = {
-            type = 'weapon', name = "Absolute Zero",
-            desc = "Persistent blizzard that chills and freezes foes.",
+            -- DEPRECATED: Will be reimplemented as ability
+            type = 'deprecated', name = "Absolute Zero",
+            desc = "[Removed] Will be reimplemented as ability.",
             maxLevel = 3,
-            slotType = 'secondary',
+            hidden = true, deprecated = true,
             behavior = 'SPAWN',
-            behaviorParams = { type = 'absolute_zero' },
             tags = {'weapon', 'area', 'magic', 'ice'},
-            classWeight = { warrior = 1.0, mage = 2.0, beastmaster = 1.5 },
-            rare = true,
-            base = { damage=5, cd=2.2, radius=160, duration=2.5, elements={'COLD'}, damageBreakdown={COLD=1}, area=1.2, statusChance=0.6 },
-            onUpgrade = function(w) w.damage = w.damage + 2; w.duration = w.duration + 0.5 end
+            base = { damage=5, cd=2.2, radius=160, duration=2.5 }
         },
         thunder_loop = {
-            type = 'weapon', name = "Thunder Loop",
-            desc = "Chain lightning with extended range. High status.",
+            type = 'weapon', name = "Synapse",
+            desc = "[Legacy] Chain lightning beam weapon.",
             maxLevel = 3,
             slotType = 'primary',
+            weaponCategory = 'energy',
             behavior = 'SHOOT_NEAREST',
-            tags = {'weapon', 'projectile', 'magic', 'electric'},
+            tags = {'weapon', 'projectile', 'magic', 'electric', 'energy'},
             classWeight = { warrior = 0.5, mage = 2.5, beastmaster = 1.5 },
-            rare = true,
-            base = { damage=10, cd=1.1, speed=420, range=650, elements={'ELECTRIC'}, damageBreakdown={ELECTRIC=1}, duration=3.0, staticRange=220, pierce=1, amount=1, chain=10, allowRepeat=true, statusChance=0.5,
-                magazine=25, maxMagazine=25, reserve=75, maxReserve=75, reloadTime=2.0 },
+            rare = true, legacy = true,
+            base = { damage=10, cd=0.05, speed=420, range=650, elements={'ELECTRIC'}, damageBreakdown={ELECTRIC=1}, duration=3.0, staticRange=220, pierce=1, chain=10, allowRepeat=true, statusChance=0.5,
+                magazine=80, maxMagazine=80, reserve=240, maxReserve=240, reloadTime=2.0 },
             onUpgrade = function(w) w.damage = w.damage + 3; w.chain = w.chain + 2 end
         },
         earthquake = {
-            type = 'weapon', name = "Earthquake",
-            desc = "Global ground slam. Stuns everything on screen.",
+            -- DEPRECATED: Will be reimplemented as ability
+            type = 'deprecated', name = "Earthquake",
+            desc = "[Removed] Will be reimplemented as ability.",
             maxLevel = 3,
-            slotType = 'melee',
+            hidden = true, deprecated = true,
             behavior = 'GLOBAL',
             tags = {'weapon', 'area', 'physical', 'heavy'},
-            classWeight = { warrior = 2.5, mage = 0.5, beastmaster = 1.0 },
-            rare = true,
-            base = { damage=60, cd=2.5, area=2.2, knockback=120, effectType='HEAVY', elements={'IMPACT'}, damageBreakdown={IMPACT=1}, duration=0.6, statusChance=0.6 },
-            onUpgrade = function(w) w.damage = w.damage + 15; w.knockback = w.knockback + 20 end
+            base = { damage=60, cd=2.5, area=2.2, knockback=120 }
         },
+
         -- ===================================================================
+        -- WARFRAME-STYLE WEAPONS
+        -- Primary: Rifles, Shotguns, Snipers, Bows
+        -- Secondary: Pistols
+        -- Melee: Swords, Hammers, Dual Wield
+        -- ===================================================================
+
+        -- === RIFLES (Primary) ===
+        braton = {
+            type = 'weapon', name = "Braton",
+            desc = "Standard assault rifle. Balanced stats.",
+            maxLevel = 5,
+            slotType = 'primary',
+            weaponCategory = 'rifle',
+            behavior = 'SHOOT_NEAREST',
+            tags = {'weapon', 'projectile', 'physical', 'rifle'},
+            classWeight = { warrior = 1.5, mage = 0.8, beastmaster = 1.0 },
+            base = { 
+                damage=18, cd=0.12, speed=600, range=700, 
+                elements={'IMPACT','PUNCTURE'}, damageBreakdown={IMPACT=1, PUNCTURE=1},
+                critChance=0.12, critMultiplier=1.6, statusChance=0.06,
+                magazine=45, maxMagazine=45, reserve=270, maxReserve=270, reloadTime=2.0
+            },
+            onUpgrade = function(w) w.damage = w.damage + 4 end
+        },
+        boltor = {
+            type = 'weapon', name = "Boltor",
+            desc = "Fires bolts that pin enemies. High puncture.",
+            maxLevel = 5,
+            slotType = 'primary',
+            weaponCategory = 'rifle',
+            behavior = 'SHOOT_NEAREST',
+            tags = {'weapon', 'projectile', 'physical', 'rifle'},
+            classWeight = { warrior = 2.0, mage = 0.5, beastmaster = 1.0 },
+            base = { 
+                damage=25, cd=0.15, speed=500, range=650, 
+                elements={'PUNCTURE'}, damageBreakdown={PUNCTURE=1},
+                critChance=0.10, critMultiplier=1.8, statusChance=0.14,
+                magazine=60, maxMagazine=60, reserve=360, maxReserve=360, reloadTime=2.6
+            },
+            onUpgrade = function(w) w.damage = w.damage + 5 end
+        },
+
+        -- === SHOTGUNS (Primary) ===
+        hek = {
+            type = 'weapon', name = "Hek",
+            desc = "Quad-barrel shotgun. Devastating at close range.",
+            maxLevel = 5,
+            slotType = 'primary',
+            weaponCategory = 'shotgun',
+            behavior = 'SHOOT_SPREAD',
+            behaviorParams = { pellets = 7, spread = 0.4 },
+            tags = {'weapon', 'projectile', 'physical', 'shotgun'},
+            classWeight = { warrior = 2.0, mage = 0.3, beastmaster = 1.5 },
+            base = { 
+                damage=50, cd=1.0, speed=450, range=300, 
+                elements={'IMPACT','PUNCTURE','SLASH'}, damageBreakdown={IMPACT=3, PUNCTURE=2, SLASH=2},
+                critChance=0.10, critMultiplier=2.0, statusChance=0.25,
+                magazine=4, maxMagazine=4, reserve=120, maxReserve=120, reloadTime=2.2
+            },
+            onUpgrade = function(w) w.damage = w.damage + 10 end
+        },
+        strun = {
+            type = 'weapon', name = "Strun",
+            desc = "Pump-action shotgun. Good spread pattern.",
+            maxLevel = 5,
+            slotType = 'primary',
+            weaponCategory = 'shotgun',
+            behavior = 'SHOOT_SPREAD',
+            behaviorParams = { pellets = 10, spread = 0.5 },
+            tags = {'weapon', 'projectile', 'physical', 'shotgun'},
+            classWeight = { warrior = 1.5, mage = 0.5, beastmaster = 1.5 },
+            base = { 
+                damage=30, cd=0.8, speed=400, range=250, 
+                elements={'IMPACT'}, damageBreakdown={IMPACT=1},
+                critChance=0.08, critMultiplier=1.5, statusChance=0.20,
+                magazine=6, maxMagazine=6, reserve=120, maxReserve=120, reloadTime=2.5
+            },
+            onUpgrade = function(w) w.damage = w.damage + 6 end
+        },
+
+        -- === SNIPERS (Primary) ===
+        vectis = {
+            type = 'weapon', name = "Vectis",
+            desc = "Single-shot sniper rifle. Extreme precision.",
+            maxLevel = 5,
+            slotType = 'primary',
+            weaponCategory = 'sniper',
+            behavior = 'SHOOT_NEAREST',
+            tags = {'weapon', 'projectile', 'physical', 'sniper'},
+            classWeight = { warrior = 1.0, mage = 1.5, beastmaster = 0.8 },
+            base = { 
+                damage=120, cd=1.5, speed=800, range=1000, 
+                elements={'PUNCTURE','IMPACT'}, damageBreakdown={PUNCTURE=3, IMPACT=1},
+                critChance=0.30, critMultiplier=3.0, statusChance=0.25,
+                magazine=1, maxMagazine=1, reserve=72, maxReserve=72, reloadTime=0.9,
+                pierce=3
+            },
+            onUpgrade = function(w) w.damage = w.damage + 20; w.critChance = w.critChance + 0.05 end
+        },
+        lanka = {
+            type = 'weapon', name = "Lanka",
+            desc = "Corpus energy sniper. Charged shots.",
+            maxLevel = 5,
+            slotType = 'primary',
+            weaponCategory = 'sniper',
+            behavior = 'SHOOT_NEAREST',
+            tags = {'weapon', 'projectile', 'energy', 'sniper'},
+            classWeight = { warrior = 0.5, mage = 2.0, beastmaster = 1.0 },
+            rare = true,
+            base = { 
+                damage=100, cd=1.2, speed=700, range=900, 
+                elements={'ELECTRIC'}, damageBreakdown={ELECTRIC=1},
+                critChance=0.25, critMultiplier=2.5, statusChance=0.35,
+                magazine=10, maxMagazine=10, reserve=72, maxReserve=72, reloadTime=2.0,
+                pierce=5
+            },
+            onUpgrade = function(w) w.damage = w.damage + 15 end
+        },
+
+        -- === BOWS (Primary) ===
+        dread = {
+            type = 'weapon', name = "Dread",
+            desc = "Stalker's bow. Guaranteed slash procs.",
+            maxLevel = 5,
+            slotType = 'primary',
+            weaponCategory = 'bow',
+            behavior = 'SHOOT_NEAREST',
+            tags = {'weapon', 'projectile', 'physical', 'bow', 'silent'},
+            classWeight = { warrior = 1.0, mage = 1.0, beastmaster = 2.0 },
+            rare = true,
+            base = { 
+                damage=80, cd=0.8, speed=550, range=800, 
+                elements={'SLASH'}, damageBreakdown={SLASH=1},
+                critChance=0.50, critMultiplier=2.0, statusChance=0.45,
+                magazine=1, maxMagazine=1, reserve=72, maxReserve=72, reloadTime=0.5,
+                pierce=2
+            },
+            onUpgrade = function(w) w.damage = w.damage + 15; w.critChance = w.critChance + 0.05 end
+        },
+        paris = {
+            type = 'weapon', name = "Paris",
+            desc = "Tenno longbow. Silent and deadly.",
+            maxLevel = 5,
+            slotType = 'primary',
+            weaponCategory = 'bow',
+            behavior = 'SHOOT_NEAREST',
+            tags = {'weapon', 'projectile', 'physical', 'bow', 'silent'},
+            classWeight = { warrior = 1.0, mage = 1.0, beastmaster = 2.0 },
+            base = { 
+                damage=60, cd=0.7, speed=500, range=750, 
+                elements={'PUNCTURE','IMPACT'}, damageBreakdown={PUNCTURE=3, IMPACT=1},
+                critChance=0.30, critMultiplier=2.0, statusChance=0.20,
+                magazine=1, maxMagazine=1, reserve=72, maxReserve=72, reloadTime=0.4
+            },
+            onUpgrade = function(w) w.damage = w.damage + 12 end
+        },
+
+        -- === PISTOLS (Secondary) ===
+        lato = {
+            type = 'weapon', name = "Lato",
+            desc = "Standard sidearm. Reliable and fast.",
+            maxLevel = 5,
+            slotType = 'secondary',
+            weaponCategory = 'pistol',
+            behavior = 'SHOOT_NEAREST',
+            tags = {'weapon', 'projectile', 'physical', 'pistol'},
+            classWeight = { warrior = 1.0, mage = 1.0, beastmaster = 1.0 },
+            base = { 
+                damage=18, cd=0.2, speed=550, range=500, 
+                elements={'IMPACT','PUNCTURE'}, damageBreakdown={IMPACT=1, PUNCTURE=1},
+                critChance=0.06, critMultiplier=1.8, statusChance=0.06,
+                magazine=15, maxMagazine=15, reserve=210, maxReserve=210, reloadTime=1.2
+            },
+            onUpgrade = function(w) w.damage = w.damage + 4 end
+        },
+        lex = {
+            type = 'weapon', name = "Lex",
+            desc = "High-caliber pistol. Hits like a truck.",
+            maxLevel = 5,
+            slotType = 'secondary',
+            weaponCategory = 'pistol',
+            behavior = 'SHOOT_NEAREST',
+            tags = {'weapon', 'projectile', 'physical', 'pistol'},
+            classWeight = { warrior = 1.5, mage = 1.0, beastmaster = 1.0 },
+            base = { 
+                damage=50, cd=0.6, speed=500, range=600, 
+                elements={'IMPACT','PUNCTURE'}, damageBreakdown={IMPACT=2, PUNCTURE=1},
+                critChance=0.20, critMultiplier=2.0, statusChance=0.10,
+                magazine=6, maxMagazine=6, reserve=120, maxReserve=120, reloadTime=2.3
+            },
+            onUpgrade = function(w) w.damage = w.damage + 10 end
+        },
+        atomos = {
+            type = 'weapon', name = "Atomos",
+            desc = "Particle cannon. Chains to nearby enemies.",
+            maxLevel = 5,
+            slotType = 'secondary',
+            weaponCategory = 'energy',
+            behavior = 'SHOOT_NEAREST',
+            tags = {'weapon', 'projectile', 'energy', 'pistol'},
+            classWeight = { warrior = 0.5, mage = 2.0, beastmaster = 1.5 },
+            rare = true,
+            base = { 
+                damage=8, cd=0.05, speed=400, range=400, 
+                elements={'HEAT'}, damageBreakdown={HEAT=1},
+                critChance=0.05, critMultiplier=1.5, statusChance=0.35,
+                magazine=70, maxMagazine=70, reserve=210, maxReserve=210, reloadTime=2.0,
+                chain=3, staticRange=100
+            },
+            onUpgrade = function(w) w.damage = w.damage + 2; w.chain = w.chain + 1 end
+        },
+
+        -- === MELEE ===
+        skana = {
+            type = 'weapon', name = "Skana",
+            desc = "Standard Tenno sword. Balanced melee.",
+            maxLevel = 5,
+            slotType = 'melee',
+            weaponCategory = 'melee',
+            behavior = 'MELEE_SWING',
+            behaviorParams = { arcWidth = 1.2 },
+            tags = {'weapon', 'physical', 'melee', 'sword'},
+            classWeight = { warrior = 1.5, mage = 0.8, beastmaster = 1.0 },
+            base = { 
+                damage=35, cd=0.15, range=80, 
+                elements={'SLASH','IMPACT'}, damageBreakdown={SLASH=2, IMPACT=1},
+                critChance=0.05, critMultiplier=1.5, statusChance=0.10,
+                knockback=60
+            },
+            onUpgrade = function(w) w.damage = w.damage + 7 end
+        },
+        dual_zoren = {
+            type = 'weapon', name = "Dual Zoren",
+            desc = "Twin hatchets. Very fast attack speed.",
+            maxLevel = 5,
+            slotType = 'melee',
+            weaponCategory = 'melee',
+            behavior = 'MELEE_SWING',
+            behaviorParams = { arcWidth = 1.0 },
+            tags = {'weapon', 'physical', 'melee', 'dual'},
+            classWeight = { warrior = 1.5, mage = 0.5, beastmaster = 1.5 },
+            base = { 
+                damage=25, cd=0.08, range=70, 
+                elements={'SLASH'}, damageBreakdown={SLASH=1},
+                critChance=0.25, critMultiplier=2.0, statusChance=0.05,
+                knockback=40
+            },
+            onUpgrade = function(w) w.damage = w.damage + 5; w.critChance = w.critChance + 0.02 end
+        },
         -- DEPRECATED PASSIVES (VS-style, hidden from upgrade pools)
         -- These effects are now handled by the WF MOD system
         -- Kept for backward save compatibility only

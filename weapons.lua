@@ -610,6 +610,59 @@ function Behaviors.SHOOT_DIRECTIONAL(state, weaponKey, w, stats, params, sx, sy)
     return false
 end
 
+-- Shotgun spread pattern - fires multiple pellets in a cone
+function Behaviors.SHOOT_SPREAD(state, weaponKey, w, stats, params, sx, sy)
+    local range = math.max(1, math.floor(stats.range or 300))
+    local losOpts = state.world and state.world.enabled and {requireLOS = true} or nil
+    
+    -- Get target direction
+    local isPlayerWeapon = (w.owner == nil or w.owner == 'player')
+    local weaponDef = state.catalog and state.catalog[weaponKey]
+    local aimDx, aimDy = nil, nil
+    if isPlayerWeapon and player.getAimDirection then
+        aimDx, aimDy = player.getAimDirection(state, weaponDef)
+    end
+    
+    local baseAngle = nil
+    if aimDx and aimDy then
+        baseAngle = math.atan2(aimDy, aimDx)
+    else
+        local t = enemies.findNearestEnemy(state, range * 1.5, sx, sy, losOpts)
+        if t then
+            baseAngle = math.atan2(t.y - sy, t.x - sx)
+        end
+    end
+    
+    if baseAngle then
+        if state.playSfx then state.playSfx('shoot') end
+        
+        -- Shotgun parameters
+        params = params or {}
+        local pellets = params.pellets or 8
+        local spreadAngle = params.spread or 0.4  -- radians total spread
+        
+        -- Fire all pellets
+        for i = 1, pellets do
+            -- Random spread within cone
+            local angleOffset = (math.random() - 0.5) * spreadAngle
+            local ang = baseAngle + angleOffset
+            
+            -- Slight damage variance per pellet
+            local pelletStats = {}
+            for k,v in pairs(stats) do pelletStats[k] = v end
+            pelletStats.damage = math.floor((stats.damage or 10) * (0.9 + math.random() * 0.2))
+            
+            -- Shorter range with falloff
+            local pelletRange = range * (0.8 + math.random() * 0.4)
+            local target = {x = sx + math.cos(ang) * pelletRange, y = sy + math.sin(ang) * pelletRange}
+            
+            weapons.spawnProjectile(state, weaponKey, sx, sy, target, pelletStats)
+        end
+        return true
+    end
+    return false
+end
+
 function Behaviors.SHOOT_RANDOM(state, weaponKey, w, stats, params, sx, sy)
     if state.playSfx then state.playSfx('shoot') end
     local shots = getProjectileCount(stats)
