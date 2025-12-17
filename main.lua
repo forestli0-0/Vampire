@@ -22,6 +22,7 @@ local abilities = require('abilities')
 local pets = require('pets')
 local world = require('world')
 local mission = require('mission')
+local ui = require('ui')
 
 -- 游戏启动时的初始化（状态、日志、默认武器等）
 function love.load()
@@ -36,6 +37,7 @@ function love.load()
     state.augments = augments
     logger.init(state)
     arsenal.init(state)
+    ui.init()
     bloom.init(love.graphics.getWidth(), love.graphics.getHeight())
     vfx.init()
     if state.gameState ~= 'ARSENAL' then
@@ -61,6 +63,9 @@ function love.load()
 end
 
 function love.update(dt)
+    -- Update UI system
+    ui.update(dt)
+    
     if state.gameState == 'ARSENAL' then
         arsenal.update(state, dt)
         return
@@ -157,10 +162,31 @@ function love.draw()
     benchmark.draw(state)
     debugmenu.draw(state)
     testmode.draw(state)
+    
+    -- Draw UI overlay (on top of everything)
+    ui.draw()
 end
 
 function love.resize(w, h)
     bloom.resize(w, h)
+    ui.resize(w, h)
+end
+
+function love.mousemoved(x, y, dx, dy)
+    ui.mousemoved(x, y, dx, dy)
+end
+
+function love.mousepressed(x, y, button)
+    if ui.mousepressed(x, y, button) then return end
+    -- Other mouse press handling can go here
+end
+
+function love.mousereleased(x, y, button)
+    ui.mousereleased(x, y, button)
+end
+
+function love.textinput(text)
+    ui.textinput(text)
 end
 
 function love.quit()
@@ -168,7 +194,14 @@ function love.quit()
     if logger.flushIfActive then logger.flushIfActive(state, 'quit') end
 end
 
+local uiDemo = require('ui.demo')
+
 function love.keypressed(key)
+    -- UI Demo toggle (F8)
+    if uiDemo.keypressed(key) then return end
+    -- UI system key handling
+    if ui.keypressed(key) then return end
+    
     if testmode.keypressed(state, key) then return end
     if state.gameState == 'ARSENAL' then
         if arsenal.keypressed(state, key) then return end
