@@ -401,72 +401,74 @@ local function spawnDoors(state, r)
     state.doors = state.doors or {}
     clearList(state.doors)
 
-    local cycle = r.rewardCycle
-    if type(cycle) ~= 'table' or #cycle <= 0 then
-        cycle = {'weapon', 'passive', 'augment'}
-    end
-    local leftType, rightType = pickTwoDistinct(cycle)
+    -- Three mission types for Warframe-style door selection
+    local missionTypes = {
+        {type = 'exterminate', name = '歼灭', color = {1.0, 0.5, 0.4}},
+        {type = 'defense', name = '防御', color = {0.4, 0.8, 1.0}},
+        {type = 'survival', name = '生存', color = {0.5, 1.0, 0.5}}
+    }
 
-    local leftKind, rightKind = 'normal', 'normal'
-    local nextRoomIndex = (r.roomIndex or 0) + 1
-    if nextRoomIndex >= 3 and nextRoomIndex < (r.bossRoom or 8) then
-        if math.random() < 0.5 then leftKind = 'elite' else rightKind = 'elite' end
-    end
-
-    -- Special rooms: event/shop can appear (pet swap / pet revival).
-    local specialKind = nil
-    local chance = 0
-    if pets and pets.hasLost and pets.hasLost(state) then
-        specialKind = 'event'
-        chance = 1.0
-    else
-        specialKind = (math.random() < 0.5) and 'shop' or 'event'
-        chance = 0.22
-    end
-    if specialKind and math.random() < chance then
-        if math.random() < 0.5 then leftKind = specialKind else rightKind = specialKind end
-    end
-
-    -- Calculate door positions near the bottom of the arena, in walkable areas
+    -- Door dimensions
     local w, h = 54, 86
     local size = 70
     local world = state.world
     
-    local leftX, leftY, rightX, rightY
+    -- Calculate door positions (3 doors: left, center, right)
+    local doorPositions = {}
     
     if world and world.enabled and world.pixelW then
-        -- Place doors at bottom-left and bottom-right of walkable area
-        local ts = world.tileSize or 32
         local arenaW = world.pixelW
         local arenaH = world.pixelH
         
-        -- Target positions: near the bottom, 1/3 and 2/3 across horizontally
-        leftX = arenaW * 0.3
-        rightX = arenaW * 0.7
-        leftY = arenaH * 0.75
-        rightY = arenaH * 0.75
+        -- Position doors at bottom: 25%, 50%, 75% across
+        local yPos = arenaH * 0.78
+        doorPositions = {
+            {x = arenaW * 0.20, y = yPos},
+            {x = arenaW * 0.50, y = yPos},
+            {x = arenaW * 0.80, y = yPos}
+        }
         
         -- Adjust to walkable positions
         if world.adjustToWalkable then
-            leftX, leftY = world:adjustToWalkable(leftX, leftY, 10)
-            rightX, rightY = world:adjustToWalkable(rightX, rightY, 10)
+            for _, pos in ipairs(doorPositions) do
+                local ax, ay = world:adjustToWalkable(pos.x, pos.y, 10)
+                if ax and ay then
+                    pos.x, pos.y = ax, ay
+                end
+            end
         end
     else
-        -- Fallback: use player position with offset
+        -- Fallback: use room center with offset
         local cx = r.roomCenterX or state.player.x
         local cy = r.roomCenterY or state.player.y
-        local offset = 150
-        leftX, leftY = cx - offset, cy + 80
-        rightX, rightY = cx + offset, cy + 80
+        doorPositions = {
+            {x = cx - 150, y = cy + 80},
+            {x = cx, y = cy + 80},
+            {x = cx + 150, y = cy + 80}
+        }
     end
     
-    table.insert(state.doors, {x = leftX, y = leftY, w = w, h = h, size = size, kind = 'door', rewardType = leftType, roomKind = leftKind})
-    table.insert(state.doors, {x = rightX, y = rightY, w = w, h = h, size = size, kind = 'door', rewardType = rightType, roomKind = rightKind})
+    -- Create the 3 doors
+    for i, mission in ipairs(missionTypes) do
+        local pos = doorPositions[i]
+        table.insert(state.doors, {
+            x = pos.x, 
+            y = pos.y, 
+            w = w, 
+            h = h, 
+            size = size, 
+            kind = 'door', 
+            missionType = mission.type,
+            missionName = mission.name,
+            missionColor = mission.color,
+            roomKind = 'normal'  -- All mission doors lead to normal combat rooms
+        })
+    end
 
     table.insert(state.texts, {
         x = state.player.x,
         y = state.player.y - 120,
-        text = "CHOOSE NEXT ROOM",
+        text = "选择下一个任务",
         color = {0.9, 0.9, 1},
         life = 1.4
     })
@@ -702,20 +704,19 @@ function rooms.update(state, dt)
         local p = state.player or {}
         for _, d in ipairs(state.doors or {}) do
             if d and util.checkCollision(p, d) then
-                local rewardType = d.rewardType
-                r.nextRewardType = rewardType
+                -- Get the mission type from the selected door
+                local missionType = d.missionType or 'exterminate'
+                local missionName = d.missionName or missionType
+                r.missionType = missionType  -- Set for next room
                 r.nextRoomKind = d.roomKind or 'normal'
                 clearList(state.doors)
 
-                local suffix = rewardType and (" (" .. string.upper(tostring(rewardType)) .. ")") or ""
-                local kindLabel = (r.nextRoomKind == 'elite') and " ELITE" or ""
-                if r.nextRoomKind == 'shop' then kindLabel = " SHOP" end
-                if r.nextRoomKind == 'event' then kindLabel = " EVENT" end
+                -- Show mission selected message
                 table.insert(state.texts, {
                     x = p.x,
                     y = p.y - 110,
-                    text = "NEXT ROOM" .. kindLabel .. suffix,
-                    color = {0.85, 0.95, 1},
+                    text = "下一关: " .. missionName,
+                    color = d.missionColor or {0.85, 0.95, 1},
                     life = 1.2
                 })
 

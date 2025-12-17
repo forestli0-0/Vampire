@@ -741,53 +741,51 @@ function draw.renderWorld(state)
         end
     end
 
-    -- 房间出口门（分支奖励）
+    -- 房间出口门（任务类型选择）
     if state.doors then
-        local colors = {
-            weapon = {1.0, 0.55, 0.5},
-            passive = {0.55, 1.0, 0.55},
-            mod = {0.55, 0.8, 1.0},
-            augment = {1.0, 0.9, 0.45},
-            shop = {0.55, 0.95, 1.0},
-            event = {0.9, 0.7, 1.0}
-        }
         for _, d in ipairs(state.doors) do
-            local col = colors[d.rewardType] or {1, 1, 1}
-            if d.roomKind == 'shop' then col = colors.shop end
-            if d.roomKind == 'event' then col = colors.event end
+            -- Use mission color if available, otherwise fallback
+            local col = d.missionColor or {1, 1, 1}
             local w = d.w or 54
             local h = d.h or 86
             local x = d.x or 0
             local y = d.y or 0
 
+            -- Door background
             love.graphics.setColor(col[1], col[2], col[3], 0.75)
             love.graphics.rectangle('fill', x - w/2, y - h/2, w, h, 8, 8)
-            love.graphics.setColor(0, 0, 0, 0.45)
+            
+            -- Door border
+            love.graphics.setColor(col[1], col[2], col[3], 0.95)
+            love.graphics.setLineWidth(2)
             love.graphics.rectangle('line', x - w/2, y - h/2, w, h, 8, 8)
-            if d.roomKind == 'elite' then
-                love.graphics.setColor(1, 0.2, 0.2, 0.9)
-                love.graphics.setLineWidth(3)
-                love.graphics.rectangle('line', x - w/2 - 3, y - h/2 - 3, w + 6, h + 6, 10, 10)
-                love.graphics.setLineWidth(1)
-            elseif d.roomKind == 'shop' then
-                love.graphics.setColor(0.35, 0.95, 1.0, 0.85)
-                love.graphics.setLineWidth(2)
-                love.graphics.rectangle('line', x - w/2 - 2, y - h/2 - 2, w + 4, h + 4, 10, 10)
-                love.graphics.setLineWidth(1)
-            elseif d.roomKind == 'event' then
-                love.graphics.setColor(0.95, 0.7, 1.0, 0.85)
-                love.graphics.setLineWidth(2)
-                love.graphics.rectangle('line', x - w/2 - 2, y - h/2 - 2, w + 4, h + 4, 10, 10)
-                love.graphics.setLineWidth(1)
-            end
+            love.graphics.setLineWidth(1)
+            
+            -- Inner dark area
+            love.graphics.setColor(0, 0, 0, 0.4)
+            love.graphics.rectangle('fill', x - w/2 + 4, y - h/2 + 4, w - 8, h - 8, 4, 4)
+            
+            -- Mission name label above door
             love.graphics.setColor(1, 1, 1, 0.95)
-            local label = d.rewardType and string.upper(tostring(d.rewardType)) or "?"
-            if d.roomKind == 'shop' then label = "SHOP" end
-            if d.roomKind == 'event' then label = "EVENT" end
-            love.graphics.printf(label, x - 80, y - h/2 - 18, 160, "center")
-            if d.roomKind == 'elite' then
-                love.graphics.setColor(1, 0.2, 0.2, 0.95)
-                love.graphics.printf("ELITE", x - 80, y + h/2 + 2, 160, "center")
+            local label = d.missionName or d.missionType or "?"
+            love.graphics.printf(label, x - 80, y - h/2 - 20, 160, "center")
+            
+            -- Mission type icon/indicator inside door
+            love.graphics.setColor(col[1], col[2], col[3], 0.9)
+            if d.missionType == 'exterminate' then
+                -- Skull-like indicator (simple X)
+                love.graphics.setLineWidth(3)
+                love.graphics.line(x - 8, y - 8, x + 8, y + 8)
+                love.graphics.line(x + 8, y - 8, x - 8, y + 8)
+                love.graphics.setLineWidth(1)
+            elseif d.missionType == 'defense' then
+                -- Shield indicator (simple diamond)
+                love.graphics.polygon('line', x, y - 12, x + 10, y, x, y + 12, x - 10, y)
+            elseif d.missionType == 'survival' then
+                -- Clock/timer indicator (circle with line)
+                love.graphics.circle('line', x, y, 10)
+                love.graphics.line(x, y, x, y - 8)
+                love.graphics.line(x, y, x + 6, y + 4)
             end
         end
         love.graphics.setColor(1, 1, 1)
