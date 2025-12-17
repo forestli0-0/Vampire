@@ -878,7 +878,7 @@ function state.init()
             type = 'weapon', name = "Lato",
             desc = "Standard sidearm. Reliable and fast.",
             maxLevel = 5,
-            slotType = 'secondary',
+            slotType = 'primary',
             weaponCategory = 'pistol',
             behavior = 'SHOOT_NEAREST',
             tags = {'weapon', 'projectile', 'physical', 'pistol'},
@@ -895,7 +895,7 @@ function state.init()
             type = 'weapon', name = "Lex",
             desc = "High-caliber pistol. Hits like a truck.",
             maxLevel = 5,
-            slotType = 'secondary',
+            slotType = 'primary',
             weaponCategory = 'pistol',
             behavior = 'SHOOT_NEAREST',
             tags = {'weapon', 'projectile', 'physical', 'pistol'},
@@ -912,7 +912,7 @@ function state.init()
             type = 'weapon', name = "Atomos",
             desc = "Particle cannon. Chains to nearby enemies.",
             maxLevel = 5,
-            slotType = 'secondary',
+            slotType = 'primary',
             weaponCategory = 'energy',
             behavior = 'SHOOT_NEAREST',
             tags = {'weapon', 'projectile', 'energy', 'pistol'},
@@ -923,7 +923,7 @@ function state.init()
                 elements={'HEAT'}, damageBreakdown={HEAT=1},
                 critChance=0.05, critMultiplier=1.5, statusChance=0.35,
                 magazine=70, maxMagazine=70, reserve=210, maxReserve=210, reloadTime=2.0,
-                chain=3, staticRange=100
+                life=0.8, duration=2.0, chain=3, staticRange=100
             },
             onUpgrade = function(w) w.damage = w.damage + 2; w.chain = w.chain + 1 end
         },

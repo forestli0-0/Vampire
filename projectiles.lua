@@ -146,7 +146,9 @@ function projectiles.updatePlayerBullets(state, dt)
         if not handled then
             local ox, oy = b.x, b.y
             updateBulletGuidance(state, b, dt)
-            if b.type == 'wand' or b.type == 'holy_wand' or b.type == 'fire_wand' or b.type == 'hellfire' or b.type == 'oil_bottle' or b.type == 'heavy_hammer' or b.type == 'dagger' or b.type == 'thousand_edge' or b.type == 'static_orb' or b.type == 'thunder_loop' or b.type == 'debug_effect' or b.type == 'augment_shard' then
+            -- WF weapons + legacy weapons
+            if b.type == 'wand' or b.type == 'holy_wand' or b.type == 'fire_wand' or b.type == 'hellfire' or b.type == 'oil_bottle' or b.type == 'heavy_hammer' or b.type == 'dagger' or b.type == 'thousand_edge' or b.type == 'static_orb' or b.type == 'thunder_loop' or b.type == 'debug_effect' or b.type == 'augment_shard' or
+               b.type == 'braton' or b.type == 'boltor' or b.type == 'hek' or b.type == 'strun' or b.type == 'vectis' or b.type == 'lanka' or b.type == 'dread' or b.type == 'paris' or b.type == 'lato' or b.type == 'lex' or b.type == 'atomos' then
                 b.x = b.x + b.vx * dt
                 b.y = b.y + b.vy * dt
                 if b.type ~= 'oil_bottle' then
@@ -252,7 +254,8 @@ function projectiles.updatePlayerBullets(state, dt)
                                     break
                                 end
                             end
-                        elseif b.type == 'wand' or b.type == 'holy_wand' or b.type == 'heavy_hammer' or b.type == 'dagger' or b.type == 'thousand_edge' or b.type == 'static_orb' or b.type == 'thunder_loop' or b.type == 'debug_effect' or b.type == 'augment_shard' then
+                        elseif b.type == 'wand' or b.type == 'holy_wand' or b.type == 'heavy_hammer' or b.type == 'dagger' or b.type == 'thousand_edge' or b.type == 'static_orb' or b.type == 'thunder_loop' or b.type == 'debug_effect' or b.type == 'augment_shard' or
+                               b.type == 'braton' or b.type == 'boltor' or b.type == 'hek' or b.type == 'strun' or b.type == 'vectis' or b.type == 'lanka' or b.type == 'dread' or b.type == 'paris' or b.type == 'lato' or b.type == 'lex' or b.type == 'atomos' then
                             b.hitTargets = b.hitTargets or {}
                             if not b.hitTargets[e] then
                                 b.hitTargets[e] = true
