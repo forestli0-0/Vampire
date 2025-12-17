@@ -309,10 +309,51 @@ function mods.applyToStats(baseStats, slots, catalog)
     return stats
 end
 
--- Convenience: Apply weapon mods
+-- Convenience: Apply weapon mods with attribute name mapping
 function mods.applyWeaponMods(state, weaponKey, baseStats)
     local slots = mods.getSlots(state, 'weapons', weaponKey)
-    return mods.applyToStats(baseStats, slots, mods.weapon)
+    local stats = mods.applyToStats(baseStats, slots, mods.weapon)
+    
+    -- Attribute name mapping: MOD stat names -> weapon stat names
+    -- fireRate (mult) affects cd inversely: higher fireRate = lower cd
+    if stats.fireRate and stats.fireRate > 0 then
+        local cdBonus = stats.fireRate  -- e.g., 0.6 means 60% faster
+        stats.cd = (stats.cd or 1) / (1 + cdBonus)
+        stats.fireRate = nil  -- Remove intermediate stat
+    end
+    
+    -- multishot (add) maps to amount
+    if stats.multishot then
+        stats.amount = (stats.amount or 0) + stats.multishot
+        stats.multishot = nil
+    end
+    
+    -- critMult (add) maps to critMultiplier
+    if stats.critMult then
+        stats.critMultiplier = (stats.critMultiplier or 1.5) + stats.critMult
+        stats.critMult = nil
+    end
+    
+    -- magSize (mult) maps to magazine/maxMagazine
+    if stats.magSize and stats.magSize > 0 then
+        local bonus = 1 + stats.magSize
+        if stats.magazine then
+            stats.magazine = math.floor(stats.magazine * bonus)
+        end
+        if stats.maxMagazine then
+            stats.maxMagazine = math.floor(stats.maxMagazine * bonus)
+        end
+        stats.magSize = nil
+    end
+    
+    -- reloadSpeed (mult) affects reloadTime inversely
+    if stats.reloadSpeed and stats.reloadSpeed > 0 then
+        local bonus = stats.reloadSpeed
+        stats.reloadTime = (stats.reloadTime or 1.5) / (1 + bonus)
+        stats.reloadSpeed = nil
+    end
+    
+    return stats
 end
 
 -- Convenience: Apply warframe mods to player

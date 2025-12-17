@@ -501,10 +501,13 @@ function Behaviors.MELEE_SWING(state, weaponKey, w, stats, params, sx, sy)
     
     local baseDamage = (stats.damage or 40) * mult
     local might = p.stats and p.stats.might or 1
-    local finalDamage = baseDamage * might
+    local finalDamage = math.floor(baseDamage * might)
     
     -- Knockback
     local knockback = (stats.knockback or 80) * mult
+    
+    -- Get weapon definition for tags
+    local weaponDef = state.catalog and state.catalog[weaponKey]
     
     -- Check all enemies in arc
     local hitCount = 0
@@ -522,29 +525,21 @@ function Behaviors.MELEE_SWING(state, weaponKey, w, stats, params, sx, sy)
                 if angleDiff > math.pi then angleDiff = 2 * math.pi - angleDiff end
                 
                 if angleDiff <= arcWidth / 2 then
-                    -- Hit enemy - apply damage directly
-                    e.health = e.health - finalDamage
-                    e.hp = e.health
-                    
-                    -- Damage text
-                    if state.texts then
-                        local color = {1, 0.9, 0.4}
-                        if melee.attackType == 'finisher' then color = {1, 0.5, 0.2} end
-                        table.insert(state.texts, {x=e.x, y=e.y-20, text=math.floor(finalDamage), color=color, life=0.5, scale=melee.attackType == 'finisher' and 1.5 or 1})
-                    end
-                    
-                    -- Apply knockback
-                    if knockback > 0 and dist > 0 then
-                        local kbX = (dx / dist) * knockback
-                        local kbY = (dy / dist) * knockback
-                        e.x = e.x + kbX * 0.1
-                        e.y = e.y + kbY * 0.1
-                    end
+                    -- Use calculator.applyHit for proper damage calculation (crits, status, armor)
+                    local result = calculator.applyHit(state, e, {
+                        damage = finalDamage,
+                        critChance = stats.critChance or 0,
+                        critMultiplier = stats.critMultiplier or 1.5,
+                        statusChance = stats.statusChance or 0,
+                        effectType = stats.effectType or (weaponDef and weaponDef.effectType),
+                        elements = stats.elements,
+                        damageBreakdown = stats.damageBreakdown,
+                        weaponTags = weaponDef and weaponDef.tags,
+                        knock = knockback > 0,
+                        knockForce = knockback * 0.1
+                    })
                     
                     hitCount = hitCount + 1
-                    
-                    -- Hit sound
-                    if state.playSfx then state.playSfx('hit') end
                 end
             end
         end

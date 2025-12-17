@@ -91,7 +91,8 @@ function player.updateFiring(state)
     p.isPrecisionAim = isPrecisionAimMode()
     
     -- Update sniper aim (Shift held with sniper equipped)
-    local activeWeaponKey = state.inventory and state.inventory.weaponSlots and state.inventory.weaponSlots[p.activeSlot]
+    local activeWeaponInst = state.inventory and state.inventory.weaponSlots and state.inventory.weaponSlots[p.activeSlot]
+    local activeWeaponKey = activeWeaponInst and activeWeaponInst.key
     local weaponDef = activeWeaponKey and state.catalog and state.catalog[activeWeaponKey]
     local isSniperMode = weaponDef and weaponDef.sniperMode and p.isPrecisionAim
     
@@ -100,9 +101,10 @@ function player.updateFiring(state)
         local centerX, centerY = screenW / 2, screenH / 2
         
         if not p.sniperAim.active then
-            -- Just entered sniper mode: initialize cursor at player position
-            p.sniperAim.worldX = p.x
-            p.sniperAim.worldY = p.y
+            -- Just entered sniper mode: initialize cursor at MOUSE world position
+            local mx, my = getMouseWorldPos(state)
+            p.sniperAim.worldX = mx
+            p.sniperAim.worldY = my
             -- Set mouse to center for delta tracking
             love.mouse.setPosition(centerX, centerY)
         end
@@ -494,8 +496,8 @@ function player.keypressed(state, key)
         end
         mods.equipTestMods(state, 'companion', nil)
         
-        table.insert(state.texts, {x=p.x, y=p.y-50, text="MOD已装备!", color={0.6, 0.9, 0.4}, life=2})
-        table.insert(state.texts, {x=p.x, y=p.y-70, text="角色+武器+宠物", color={0.8, 0.8, 1}, life=2})
+        table.insert(state.texts, {x=state.player.x, y=state.player.y-50, text="MOD已装备!", color={0.6, 0.9, 0.4}, life=2})
+        table.insert(state.texts, {x=state.player.x, y=state.player.y-70, text="角色+武器+宠物", color={0.8, 0.8, 1}, life=2})
         return true
     end
     
@@ -600,8 +602,18 @@ function player.updateMovement(state, dt)
     p.movedDist = math.sqrt(mdx * mdx + mdy * mdy)
 
     local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
-    local camX = p.x - sw / 2
-    local camY = p.y - sh / 2
+    
+    -- Camera target: sniper aim point if active, otherwise player
+    local camTargetX, camTargetY = p.x, p.y
+    if p.sniperAim and p.sniperAim.active then
+        -- Blend camera between player and sniper aim point (70% towards aim)
+        local aimX, aimY = p.sniperAim.worldX, p.sniperAim.worldY
+        camTargetX = p.x * 0.3 + aimX * 0.7
+        camTargetY = p.y * 0.3 + aimY * 0.7
+    end
+    
+    local camX = camTargetX - sw / 2
+    local camY = camTargetY - sh / 2
     if world and world.enabled and world.pixelW and world.pixelH then
         local maxCamX = math.max(0, world.pixelW - sw)
         local maxCamY = math.max(0, world.pixelH - sh)
