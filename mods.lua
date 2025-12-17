@@ -1,122 +1,195 @@
 -- mods.lua
--- Warframe-style MOD system (8 slots per weapon)
+-- Unified Warframe-style MOD System
+-- Supports: Warframe (character), Weapon, Companion (pet)
 
 local mods = {}
 
 -- =============================================================================
--- MOD CATALOG (10 Basic MODs)
+-- MOD CATALOG
 -- =============================================================================
--- Each MOD: name, description, stat affected, cost per level, bonus per level
 
-mods.catalog = {
-    -- Damage MODs
+-- WARFRAME MODs (Character)
+mods.warframe = {
+    vitality = {
+        name = "生命力", desc = "生命值",
+        stat = 'maxHp', type = 'mult',
+        cost = {4,5,6,7,8,9}, value = {0.20,0.40,0.60,0.80,1.00,1.20}
+    },
+    steel_fiber = {
+        name = "钢铁纤维", desc = "护甲值",
+        stat = 'armor', type = 'mult',
+        cost = {4,5,6,7,8,9}, value = {0.15,0.30,0.45,0.60,0.75,0.90}
+    },
+    redirection = {
+        name = "重定向", desc = "护盾值",
+        stat = 'maxShield', type = 'mult',
+        cost = {4,5,6,7,8,9}, value = {0.20,0.40,0.60,0.80,1.00,1.20}
+    },
+    flow = {
+        name = "流线型", desc = "能量上限",
+        stat = 'maxEnergy', type = 'mult',
+        cost = {4,5,6,7,8,9}, value = {0.25,0.50,0.75,1.00,1.25,1.50}
+    },
+    streamline = {
+        name = "精简", desc = "技能效率",
+        stat = 'abilityEfficiency', type = 'add',
+        cost = {4,5,6,7,8,9}, value = {0.05,0.10,0.15,0.20,0.25,0.30}
+    },
+    intensify = {
+        name = "强化", desc = "技能强度",
+        stat = 'abilityStrength', type = 'add',
+        cost = {6,7,8,9,10,11}, value = {0.05,0.10,0.15,0.20,0.25,0.30}
+    },
+    rush = {
+        name = "冲刺", desc = "移动速度",
+        stat = 'speed', type = 'mult',
+        cost = {3,4,5,6,7,8}, value = {0.05,0.10,0.15,0.20,0.25,0.30}
+    },
+    quick_thinking = {
+        name = "快速思维", desc = "能量回复",
+        stat = 'energyRegen', type = 'mult',
+        cost = {5,6,7,8,9,10}, value = {0.10,0.20,0.30,0.40,0.50,0.60}
+    },
+    continuity = {
+        name = "持续", desc = "技能持续时间",
+        stat = 'abilityDuration', type = 'add',
+        cost = {4,5,6,7,8,9}, value = {0.05,0.10,0.15,0.20,0.25,0.30}
+    },
+    stretch = {
+        name = "伸展", desc = "技能范围",
+        stat = 'abilityRange', type = 'add',
+        cost = {4,5,6,7,8,9}, value = {0.07,0.14,0.21,0.28,0.35,0.42}
+    }
+}
+
+-- WEAPON MODs
+mods.weapon = {
     serration = {
-        name = "膛线",
-        desc = "伤害增幅",
-        stat = 'damage',
-        type = 'mult',  -- multiplicative bonus
-        cost = {4, 5, 6, 7, 8, 9},  -- cost at rank 0-5
-        value = {0.15, 0.30, 0.45, 0.60, 0.75, 0.90}
+        name = "膛线", desc = "伤害",
+        stat = 'damage', type = 'mult',
+        cost = {4,5,6,7,8,9}, value = {0.15,0.30,0.45,0.60,0.75,0.90}
     },
     heavy_caliber = {
-        name = "重装口径",
-        desc = "伤害增幅 (降低精准)",
-        stat = 'damage',
-        type = 'mult',
-        cost = {6, 7, 8, 9, 10, 11},
-        value = {0.15, 0.30, 0.45, 0.60, 0.75, 0.90}
+        name = "重装口径", desc = "伤害",
+        stat = 'damage', type = 'mult',
+        cost = {6,7,8,9,10,11}, value = {0.15,0.30,0.45,0.60,0.75,0.90}
     },
-    
-    -- Multishot MODs
     split_chamber = {
-        name = "分裂膛室",
-        desc = "多重射击",
-        stat = 'multishot',
-        type = 'add',
-        cost = {5, 6, 7, 8, 9, 10},
-        value = {0.15, 0.30, 0.45, 0.60, 0.75, 0.90}
+        name = "分裂膛室", desc = "多重射击",
+        stat = 'multishot', type = 'add',
+        cost = {5,6,7,8,9,10}, value = {0.15,0.30,0.45,0.60,0.75,0.90}
     },
-    
-    -- Critical MODs
     point_strike = {
-        name = "致命一击",
-        desc = "暴击几率",
-        stat = 'critChance',
-        type = 'add',
-        cost = {4, 5, 6, 7, 8, 9},
-        value = {0.10, 0.20, 0.30, 0.40, 0.50, 0.60}
+        name = "致命一击", desc = "暴击率",
+        stat = 'critChance', type = 'add',
+        cost = {4,5,6,7,8,9}, value = {0.10,0.20,0.30,0.40,0.50,0.60}
     },
     vital_sense = {
-        name = "致命打击",
-        desc = "暴击伤害",
-        stat = 'critMult',
-        type = 'add',
-        cost = {4, 5, 6, 7, 8, 9},
-        value = {0.20, 0.40, 0.60, 0.80, 1.00, 1.20}
+        name = "致命打击", desc = "暴击伤害",
+        stat = 'critMult', type = 'add',
+        cost = {4,5,6,7,8,9}, value = {0.20,0.40,0.60,0.80,1.00,1.20}
     },
-    
-    -- Speed MODs
     speed_trigger = {
-        name = "速度扳机",
-        desc = "射速增加",
-        stat = 'fireRate',
-        type = 'mult',
-        cost = {4, 5, 6, 7, 8, 9},
-        value = {0.10, 0.20, 0.30, 0.40, 0.50, 0.60}
+        name = "速度扳机", desc = "射速",
+        stat = 'fireRate', type = 'mult',
+        cost = {4,5,6,7,8,9}, value = {0.10,0.20,0.30,0.40,0.50,0.60}
     },
-    shred = {
-        name = "撕裂",
-        desc = "射速+穿透",
-        stat = 'fireRate',
-        type = 'mult',
-        cost = {5, 6, 7, 8, 9, 10},
-        value = {0.05, 0.10, 0.15, 0.20, 0.25, 0.30}
-    },
-    
-    -- Magazine MODs
     magazine_warp = {
-        name = "弹匣扭曲",
-        desc = "弹匣容量",
-        stat = 'magSize',
-        type = 'mult',
-        cost = {4, 5, 6, 7, 8, 9},
-        value = {0.10, 0.20, 0.30, 0.40, 0.50, 0.60}
+        name = "弹匣扭曲", desc = "弹匣容量",
+        stat = 'magSize', type = 'mult',
+        cost = {4,5,6,7,8,9}, value = {0.10,0.20,0.30,0.40,0.50,0.60}
     },
     fast_hands = {
-        name = "快手",
-        desc = "换弹速度",
-        stat = 'reloadSpeed',
-        type = 'mult',
-        cost = {3, 4, 5, 6, 7, 8},
-        value = {0.10, 0.20, 0.30, 0.40, 0.50, 0.60}
+        name = "快手", desc = "换弹速度",
+        stat = 'reloadSpeed', type = 'mult',
+        cost = {3,4,5,6,7,8}, value = {0.10,0.20,0.30,0.40,0.50,0.60}
     },
-    
-    -- Status MOD
     status_matrix = {
-        name = "异常矩阵",
-        desc = "异常几率",
-        stat = 'statusChance',
-        type = 'add',
-        cost = {4, 5, 6, 7, 8, 9},
-        value = {0.10, 0.20, 0.30, 0.40, 0.50, 0.60}
+        name = "异常矩阵", desc = "异常几率",
+        stat = 'statusChance', type = 'add',
+        cost = {4,5,6,7,8,9}, value = {0.10,0.20,0.30,0.40,0.50,0.60}
+    },
+    pressure_point = {
+        name = "压力点", desc = "近战伤害",
+        stat = 'meleeDamage', type = 'mult',
+        cost = {4,5,6,7,8,9}, value = {0.20,0.40,0.60,0.80,1.00,1.20}
+    }
+}
+
+-- COMPANION MODs (Pet)
+mods.companion = {
+    link_health = {
+        name = "连接生命", desc = "生命继承",
+        stat = 'healthLink', type = 'add',
+        cost = {5,6,7,8,9,10}, value = {0.15,0.30,0.45,0.60,0.75,0.90}
+    },
+    link_armor = {
+        name = "连接护甲", desc = "护甲继承",
+        stat = 'armorLink', type = 'add',
+        cost = {5,6,7,8,9,10}, value = {0.15,0.30,0.45,0.60,0.75,0.90}
+    },
+    bite = {
+        name = "撕咬", desc = "攻击暴击",
+        stat = 'critChance', type = 'add',
+        cost = {4,5,6,7,8,9}, value = {0.10,0.20,0.30,0.40,0.50,0.60}
+    },
+    maul = {
+        name = "重击", desc = "攻击伤害",
+        stat = 'damage', type = 'mult',
+        cost = {4,5,6,7,8,9}, value = {0.20,0.40,0.60,0.80,1.00,1.20}
+    },
+    pack_leader = {
+        name = "群首", desc = "近战吸血",
+        stat = 'meleeLeeech', type = 'add',
+        cost = {5,6,7,8,9,10}, value = {0.05,0.10,0.15,0.20,0.25,0.30}
     }
 }
 
 -- =============================================================================
--- CAPACITY SYSTEM
+-- SLOT SYSTEM
 -- =============================================================================
 
--- Calculate weapon mod capacity based on level
-function mods.getWeaponCapacity(weaponLevel)
-    return (weaponLevel or 1) * 10
+local MAX_SLOTS = 8
+local DEFAULT_CAPACITY = 30
+
+-- Initialize mod slots for an entity
+function mods.initSlots(state, category, key)
+    state.modSlots = state.modSlots or {}
+    
+    if category == 'weapons' then
+        state.modSlots.weapons = state.modSlots.weapons or {}
+        if not state.modSlots.weapons[key] then
+            state.modSlots.weapons[key] = {
+                slots = {}, capacity = DEFAULT_CAPACITY, level = 1
+            }
+        end
+        return state.modSlots.weapons[key]
+    else
+        -- warframe or companion
+        if not state.modSlots[category] or not state.modSlots[category].slots then
+            state.modSlots[category] = {
+                slots = {}, capacity = DEFAULT_CAPACITY, level = 1
+            }
+        end
+        return state.modSlots[category]
+    end
+end
+
+-- Get catalog for category
+function mods.getCatalog(category)
+    if category == 'warframe' then return mods.warframe
+    elseif category == 'weapons' then return mods.weapon
+    elseif category == 'companion' then return mods.companion
+    end
+    return {}
 end
 
 -- Calculate total cost of equipped mods
-function mods.getTotalCost(equippedMods)
+function mods.getTotalCost(slots, catalog)
     local total = 0
-    for _, mod in ipairs(equippedMods or {}) do
+    for _, mod in ipairs(slots or {}) do
         if mod and mod.key then
-            local def = mods.catalog[mod.key]
+            local def = catalog[mod.key]
             if def and def.cost then
                 local rank = math.max(0, math.min(5, mod.rank or 0))
                 total = total + (def.cost[rank + 1] or 0)
@@ -126,36 +199,87 @@ function mods.getTotalCost(equippedMods)
     return total
 end
 
--- Check if a mod can be equipped (within capacity)
-function mods.canEquip(equippedMods, newModKey, newModRank, capacity)
-    local currentCost = mods.getTotalCost(equippedMods)
-    local def = mods.catalog[newModKey]
+-- Check if can equip
+function mods.canEquip(slotData, modKey, modRank, catalog)
+    local currentCost = mods.getTotalCost(slotData.slots, catalog)
+    local def = catalog[modKey]
     if not def then return false end
     
-    local rank = math.max(0, math.min(5, newModRank or 0))
+    local rank = math.max(0, math.min(5, modRank or 0))
     local newCost = def.cost[rank + 1] or 0
+    local capacity = slotData.capacity or DEFAULT_CAPACITY
     
     return (currentCost + newCost) <= capacity
 end
 
+-- Equip a mod
+function mods.equip(state, category, key, slotIndex, modKey, modRank)
+    local slotData
+    if category == 'weapons' then
+        slotData = mods.initSlots(state, 'weapons', key)
+    else
+        slotData = mods.initSlots(state, category, nil)
+    end
+    
+    if slotIndex < 1 or slotIndex > MAX_SLOTS then return false end
+    
+    local catalog = mods.getCatalog(category)
+    local oldMod = slotData.slots[slotIndex]
+    slotData.slots[slotIndex] = nil
+    
+    if not mods.canEquip(slotData, modKey, modRank, catalog) then
+        slotData.slots[slotIndex] = oldMod
+        return false
+    end
+    
+    slotData.slots[slotIndex] = {key = modKey, rank = modRank or 0}
+    return true
+end
+
+-- Unequip
+function mods.unequip(state, category, key, slotIndex)
+    local slotData
+    if category == 'weapons' then
+        if state.modSlots and state.modSlots.weapons then
+            slotData = state.modSlots.weapons[key]
+        end
+    else
+        slotData = state.modSlots and state.modSlots[category]
+    end
+    if slotData and slotIndex >= 1 and slotIndex <= MAX_SLOTS then
+        slotData.slots[slotIndex] = nil
+        return true
+    end
+    return false
+end
+
+-- Get slots
+function mods.getSlots(state, category, key)
+    if not state.modSlots then return {} end
+    if category == 'weapons' then
+        return state.modSlots.weapons and state.modSlots.weapons[key] and state.modSlots.weapons[key].slots or {}
+    else
+        return state.modSlots[category] and state.modSlots[category].slots or {}
+    end
+end
+
 -- =============================================================================
--- APPLY MOD BONUSES
+-- APPLY BONUSES
 -- =============================================================================
 
--- Apply mods to weapon stats
-function mods.applyToWeapon(baseStats, equippedMods)
+-- Apply mods to stats
+function mods.applyToStats(baseStats, slots, catalog)
     local stats = {}
     for k, v in pairs(baseStats or {}) do
         stats[k] = v
     end
     
-    -- Collect bonuses
     local multBonuses = {}
     local addBonuses = {}
     
-    for _, mod in ipairs(equippedMods or {}) do
+    for _, mod in ipairs(slots or {}) do
         if mod and mod.key then
-            local def = mods.catalog[mod.key]
+            local def = catalog[mod.key]
             if def and def.value then
                 local rank = math.max(0, math.min(5, mod.rank or 0))
                 local bonus = def.value[rank + 1] or 0
@@ -170,111 +294,69 @@ function mods.applyToWeapon(baseStats, equippedMods)
         end
     end
     
-    -- Apply multiplicative bonuses (e.g., damage)
-    if multBonuses.damage then
-        stats.damage = (stats.damage or 10) * (1 + multBonuses.damage)
-    end
-    if multBonuses.fireRate then
-        stats.cd = (stats.cd or 1) / (1 + multBonuses.fireRate)
-    end
-    if multBonuses.magSize then
-        stats.maxMagazine = math.floor((stats.maxMagazine or 30) * (1 + multBonuses.magSize))
-        stats.magazine = math.min(stats.magazine or 0, stats.maxMagazine)
-    end
-    if multBonuses.reloadSpeed then
-        stats.reloadTime = (stats.reloadTime or 1.5) / (1 + multBonuses.reloadSpeed)
+    -- Apply multiplicative
+    for stat, bonus in pairs(multBonuses) do
+        if stats[stat] then
+            stats[stat] = stats[stat] * (1 + bonus)
+        end
     end
     
-    -- Apply additive bonuses
-    if addBonuses.multishot then
-        stats.multishot = (stats.multishot or 0) + addBonuses.multishot
-    end
-    if addBonuses.critChance then
-        stats.critChance = (stats.critChance or 0.05) + addBonuses.critChance
-    end
-    if addBonuses.critMult then
-        stats.critMultiplier = (stats.critMultiplier or 1.5) + addBonuses.critMult
-    end
-    if addBonuses.statusChance then
-        stats.statusChance = (stats.statusChance or 0) + addBonuses.statusChance
+    -- Apply additive
+    for stat, bonus in pairs(addBonuses) do
+        stats[stat] = (stats[stat] or 0) + bonus
     end
     
     return stats
 end
 
--- =============================================================================
--- EQUIP/UNEQUIP
--- =============================================================================
-
--- Initialize weapon mod slots (8 slots)
-function mods.initWeaponMods(state, weaponKey)
-    state.weaponMods = state.weaponMods or {}
-    if not state.weaponMods[weaponKey] then
-        state.weaponMods[weaponKey] = {
-            slots = {},  -- 8 slots: {key, rank}
-            level = 1    -- weapon level for capacity
-        }
-    end
-    return state.weaponMods[weaponKey]
+-- Convenience: Apply weapon mods
+function mods.applyWeaponMods(state, weaponKey, baseStats)
+    local slots = mods.getSlots(state, 'weapons', weaponKey)
+    return mods.applyToStats(baseStats, slots, mods.weapon)
 end
 
--- Equip a mod to a weapon slot
-function mods.equipMod(state, weaponKey, slotIndex, modKey, modRank)
-    local wm = mods.initWeaponMods(state, weaponKey)
-    local capacity = mods.getWeaponCapacity(wm.level)
-    
-    -- Check slot bounds (1-8)
-    if slotIndex < 1 or slotIndex > 8 then return false end
-    
-    -- Temporarily remove existing mod from slot
-    local oldMod = wm.slots[slotIndex]
-    wm.slots[slotIndex] = nil
-    
-    -- Check capacity
-    if not mods.canEquip(wm.slots, modKey, modRank, capacity) then
-        wm.slots[slotIndex] = oldMod  -- restore old mod
-        return false
-    end
-    
-    -- Equip new mod
-    wm.slots[slotIndex] = {key = modKey, rank = modRank or 0}
-    return true
+-- Convenience: Apply warframe mods to player
+function mods.applyWarframeMods(state, playerStats)
+    local slots = mods.getSlots(state, 'warframe', nil)
+    return mods.applyToStats(playerStats, slots, mods.warframe)
 end
 
--- Unequip a mod from a weapon slot
-function mods.unequipMod(state, weaponKey, slotIndex)
-    local wm = mods.initWeaponMods(state, weaponKey)
-    if slotIndex >= 1 and slotIndex <= 8 then
-        wm.slots[slotIndex] = nil
-        return true
-    end
-    return false
-end
-
--- Get list of mods for a weapon
-function mods.getWeaponMods(state, weaponKey)
-    if not state.weaponMods or not state.weaponMods[weaponKey] then
-        return {}
-    end
-    return state.weaponMods[weaponKey].slots or {}
+-- Convenience: Apply companion mods
+function mods.applyCompanionMods(state, petStats)
+    local slots = mods.getSlots(state, 'companion', nil)
+    return mods.applyToStats(petStats, slots, mods.companion)
 end
 
 -- =============================================================================
--- DEBUG/TEST FUNCTION
+-- DEBUG/TEST
 -- =============================================================================
 
--- Test function: Equip sample mods to a weapon
-function mods.equipTestMods(state, weaponKey)
-    mods.initWeaponMods(state, weaponKey)
-    state.weaponMods[weaponKey].level = 30  -- Max level for testing
+function mods.equipTestMods(state, category, key)
+    local slotData
+    if category == 'weapons' then
+        slotData = mods.initSlots(state, 'weapons', key)
+    else
+        slotData = mods.initSlots(state, category, nil)
+    end
+    slotData.capacity = 300  -- High capacity for testing
     
-    -- Equip some test mods
-    mods.equipMod(state, weaponKey, 1, 'serration', 3)      -- 60% damage
-    mods.equipMod(state, weaponKey, 2, 'split_chamber', 2)  -- 45% multishot
-    mods.equipMod(state, weaponKey, 3, 'point_strike', 3)   -- 40% crit
-    mods.equipMod(state, weaponKey, 4, 'vital_sense', 2)    -- 60% crit mult
+    if category == 'warframe' then
+        mods.equip(state, 'warframe', nil, 1, 'vitality', 3)
+        mods.equip(state, 'warframe', nil, 2, 'steel_fiber', 2)
+        mods.equip(state, 'warframe', nil, 3, 'flow', 2)
+        mods.equip(state, 'warframe', nil, 4, 'rush', 3)
+    elseif category == 'weapons' then
+        mods.equip(state, 'weapons', key, 1, 'serration', 3)
+        mods.equip(state, 'weapons', key, 2, 'split_chamber', 2)
+        mods.equip(state, 'weapons', key, 3, 'point_strike', 3)
+        mods.equip(state, 'weapons', key, 4, 'vital_sense', 2)
+    elseif category == 'companion' then
+        mods.equip(state, 'companion', nil, 1, 'link_health', 3)
+        mods.equip(state, 'companion', nil, 2, 'maul', 2)
+        mods.equip(state, 'companion', nil, 3, 'bite', 2)
+    end
     
-    print(string.format("[MODS] Equipped test mods to %s", weaponKey))
+    print(string.format("[MODS] Test mods equipped: %s %s", category, key or ""))
 end
 
 return mods

@@ -1652,19 +1652,26 @@ function draw.renderUI(state)
             love.graphics.print(passiveInfo.icon or "P", abilityX + 4 * (slotSize + 4), abilityY + 1)
         end
         
-        -- MOD count for active weapon
+        -- MOD count for all categories
         local modsModule = require('mods')
-        local activeKey = state.inventory and state.inventory.activeWeaponKey
-        if activeKey then
-            local equippedMods = modsModule.getWeaponMods(state, activeKey)
-            local modCount = 0
-            for _, m in ipairs(equippedMods or {}) do
-                if m then modCount = modCount + 1 end
-            end
-            if modCount > 0 then
-                love.graphics.setColor(0.6, 0.8, 0.4, 0.8)
-                love.graphics.print(string.format("MOD:%d", modCount), abilityX, abilityY + 22)
-            end
+        local p = state.player
+        local activeSlot = p.activeSlot or 'primary'
+        local activeKey = p.weaponSlots and p.weaponSlots[activeSlot]
+        
+        -- Count equipped mods for each category
+        local wfSlots = modsModule.getSlots(state, 'warframe', nil)
+        local wpSlots = activeKey and modsModule.getSlots(state, 'weapons', activeKey) or {}
+        local cpSlots = modsModule.getSlots(state, 'companion', nil)
+        
+        local wfCount, wpCount, cpCount = 0, 0, 0
+        for _, m in ipairs(wfSlots) do if m then wfCount = wfCount + 1 end end
+        for _, m in ipairs(wpSlots) do if m then wpCount = wpCount + 1 end end
+        for _, m in ipairs(cpSlots) do if m then cpCount = cpCount + 1 end end
+        
+        local totalMods = wfCount + wpCount + cpCount
+        if totalMods > 0 then
+            love.graphics.setColor(0.6, 0.8, 0.4, 0.8)
+            love.graphics.print(string.format("MOD: W%d/A%d/P%d", wfCount, wpCount, cpCount), abilityX, abilityY + 22)
         end
         
         love.graphics.setColor(1, 1, 1, 1)

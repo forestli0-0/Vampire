@@ -409,27 +409,34 @@ function player.keypressed(state, key)
         return abilities.tryActivate(state, abilityKey)
     end
     
-    -- M key: Test MOD system (debug)
+    -- M key: Test MOD system (all categories)
     if key == 'm' then
         local mods = require('mods')
         local p = state.player
         local activeSlot = p.activeSlot or 'primary'
         local activeKey = p.weaponSlots and p.weaponSlots[activeSlot]
+        
+        -- Equip test mods for all categories
+        mods.equipTestMods(state, 'warframe', nil)
         if activeKey then
-            mods.equipTestMods(state, activeKey)
-            table.insert(state.texts, {x=p.x, y=p.y-50, text="MOD装备: "..activeKey, color={0.6, 0.9, 0.4}, life=2})
-            -- Force recalc stats
-            local weapons = require('weapons')
-            if weapons.calculateStats then
-                local newStats = weapons.calculateStats(state, activeKey)
-                if newStats then
-                    table.insert(state.texts, {x=p.x, y=p.y-70, text=string.format("DMG:%d CRIT:%.0f%%", math.floor(newStats.damage or 0), (newStats.critChance or 0)*100), color={1, 1, 0.7}, life=2})
-                end
-            end
-            return true
-        else
-            table.insert(state.texts, {x=p.x, y=p.y-50, text="无武器:"..tostring(activeSlot), color={1, 0.5, 0.5}, life=2})
+            mods.equipTestMods(state, 'weapons', activeKey)
         end
+        mods.equipTestMods(state, 'companion', nil)
+        
+        table.insert(state.texts, {x=p.x, y=p.y-50, text="MOD已装备!", color={0.6, 0.9, 0.4}, life=2})
+        table.insert(state.texts, {x=p.x, y=p.y-70, text="角色+武器+宠物", color={0.8, 0.8, 1}, life=2})
+        return true
+    end
+    
+    -- Escape key: Return to Arsenal (prep screen)
+    if key == 'escape' then
+        local arsenal = require('arsenal')
+        if arsenal.reset then
+            arsenal.reset(state)
+        end
+        state.gameState = 'ARSENAL'
+        table.insert(state.texts or {}, {x=state.player.x, y=state.player.y-50, text="返回准备界面", color={0.8, 0.8, 1}, life=1.5})
+        return true
     end
     
     if key == 'space' then
