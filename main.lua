@@ -199,6 +199,21 @@ function love.keypressed(key)
     if state.gameState == 'PLAYING' then
         if key == 'p' then pets.toggleMode(state) return end
         if key == 'q' then player.useAbility(state) return end
+        
+        -- WF-style weapon slot switching
+        if key == '1' then
+            weapons.switchSlot(state, 'ranged')
+            return
+        end
+        if key == '2' then
+            weapons.switchSlot(state, 'melee')
+            return
+        end
+        -- E = Quick melee (temporarily switch to melee)
+        if key == 'e' then
+            player.quickMelee(state)
+            return
+        end
     end
 
     -- 等级界面：按数字选择升级

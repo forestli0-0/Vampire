@@ -130,7 +130,8 @@ function player.updateMelee(state, dt)
     if not p then return end
     
     local melee = ensureMeleeState(p)
-    local activeSlot = p.activeSlot or 'primary'
+    -- WF-style: Read from inventory.activeSlot
+    local activeSlot = state.inventory and state.inventory.activeSlot or 'ranged'
     
     -- Only process melee when melee slot is active
     if activeSlot ~= 'melee' then
@@ -667,6 +668,54 @@ function player.useAbility(state)
     end
     
     return success
+end
+
+-- =============================================================================
+-- WF-STYLE QUICK MELEE
+-- =============================================================================
+
+-- Quick melee (E key) - temporarily switch to melee, attack, switch back
+function player.quickMelee(state)
+    local weapons = require('weapons')
+    local inv = state.inventory
+    
+    -- Check if melee weapon equipped
+    if not inv.weaponSlots.melee then
+        return false
+    end
+    
+    -- Store previous slot to return to
+    local prevSlot = inv.activeSlot
+    if prevSlot == 'melee' then
+        -- Already in melee mode, just trigger attack
+        player.triggerMelee(state)
+        return true
+    end
+    
+    -- Switch to melee
+    inv.activeSlot = 'melee'
+    
+    -- Set flag to return to previous slot after melee finishes
+    state.player.quickMeleeReturn = prevSlot
+    
+    -- Trigger melee attack
+    player.triggerMelee(state)
+    
+    return true
+end
+
+-- Helper to trigger melee attack (used by quickMelee and regular melee)
+function player.triggerMelee(state)
+    local p = state.player
+    -- Initialize melee state if not present
+    if not p.melee then
+        p.melee = {state = 'ready', timer = 0}
+    end
+    -- Start melee attack if not already attacking
+    if p.melee.state == 'ready' or p.melee.state == 'cooldown' then
+        p.melee.state = 'anticipating'
+        p.melee.timer = 0
+    end
 end
 
 return player

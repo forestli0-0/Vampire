@@ -299,25 +299,23 @@ function arsenal.startRun(state, opts)
         state.world.enabled = true
     end
 
-    if not state.inventory.weapons or not next(state.inventory.weapons) then
-        -- Default weapon loadout (WF-style 3 slots)
+    if not state.inventory.weaponSlots.ranged and not state.inventory.weaponSlots.melee then
+        -- WF-style 2-slot system: ranged + melee
         local defaultLoadout = {
-            primary = 'wand',
-            secondary = 'dagger',
-            melee = 'heavy_hammer'
+            ranged = 'wand',      -- Default ranged weapon
+            melee = 'heavy_hammer' -- Default melee weapon
         }
         
-        -- Add each weapon to its slot
+        -- Equip to slots using new slot system
         for slot, weaponKey in pairs(defaultLoadout) do
             local def = state.catalog and state.catalog[weaponKey]
-            if def and def.type == 'weapon' and not def.evolvedOnly then
-                weapons.addWeapon(state, weaponKey, 'player', slot)
-                state.player.weaponSlots[slot] = weaponKey
+            if def and def.type == 'weapon' and not def.evolvedOnly and not def.hidden then
+                weapons.equipToSlot(state, slot, weaponKey)
             end
         end
         
-        -- Start with primary weapon active
-        state.player.activeSlot = 'primary'
+        -- Start with ranged weapon active
+        state.inventory.activeSlot = 'ranged'
     end
 
     if not opts.skipStartingPet then

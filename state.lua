@@ -1496,10 +1496,27 @@ function state.init()
         }
     }
 
-    state.inventory = { weapons = {}, passives = {}, mods = {}, modOrder = {}, weaponMods = {}, augments = {}, augmentOrder = {} }
+    -- WF-style: 2-slot system (ranged + melee) with extra slot reserved for character passive
+    state.inventory = {
+        weapons = {},  -- Legacy (for backward compat during transition)
+        passives = {},
+        mods = {},
+        modOrder = {},
+        weaponMods = {},
+        augments = {},
+        augmentOrder = {},
+        -- New WF weapon slot system
+        weaponSlots = {
+            ranged = nil,  -- Primary ranged weapon slot
+            melee = nil,   -- Melee weapon slot
+            extra = nil    -- Reserved for character passive (e.g. dual-wield gunner)
+        },
+        activeSlot = 'ranged',     -- Currently active weapon slot
+        canUseExtraSlot = false    -- Unlocked by specific character passives
+    }
     state.augmentState = {}
     state.maxAugmentsPerRun = 4
-    state.maxWeaponsPerRun = 3
+    state.maxWeaponsPerRun = 2  -- Changed: 2 slots default (ranged + melee)
     -- Mods are loadout-only by default (Warframe-like); in-run power comes from weapons/passives/augments.
     state.allowInRunMods = false
 

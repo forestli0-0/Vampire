@@ -1526,13 +1526,14 @@ function draw.renderUI(state)
         love.graphics.setColor(1, 1, 1, 1)
     end
 
-    -- Weapon Slots HUD (WF-style 1/2/3)
+    -- Weapon Slots HUD (WF-style 1=ranged, 2=melee)
     do
-        local p = state.player or {}
-        local slots = p.weaponSlots or {}
-        local activeSlot = p.activeSlot or 'primary'
-        local slotOrder = {'primary', 'secondary', 'melee'}
-        local slotKeys = {'1', '2', '3'}
+        local inv = state.inventory or {}
+        local slots = inv.weaponSlots or {}
+        local activeSlot = inv.activeSlot or 'ranged'
+        local slotOrder = {'ranged', 'melee'}  -- 2-slot system
+        local slotKeys = {'1', '2'}
+        local slotLabels = {'远程', '近战'}
         
         local startX = 10
         local startY = 135
@@ -1541,10 +1542,11 @@ function draw.renderUI(state)
         
         for i, slot in ipairs(slotOrder) do
             local isActive = (slot == activeSlot)
-            local weaponKey = slots[slot]
+            local slotData = slots[slot]
+            local weaponKey = slotData and slotData.key
             local weaponDef = weaponKey and state.catalog and state.catalog[weaponKey]
-            local weaponName = weaponDef and weaponDef.name or "空"
-            local w = weaponKey and state.inventory and state.inventory.weapons and state.inventory.weapons[weaponKey]
+            local weaponName = weaponDef and weaponDef.name or slotLabels[i]
+            local w = slotData  -- slotData is the weapon instance
             
             local x = startX + (i - 1) * (slotW + gap)
             

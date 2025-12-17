@@ -207,6 +207,95 @@ function weapons.addWeapon(state, key, owner, slotType)
     }
 end
 
+-- =============================================================================
+-- WF-STYLE WEAPON SLOT SYSTEM
+-- =============================================================================
+
+-- Equip weapon to a specific slot (ranged/melee/extra)
+function weapons.equipToSlot(state, slotType, weaponKey)
+    local proto = state.catalog[weaponKey]
+    if not proto then
+        print("[WEAPONS] Invalid weapon key: " .. tostring(weaponKey))
+        return false
+    end
+    
+    -- Validate slot type
+    if slotType ~= 'ranged' and slotType ~= 'melee' and slotType ~= 'extra' then
+        print("[WEAPONS] Invalid slot type: " .. tostring(slotType))
+        return false
+    end
+    
+    -- Check extra slot permission
+    if slotType == 'extra' and not state.inventory.canUseExtraSlot then
+        print("[WEAPONS] Extra slot not unlocked")
+        return false
+    end
+    
+    -- Clone base stats
+    local stats = cloneStats(proto.base)
+    
+    -- Create weapon instance
+    local weaponInstance = {
+        key = weaponKey,
+        level = 1,
+        timer = 0,
+        stats = stats,
+        slotType = slotType,
+        -- Ammo system
+        magazine = proto.base.magazine,
+        maxMagazine = proto.base.maxMagazine or proto.base.magazine,
+        reserve = proto.base.reserve,
+        maxReserve = proto.base.maxReserve or proto.base.reserve,
+        reloadTime = proto.base.reloadTime,
+        isReloading = false,
+        reloadTimer = 0
+    }
+    
+    -- Equip to slot
+    state.inventory.weaponSlots[slotType] = weaponInstance
+    
+    -- Also add to legacy weapons table for compatibility
+    state.inventory.weapons[weaponKey] = weaponInstance
+    
+    print(string.format("[WEAPONS] Equipped %s to %s slot", weaponKey, slotType))
+    return true
+end
+
+-- Get currently active weapon
+function weapons.getActiveWeapon(state)
+    local activeSlot = state.inventory.activeSlot or 'ranged'
+    return state.inventory.weaponSlots[activeSlot]
+end
+
+-- Get weapon in specific slot
+function weapons.getSlotWeapon(state, slotType)
+    return state.inventory.weaponSlots[slotType]
+end
+
+-- Switch to a different weapon slot
+function weapons.switchSlot(state, slotType)
+    if slotType == 'extra' and not state.inventory.canUseExtraSlot then
+        return false
+    end
+    if state.inventory.weaponSlots[slotType] then
+        state.inventory.activeSlot = slotType
+        return true
+    end
+    return false
+end
+
+-- Count equipped weapon slots
+function weapons.countSlots(state)
+    local count = 0
+    for _, slot in pairs({'ranged', 'melee', 'extra'}) do
+        if state.inventory.weaponSlots[slot] then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+
 function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
     local wStats = statsOverride or weapons.calculateStats(state, type)
     if not wStats then return end
@@ -627,7 +716,8 @@ end
 
 function weapons.update(state, dt)
     updateQuakes(state, dt)
-    local activeSlot = state.player and state.player.activeSlot or 'primary'
+    -- WF-style: Read from inventory.activeSlot (ranged/melee/extra)
+    local activeSlot = state.inventory and state.inventory.activeSlot or 'ranged'
     
     for key, w in pairs((state.inventory and state.inventory.weapons) or {}) do
         w.timer = (w.timer or 0) - dt
@@ -647,15 +737,16 @@ function weapons.update(state, dt)
                 
                 -- Check weapon slot - only fire if in active slot (for player weapons)
                 local isPlayerWeapon = (w.owner == nil or w.owner == 'player')
-                local weaponSlot = w.slotType or def.slotType or 'primary'
+                local weaponSlot = w.slotType or def.slotType or 'ranged'
                 local isInActiveSlot = (weaponSlot == activeSlot)
                 
-                -- Check if player is firing (required for most weapons unless pet/aura)
-                -- Auras and pet weapons always fire when ready
+                -- Check if player is firing (required for most weapons unless pet/aura/melee)
+                -- Auras, melee, and pet weapons always fire when ready (use their own state machines)
                 -- autoTrigger meta item bypasses the firing requirement
                 local isAura = (behaviorName == 'AURA')
+                local isMelee = (behaviorName == 'MELEE_SWING')
                 local hasAutoTrigger = state.profile and state.profile.autoTrigger
-                local needsFiring = isPlayerWeapon and not isAura and not hasAutoTrigger
+                local needsFiring = isPlayerWeapon and not isAura and not isMelee and not hasAutoTrigger
                 local canFire = not needsFiring or (state.player.isFiring == true)
                 
                 -- Skip if player weapon not in active slot
