@@ -234,6 +234,9 @@ function love.keypressed(key)
         
         -- Press ESC to pause/return to Arsenal
         if key == 'escape' then
+            -- Reset game state so Arsenal changes can be applied properly
+            state.init()
+            arsenal.init(state)
             state.gameState = 'ARSENAL'
             arsenal.show(state)
             return
