@@ -1000,10 +1000,10 @@ function state.init()
             tags = {'weapon', 'physical', 'melee', 'sword'},
             classWeight = { warrior = 1.5, mage = 0.8, beastmaster = 1.0 },
             base = { 
-                damage=60, cd=0.12, range=80, 
+                damage=60, cd=0.12, range=100, 
                 elements={'SLASH','IMPACT'}, damageBreakdown={SLASH=2, IMPACT=1},
                 critChance=0.15, critMultiplier=1.8, statusChance=0.18,
-                knockback=60
+                knockback=70
             },
             onUpgrade = function(w) w.damage = w.damage + 12 end
         },
@@ -1018,10 +1018,10 @@ function state.init()
             tags = {'weapon', 'physical', 'melee', 'dual'},
             classWeight = { warrior = 1.5, mage = 0.5, beastmaster = 1.5 },
             base = { 
-                damage=50, cd=0.06, range=70, 
+                damage=50, cd=0.06, range=90, 
                 elements={'SLASH'}, damageBreakdown={SLASH=1},
                 critChance=0.35, critMultiplier=2.5, statusChance=0.10,
-                knockback=40
+                knockback=50
             },
             onUpgrade = function(w) w.damage = w.damage + 10; w.critChance = w.critChance + 0.03 end
         },
