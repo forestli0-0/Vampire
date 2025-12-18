@@ -13,7 +13,8 @@ abilities.catalog = {
                 local p = state.player
                 local playerMod = require('player')
                 p.invincibleTimer = math.max(p.invincibleTimer or 0, 0.5)
-                playerMod.tryDash(state)
+                local ang = p.aimAngle or 0
+                playerMod.tryDash(state, math.cos(ang), math.sin(ang))
                 -- Damage enemies in a line (simplified AoE around player during dash)
                 local radius = 80 * (p.stats.abilityRange or 1.0)
                 local damage = 50 * (p.stats.abilityStrength or 1.0)
@@ -84,11 +85,12 @@ abilities.catalog = {
             cost = 25,
             effect = function(state)
                 local p = state.player
-                local dirX, dirY = 1, 0
-                if p.facing == -1 then dirX = -1 end
+                local ang = p.aimAngle or 0
+                local target = { x = p.x + math.cos(ang) * 100, y = p.y + math.sin(ang) * 100 }
                 -- Spawn a projectile
-                if state.spawnProjectile then
-                    state.spawnProjectile('fireball', p.x, p.y, dirX, dirY, {damage = 40 * (p.stats.abilityStrength or 1.0)})
+                local spawnFunc = state.spawnProjectile or (require('weapons').spawnProjectile)
+                if spawnFunc then
+                    spawnFunc(state, 'fireball', p.x, p.y, target, {damage = 40 * (p.stats.abilityStrength or 1.0)})
                 end
                 return true
             end

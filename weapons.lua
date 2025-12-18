@@ -498,19 +498,7 @@ function Behaviors.MELEE_SWING(state, weaponKey, w, stats, params, sx, sy)
     local arcWidth = params.arcWidth or 1.2  -- ~70 degrees in radians
     local range = stats.range or 80
     
-    -- Get aim direction
-    local aimAngle
-    local mdx, mdy = 0, 0
-    if love.keyboard.isDown('w') then mdy = -1 end
-    if love.keyboard.isDown('s') then mdy = 1 end
-    if love.keyboard.isDown('a') then mdx = -1 end
-    if love.keyboard.isDown('d') then mdx = 1 end
-    
-    if mdx ~= 0 or mdy ~= 0 then
-        aimAngle = math.atan2(mdy, mdx)
-    else
-        aimAngle = (p.facing or 1) > 0 and 0 or math.pi
-    end
+    local aimAngle = p.aimAngle or 0
     
     -- Damage multiplier based on attack type
     local mult = 1
