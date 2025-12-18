@@ -24,9 +24,9 @@ local enemyDefs = {
         size = 24,
         color = {0.8, 0.8, 0.8},
         healthType = 'FLESH',
-        contactDamage = 5,
         attacks = {
-            melee = {range = 45, windup = 0.4, cooldown = 1.8, damage = 8}
+            melee = {range = 45, windup = 0.4, cooldown = 1.8, damage = 8, w = 6},
+            throw = {range = 200, rangeMin = 60, windup = 0.5, cooldown = 3.0, damage = 6, bulletSpeed = 200, bulletLife = 2, bulletSize = 8, w = 3}
         }
     },
     bat = {
@@ -35,9 +35,9 @@ local enemyDefs = {
         size = 18,
         color = {0.6, 0, 1},
         healthType = 'FLESH',
-        contactDamage = 3,
         attacks = {
-            melee = {range = 35, windup = 0.25, cooldown = 1.0, damage = 5}
+            melee = {range = 35, windup = 0.25, cooldown = 1.0, damage = 5, w = 5},
+            leap = {range = 150, rangeMin = 50, windup = 0.3, distance = 100, speed = 600, cooldown = 2.0, damage = 7, w = 4}
         }
     },
     plant = {
@@ -46,11 +46,9 @@ local enemyDefs = {
         size = 32,
         color = {0, 0.7, 0.2},
         healthType = 'INFESTED',
-        shootInterval = 4,
-        bulletSpeed = 180,
-        bulletDamage = 10,
-        bulletLife = 4,
-        bulletSize = 10
+        attacks = {
+            burst = {range = 400, rangeMin = 80, windup = 0.6, count = 3, spread = 0.4, bulletSpeed = 180, bulletDamage = 8, bulletLife = 4, bulletSize = 10, cooldown = 3.5, w = 10}
+        }
     },
     charger = {
         hp = 27,
@@ -58,9 +56,8 @@ local enemyDefs = {
         size = 24,
         color = {0.95, 0.55, 0.15},
         healthType = 'INFESTED',
-        contactDamage = 8,
         attacks = {
-            charge = {range = 320, windup = 0.55, distance = 260, speed = 500, cooldown = 2.4, damage = 18, telegraphWidth = 40}
+            charge = {range = 320, windup = 0.55, distance = 260, speed = 500, cooldown = 2.4, damage = 18, telegraphWidth = 40, w = 10}
         }
     },
     spore_mortar = {
@@ -134,7 +131,11 @@ local enemyDefs = {
         color = {0.2, 0.5, 1},
         healthType = 'CLONED_FLESH',
         shieldType = 'SHIELD',
-        armorType = 'FERRITE_ARMOR'
+        armorType = 'FERRITE_ARMOR',
+        attacks = {
+            melee = {range = 50, windup = 0.5, cooldown = 2.0, damage = 10, w = 5},
+            shield_bash = {range = 120, windup = 0.4, distance = 80, speed = 400, cooldown = 3.0, damage = 12, knockback = 100, telegraphWidth = 30, w = 4}
+        }
     },
     armored_brute = {
         hp = 120,
@@ -143,7 +144,11 @@ local enemyDefs = {
         size = 40,
         color = {0.8, 0.6, 0.1},
         healthType = 'CLONED_FLESH',
-        armorType = 'ALLOY_ARMOR'
+        armorType = 'ALLOY_ARMOR',
+        attacks = {
+            melee = {range = 60, windup = 0.7, cooldown = 2.5, damage = 18, w = 5},
+            slam = {range = 100, windup = 1.0, radius = 100, cooldown = 4.0, damage = 25, w = 4}
+        }
     },
     boss_treant = {
         hp = 1800,

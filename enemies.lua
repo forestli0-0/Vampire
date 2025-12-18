@@ -1220,6 +1220,151 @@ function enemies.update(state, dt)
                         e.attackCooldown = atk.cooldown or 1.5
                     end
                 end
+            elseif atk and atk.type == 'throw' then
+                if atk.phase == 'windup' then
+                    atk.timer = (atk.timer or 0) - dt * coldMult
+                    if atk.timer <= 0 then
+                        -- Fire projectile
+                        local ang = atk.ang or 0
+                        local spd = atk.bulletSpeed or 200
+                        local dmg = atk.damage or 6
+                        local life = atk.bulletLife or 2
+                        local size = atk.bulletSize or 8
+                        
+                        local dmgMult = 1 - getPunctureReduction(e)
+                        if dmgMult < 0.25 then dmgMult = 0.25 end
+                        
+                        table.insert(state.enemyBullets, {
+                            x = e.x, y = e.y,
+                            vx = math.cos(ang) * spd, vy = math.sin(ang) * spd,
+                            size = size,
+                            life = life,
+                            damage = dmg * dmgMult,
+                            type = e.kind,
+                            rotation = ang
+                        })
+                        
+                        if state.playSfx then state.playSfx('shoot') end
+                        
+                        e.attack = nil
+                        e.attackCooldown = atk.cooldown or 3.0
+                    end
+                end
+            elseif atk and atk.type == 'leap' then
+                if atk.phase == 'windup' then
+                    atk.timer = (atk.timer or 0) - dt * coldMult
+                    if atk.timer <= 0 then
+                        atk.phase = 'leaping'
+                        atk.leapProgress = 0
+                    end
+                elseif atk.phase == 'leaping' then
+                    -- Move toward target
+                    local totalDist = atk.distance or 100
+                    local spd = atk.speed or 600
+                    local moveDist = spd * dt
+                    atk.leapProgress = (atk.leapProgress or 0) + moveDist
+                    
+                    -- Interpolate position
+                    local t = math.min(1, atk.leapProgress / totalDist)
+                    e.x = atk.startX + (atk.targetX - atk.startX) * t
+                    e.y = atk.startY + (atk.targetY - atk.startY) * t
+                    
+                    -- Landing
+                    if t >= 1 then
+                        -- Damage on landing
+                        local radius = atk.radius or 40
+                        local damage = atk.damage or 7
+                        local dmgMult = 1 - getPunctureReduction(e)
+                        if dmgMult < 0.25 then dmgMult = 0.25 end
+                        damage = damage * dmgMult * (e.eliteDamageMult or 1)
+                        
+                        -- Hit player
+                        local dx = p.x - e.x
+                        local dy = p.y - e.y
+                        local dist = math.sqrt(dx * dx + dy * dy)
+                        local pr = (p.size or 20) / 2
+                        if dist <= radius + pr then
+                            player.hurt(state, damage)
+                        end
+                        
+                        -- Hit pet
+                        local pet = pets.getActive(state)
+                        if pet and not pet.downed then
+                            local pdx = (pet.x or 0) - e.x
+                            local pdy = (pet.y or 0) - e.y
+                            local pdist = math.sqrt(pdx * pdx + pdy * pdy)
+                            local petR = (pet.size or 18) / 2
+                            if pdist <= radius + petR then
+                                pets.hurt(state, pet, damage)
+                            end
+                        end
+                        
+                        -- Effect
+                        if state.spawnEffect then
+                            state.spawnEffect('blast_hit', e.x, e.y, 0.8)
+                        end
+                        if state.playSfx then state.playSfx('hit') end
+                        
+                        e.attack = nil
+                        e.attackCooldown = atk.cooldown or 2.0
+                    end
+                end
+            elseif atk and atk.type == 'shield_bash' then
+                if atk.phase == 'windup' then
+                    atk.timer = (atk.timer or 0) - dt * coldMult
+                    if atk.timer <= 0 then
+                        atk.phase = 'dash'
+                        atk.distanceTraveled = 0
+                        atk.hasHit = false
+                    end
+                elseif atk.phase == 'dash' then
+                    -- Move in charge direction
+                    local spd = atk.speed or 400
+                    local moveDist = spd * dt
+                    local moveX = atk.dirX * moveDist
+                    local moveY = atk.dirY * moveDist
+                    
+                    if world and world.enabled and world.moveCircle then
+                        e.x, e.y = world:moveCircle(e.x, e.y, (e.size or 16) / 2, moveX, moveY)
+                    else
+                        e.x = e.x + moveX
+                        e.y = e.y + moveY
+                    end
+                    
+                    atk.distanceTraveled = (atk.distanceTraveled or 0) + moveDist
+                    
+                    -- Check hit (only once)
+                    if not atk.hasHit then
+                        local width = atk.width or 30
+                        local damage = atk.damage or 12
+                        local knockback = atk.knockback or 100
+                        local dmgMult = 1 - getPunctureReduction(e)
+                        if dmgMult < 0.25 then dmgMult = 0.25 end
+                        damage = damage * dmgMult * (e.eliteDamageMult or 1)
+                        
+                        -- Check player
+                        local dx = p.x - e.x
+                        local dy = p.y - e.y
+                        local dist = math.sqrt(dx * dx + dy * dy)
+                        local pr = (p.size or 20) / 2
+                        if dist <= width / 2 + pr then
+                            player.hurt(state, damage)
+                            -- Knockback player
+                            local kbDist = knockback
+                            local kbDir = math.atan2(dy, dx)
+                            p.x = p.x + math.cos(kbDir) * kbDist
+                            p.y = p.y + math.sin(kbDir) * kbDist
+                            atk.hasHit = true
+                            if state.playSfx then state.playSfx('hit') end
+                        end
+                    end
+                    
+                    -- End dash
+                    if atk.distanceTraveled >= (atk.distance or 80) then
+                        e.attack = nil
+                        e.attackCooldown = atk.cooldown or 3.0
+                    end
+                end
             end
         end
 
@@ -1228,6 +1373,7 @@ function enemies.update(state, dt)
             local dx = targetX - e.x
             local dy = targetY - e.y
             local distSq = dx * dx + dy * dy
+            local distToTarget = math.sqrt(distSq)
 
             local pool = {}
             for key, cfg in pairs(attacks) do
@@ -1395,6 +1541,104 @@ function enemies.update(state, dt)
                     if state.spawnTelegraphCircle then
                         state.spawnTelegraphCircle(e.x, e.y, range, windup, {kind = 'danger', intensity = 0.9})
                     end
+                    
+                elseif key == 'throw' then
+                    -- Ranged projectile attack
+                    local windup = math.max(0.3, (cfg.windup or 0.5) * windupMult)
+                    local damage = (cfg.damage or 6) * eliteDamageMult
+                    local bulletSpeed = (cfg.bulletSpeed or 200) * (e.eliteBulletSpeedMult or 1)
+                    local bulletLife = cfg.bulletLife or 2
+                    local bulletSize = cfg.bulletSize or 8
+                    local cooldown = cfg.cooldown or 3.0
+                    
+                    e.attack = {
+                        type = 'throw',
+                        phase = 'windup',
+                        timer = windup,
+                        interruptible = true,
+                        ang = angToTarget,
+                        damage = damage,
+                        bulletSpeed = bulletSpeed,
+                        bulletLife = bulletLife,
+                        bulletSize = bulletSize,
+                        cooldown = cooldown
+                    }
+                    
+                    -- Brief telegraph line
+                    if state.spawnTelegraphLine then
+                        local len = 120
+                        state.spawnTelegraphLine(e.x, e.y, e.x + math.cos(angToTarget) * len, e.y + math.sin(angToTarget) * len, 16, windup, lineOpts)
+                    end
+                    
+                elseif key == 'leap' then
+                    -- Jump attack landing at target location
+                    local windup = math.max(0.2, (cfg.windup or 0.3) * windupMult)
+                    local distance = cfg.distance or 100
+                    local spd = cfg.speed or 600
+                    local damage = (cfg.damage or 7) * eliteDamageMult
+                    local cooldown = cfg.cooldown or 2.0
+                    local radius = cfg.radius or 40
+                    
+                    -- Calculate target position (limited by distance)
+                    local actualDist = math.min(distToTarget, distance)
+                    local leapX = e.x + math.cos(angToTarget) * actualDist
+                    local leapY = e.y + math.sin(angToTarget) * actualDist
+                    
+                    e.attack = {
+                        type = 'leap',
+                        phase = 'windup',
+                        timer = windup,
+                        interruptible = true,
+                        targetX = leapX,
+                        targetY = leapY,
+                        startX = e.x,
+                        startY = e.y,
+                        distance = actualDist,
+                        speed = spd,
+                        leapProgress = 0,
+                        damage = damage,
+                        radius = radius,
+                        cooldown = cooldown
+                    }
+                    
+                    -- Show landing zone
+                    if state.spawnTelegraphCircle then
+                        local leapTime = actualDist / spd
+                        state.spawnTelegraphCircle(leapX, leapY, radius, windup + leapTime, {kind = 'danger', intensity = 0.8})
+                    end
+                    
+                elseif key == 'shield_bash' then
+                    -- Short charge with knockback
+                    local windup = math.max(0.3, (cfg.windup or 0.4) * windupMult)
+                    local distance = cfg.distance or 80
+                    local spd = cfg.speed or 400
+                    local width = cfg.telegraphWidth or 30
+                    local damage = (cfg.damage or 12) * eliteDamageMult
+                    local knockback = cfg.knockback or 100
+                    local cooldown = cfg.cooldown or 3.0
+                    
+                    e.attack = {
+                        type = 'shield_bash',
+                        phase = 'windup',
+                        timer = windup,
+                        interruptible = true,
+                        dirX = math.cos(angToTarget),
+                        dirY = math.sin(angToTarget),
+                        distance = distance,
+                        distanceTraveled = 0,
+                        speed = spd,
+                        width = width,
+                        damage = damage,
+                        knockback = knockback,
+                        cooldown = cooldown,
+                        hasHit = false
+                    }
+                    
+                    -- Show charge line
+                    if state.spawnTelegraphLine then
+                        state.spawnTelegraphLine(e.x, e.y, e.x + math.cos(angToTarget) * distance, e.y + math.sin(angToTarget) * distance, width, windup, lineOpts)
+                    end
+
                 end
             end
         end
