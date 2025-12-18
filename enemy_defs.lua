@@ -19,7 +19,7 @@ enemyDefs.my_enemy = {
 
 local enemyDefs = {
     skeleton = {
-        hp = 10,
+        hp = 15,
         speed = 50,
         size = 16,
         color = {0.8, 0.8, 0.8},
@@ -30,7 +30,7 @@ local enemyDefs = {
         }
     },
     bat = {
-        hp = 5,
+        hp = 8,
         speed = 120,
         size = 12,
         color = {0.6, 0, 1},
@@ -41,7 +41,7 @@ local enemyDefs = {
         }
     },
     plant = {
-        hp = 30,
+        hp = 45,
         speed = 35,
         size = 22,
         color = {0, 0.7, 0.2},
@@ -53,7 +53,7 @@ local enemyDefs = {
         bulletSize = 10
     },
     charger = {
-        hp = 18,
+        hp = 27,
         speed = 70,
         size = 18,
         color = {0.95, 0.55, 0.15},
@@ -64,7 +64,7 @@ local enemyDefs = {
         }
     },
     spore_mortar = {
-        hp = 26,
+        hp = 39,
         speed = 38,
         size = 20,
         color = {0.75, 0.25, 0.95},
@@ -126,9 +126,9 @@ local enemyDefs = {
         isDummy = true
     },
     shield_lancer = {
-        hp = 22,
-        shield = 24,
-        armor = 15,
+        hp = 33,
+        shield = 36,
+        armor = 22,
         speed = 55,
         size = 18,
         color = {0.2, 0.5, 1},
@@ -137,8 +137,8 @@ local enemyDefs = {
         armorType = 'FERRITE_ARMOR'
     },
     armored_brute = {
-        hp = 80,
-        armor = 160,
+        hp = 120,
+        armor = 240,
         speed = 28,
         size = 24,
         color = {0.8, 0.6, 0.1},
@@ -146,9 +146,9 @@ local enemyDefs = {
         armorType = 'ALLOY_ARMOR'
     },
     boss_treant = {
-        hp = 1200,
-        shield = 600,
-        armor = 120,
+        hp = 1800,
+        shield = 900,
+        armor = 180,
         speed = 35,
         size = 48,
         color = {0.9, 0.25, 0.25},
