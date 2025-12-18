@@ -57,7 +57,8 @@ local enemyDefs = {
         color = {0.95, 0.55, 0.15},
         healthType = 'INFESTED',
         attacks = {
-            charge = {range = 320, windup = 0.55, distance = 260, speed = 500, cooldown = 2.4, damage = 18, telegraphWidth = 40, w = 10}
+            charge = {range = 320, rangeMin = 80, windup = 0.55, distance = 260, speed = 500, cooldown = 2.4, damage = 18, telegraphWidth = 40, w = 8},
+            slam = {range = 80, windup = 0.6, radius = 60, cooldown = 2.0, damage = 12, w = 5}
         }
     },
     spore_mortar = {
@@ -67,7 +68,8 @@ local enemyDefs = {
         color = {0.75, 0.25, 0.95},
         healthType = 'INFESTED',
         attacks = {
-            slam = {range = 420, windup = 0.85, radius = 120, cooldown = 3.0, damage = 16}
+            slam = {range = 420, windup = 0.85, radius = 120, cooldown = 3.0, damage = 16, w = 7},
+            burst = {range = 500, rangeMin = 150, windup = 0.7, count = 5, spread = 0.6, bulletSpeed = 160, bulletDamage = 6, bulletLife = 3, bulletSize = 8, cooldown = 4.0, w = 5}
         }
     },
     dummy_pole = {
