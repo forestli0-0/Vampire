@@ -458,6 +458,17 @@ function player.tryDash(state, dirX, dirY)
         state.augments.dispatch(state, 'onDash', ctx)
     end
 
+    -- Cancel any active reloads when dashing (WF-style)
+    local inv = state.inventory
+    if inv and inv.weapons then
+        for key, w in pairs(inv.weapons) do
+            if w.isReloading then
+                w.isReloading = false
+                w.reloadTimer = 0
+            end
+        end
+    end
+
     return true
 end
 

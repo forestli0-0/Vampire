@@ -229,11 +229,37 @@ local function buildCombatFrame(gameState, parent)
         })
         panel:addChild(reserve)
         
+        -- Reload progress bar (overlays the slot when reloading)
+        local reloadBar = ui.Bar.new({
+            x = 2, y = slotH - 6,
+            w = slotW - 4, h = 4,
+            value = 0, maxValue = 100,
+            fillColor = {0.9, 0.7, 0.2, 1},
+            bgColor = {0.2, 0.2, 0.2, 0.8},
+            cornerRadius = 1
+        })
+        reloadBar.visible = false
+        panel:addChild(reloadBar)
+        
+        -- Reload text overlay
+        local reloadText = ui.Text.new({
+            x = 0, y = 18, w = slotW,
+            text = "RELOADING",
+            align = 'center',
+            color = {1, 0.8, 0.3, 1},
+            font = theme.getFont('small'),
+            shadow = true
+        })
+        reloadText.visible = false
+        panel:addChild(reloadText)
+        
         widgets.weaponSlots[i] = {
             panel = panel,
             name = name,
             ammo = ammo,
-            reserve = reserve
+            reserve = reserve,
+            reloadBar = reloadBar,
+            reloadText = reloadText
         }
     end
 end
@@ -392,15 +418,50 @@ function hud.update(gameState, dt)
             
             -- Update Info
             local weaponInst = inv.weaponSlots and inv.weaponSlots[slotKey]
+            local weaponData = nil
+            if weaponInst and inv.weapons then
+                weaponData = inv.weapons[weaponInst.key]
+            end
+            
             if weaponInst then
                 local def = gameState.catalog and gameState.catalog[weaponInst.key]
                 slotData.name:setText(def and def.name or weaponInst.key)
                 
+                -- Check reload state from the actual weapon data
+                local isReloading = weaponData and weaponData.isReloading
+                local reloadTimer = weaponData and weaponData.reloadTimer or 0
+                local reloadTime = (def and def.base and def.base.reloadTime) or 1.5
+                
+                if isReloading and slotData.reloadBar then
+                    -- Show reload progress
+                    local progress = 1 - (reloadTimer / reloadTime)
+                    slotData.reloadBar.value = progress * 100
+                    slotData.reloadBar.maxValue = 100
+                    slotData.reloadBar.visible = true
+                    if slotData.reloadText then
+                        slotData.reloadText.visible = true
+                    end
+                    -- Dim the ammo text
+                    slotData.ammo.color = {0.5, 0.5, 0.5, 0.6}
+                else
+                    if slotData.reloadBar then
+                        slotData.reloadBar.visible = false
+                    end
+                    if slotData.reloadText then
+                        slotData.reloadText.visible = false
+                    end
+                    slotData.ammo.color = theme.colors.text_dim
+                end
+                
                 -- Ammo: Magazine on first line, Reserve below
-                if weaponInst.magazine then
-                    slotData.ammo:setText(string.format("%d / %d", weaponInst.magazine, weaponInst.maxMagazine or weaponInst.magazine))
+                local mag = weaponData and weaponData.magazine
+                local maxMag = (def and def.base and def.base.maxMagazine) or (weaponData and weaponData.maxMagazine)
+                local reserve = weaponData and weaponData.reserve
+                
+                if mag then
+                    slotData.ammo:setText(string.format("%d / %d", mag, maxMag or mag))
                     if slotData.reserve then
-                        slotData.reserve:setText(string.format("Reserve: %d", weaponInst.reserve or 0))
+                        slotData.reserve:setText(string.format("Reserve: %d", reserve or 0))
                     end
                 else
                     slotData.ammo:setText("∞")
@@ -413,6 +474,12 @@ function hud.update(gameState, dt)
                  slotData.ammo:setText("")
                  if slotData.reserve then
                      slotData.reserve:setText("")
+                 end
+                 if slotData.reloadBar then
+                     slotData.reloadBar.visible = false
+                 end
+                 if slotData.reloadText then
+                     slotData.reloadText.visible = false
                  end
             end
         end
