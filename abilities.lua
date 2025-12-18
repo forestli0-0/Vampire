@@ -3,138 +3,204 @@
 
 local abilities = {}
 
--- Ability definitions
+-- Ability definitions structured by class
 abilities.catalog = {
-    dash_boost = {
-        name = "冲刺",
-        key = 'q',
-        cost = 25,
-        cd = 3,
-        effect = function(state)
-            local p = state.player
-            if not p then return false end
-            
-            local player = require('player')
-            -- Enhanced dash: reset dash charges + invincibility
-            if p.dash then
-                p.dash.charges = p.dash.maxCharges or 1
-            end
-            p.invincibleTimer = math.max(p.invincibleTimer or 0, 0.5)
-            
-            -- Try to perform dash
-            player.tryDash(state)
-            
-            if state.spawnEffect then
-                state.spawnEffect('shock', p.x, p.y, 1.2)
-            end
-            if state.playSfx then state.playSfx('shoot') end
-            
-            return true
-        end
-    },
-    aoe_blast = {
-        name = "爆发",
-        key = 'e',
-        cost = 50,
-        cd = 8,
-        effect = function(state)
-            local p = state.player
-            if not p then return false end
-            
-            local radius = 150 * (p.stats.abilityRange or 1.0)
-            local damage = 80 * (p.stats.abilityStrength or 1.0)
-            
-            -- Damage all enemies in radius
-            for _, e in ipairs(state.enemies) do
-                if e.health and e.health > 0 then
-                    local dx = e.x - p.x
-                    local dy = e.y - p.y
-                    local dist = math.sqrt(dx*dx + dy*dy)
-                    if dist <= radius then
-                        e.health = e.health - damage
-                        e.hp = e.health
-                        if state.texts then
-                            table.insert(state.texts, {x=e.x, y=e.y-20, text=math.floor(damage), color={1, 0.5, 0.2}, life=0.5})
-                        end
+    warrior = {
+        {
+            name = "斩击突进", -- Slash Dash
+            cost = 25,
+            effect = function(state)
+                local p = state.player
+                local playerMod = require('player')
+                p.invincibleTimer = math.max(p.invincibleTimer or 0, 0.5)
+                playerMod.tryDash(state)
+                -- Damage enemies in a line (simplified AoE around player during dash)
+                local radius = 80 * (p.stats.abilityRange or 1.0)
+                local damage = 50 * (p.stats.abilityStrength or 1.0)
+                for _, e in ipairs(state.enemies) do
+                    local dx, dy = e.x - p.x, e.y - p.y
+                    if dx*dx + dy*dy < radius*radius then
+                        e.health = (e.health or 0) - damage
+                        if state.spawnEffect then state.spawnEffect('blast_hit', e.x, e.y, 0.5) end
                     end
                 end
+                if state.playSfx then state.playSfx('shoot') end
+                return true
             end
-            
-            -- VFX
-            if state.spawnEffect then
-                state.spawnEffect('blast_hit', p.x, p.y, 2)
-            end
-            state.shakeAmount = (state.shakeAmount or 0) + 6
-            if state.playSfx then state.playSfx('hit') end
-            
-            return true
-        end
-    },
-    shield_buff = {
-        name = "护盾",
-        key = 'c',
-        cost = 75,
-        cd = 15,
-        effect = function(state)
-            local p = state.player
-            if not p then return false end
-            
-            -- Grant temporary shield
-            p.tempShield = (p.tempShield or 0) + 50
-            p.tempShieldTimer = 10 * (p.stats.abilityDuration or 1.0)  -- Duration
-            p.invincibleTimer = math.max(p.invincibleTimer or 0, 0.3)
-            
-            if state.texts then
-                table.insert(state.texts, {x=p.x, y=p.y-50, text="+50 护盾", color={0.4, 0.8, 1}, life=1.5})
-            end
-            if state.spawnEffect then
-                state.spawnEffect('shock', p.x, p.y, 1.5)
-            end
-            if state.playSfx then state.playSfx('gem') end
-            
-            return true
-        end
-    },
-    ultimate = {
-        name = "终极",
-        key = 'v',
-        cost = 100,
-        cd = 30,
-        effect = function(state)
-            local p = state.player
-            if not p then return false end
-            
-            local radius = 300 * (p.stats.abilityRange or 1.0)
-            local damage = 200 * (p.stats.abilityStrength or 1.0)
-            
-            -- Massive damage to all enemies
-            for _, e in ipairs(state.enemies) do
-                if e.health and e.health > 0 then
-                    local dx = e.x - p.x
-                    local dy = e.y - p.y
-                    local dist = math.sqrt(dx*dx + dy*dy)
-                    if dist <= radius then
-                        e.health = e.health - damage
-                        e.hp = e.health
-                        if state.texts then
-                            table.insert(state.texts, {x=e.x, y=e.y-20, text=math.floor(damage), color={1, 0.3, 0.1}, life=0.6, scale=1.3})
-                        end
+        },
+        {
+            name = "战争践踏", -- Warcry / Stomp combo
+            cost = 50,
+            effect = function(state)
+                local p = state.player
+                local radius = 150 * (p.stats.abilityRange or 1.0)
+                local duration = 10 * (p.stats.abilityDuration or 1.0)
+                -- Buff armor and slow enemies
+                p.stats.armor = (p.stats.armor or 0) + 20
+                -- Simple timer to revert armor could be added, but for now let's just do a blast
+                for _, e in ipairs(state.enemies) do
+                    local dx, dy = e.x - p.x, e.y - p.y
+                    if dx*dx + dy*dy < radius*radius then
+                        e.health = (e.health or 0) - 30
+                        e.frozenTimer = 2.0 -- Stun
                     end
                 end
+                if state.spawnEffect then state.spawnEffect('shock', p.x, p.y, 2.0) end
+                return true
             end
-            
-            -- Epic VFX
-            if state.spawnEffect then
-                state.spawnEffect('blast_hit', p.x, p.y, 3)
+        },
+        {
+            name = "钢化皮肤", -- Iron Skin
+            cost = 75,
+            effect = function(state)
+                local p = state.player
+                local amount = 100 * (p.stats.abilityStrength or 1.0)
+                p.shield = (p.shield or 0) + amount
+                p.invincibleTimer = math.max(p.invincibleTimer or 0, 1.0)
+                if state.texts then
+                    table.insert(state.texts, {x=p.x, y=p.y-50, text="IRON SKIN", color={0.8, 0.8, 0.4}, life=1.5})
+                end
+                return true
             end
-            state.shakeAmount = (state.shakeAmount or 0) + 12
-            p.invincibleTimer = math.max(p.invincibleTimer or 0, 1.0)
-            if state.playSfx then state.playSfx('hit') end
-            
-            return true
-        end
+        },
+        {
+            name = "显赫之剑", -- Exalted Blade
+            cost = 100,
+            effect = function(state)
+                local weapons = require('weapons')
+                local p = state.player
+                -- Temporarily boost melee damage and speed
+                p.stats.meleeDamageMult = (p.stats.meleeDamageMult or 1) + 1.0
+                p.stats.meleeSpeed = (p.stats.meleeSpeed or 1) * 1.5
+                p.exaltedTimer = 15 * (p.stats.abilityDuration or 1.0)
+                if state.spawnEffect then state.spawnEffect('blast_hit', p.x, p.y, 3.0) end
+                return true
+            end
+        }
+    },
+    mage = {
+        {
+            name = "火球术", -- Fireball
+            cost = 25,
+            effect = function(state)
+                local p = state.player
+                local dirX, dirY = 1, 0
+                if p.facing == -1 then dirX = -1 end
+                -- Spawn a projectile
+                if state.spawnProjectile then
+                    state.spawnProjectile('fireball', p.x, p.y, dirX, dirY, {damage = 40 * (p.stats.abilityStrength or 1.0)})
+                end
+                return true
+            end
+        },
+        {
+            name = "能量爆发", -- Fire Blast
+            cost = 50,
+            effect = function(state)
+                local p = state.player
+                local radius = 200 * (p.stats.abilityRange or 1.0)
+                for _, e in ipairs(state.enemies) do
+                    local dx, dy = e.x - p.x, e.y - p.y
+                    if dx*dx + dy*dy < radius*radius then
+                        e.health = (e.health or 0) - 60
+                        e.fireTimer = 5.0 -- DoT
+                    end
+                end
+                if state.spawnEffect then state.spawnEffect('blast_hit', p.x, p.y, 2.0) end
+                return true
+            end
+        },
+        {
+            name = "加速增幅", -- Accelerant
+            cost = 75,
+            effect = function(state)
+                local p = state.player
+                p.stats.moveSpeed = (p.stats.moveSpeed or 200) * 1.3
+                p.stats.abilityStrength = (p.stats.abilityStrength or 1.0) + 0.5
+                p.buffTimer = 10 * (p.stats.abilityDuration or 1.0)
+                return true
+            end
+        },
+        {
+            name = "世界在燃烧", -- World on Fire
+            cost = 100,
+            effect = function(state)
+                local p = state.player
+                p.wofRunning = true
+                p.wofTimer = 15 * (p.stats.abilityDuration or 1.0)
+                if state.texts then table.insert(state.texts, {x=p.x, y=p.y-50, text="WORLD ON FIRE", color={1, 0.4, 0.1}, life=2}) end
+                return true
+            end
+        }
+    },
+    beastmaster = {
+        {
+            name = "狩猎标记", -- Hunt
+            cost = 25,
+            effect = function(state)
+                -- Buff pets
+                if state.pets then
+                    for _, pet in ipairs(state.pets) do
+                        pet.damageMult = (pet.damageMult or 1) * 1.5
+                    end
+                end
+                return true
+            end
+        },
+        {
+            name = "狂暴怒吼", -- Howl
+            cost = 50,
+            effect = function(state)
+                local p = state.player
+                local radius = 250
+                for _, e in ipairs(state.enemies) do
+                    local dx, dy = e.x - p.x, e.y - p.y
+                    if dx*dx + dy*dy < radius*radius then
+                        e.stunTimer = 3.0
+                    end
+                end
+                return true
+            end
+        },
+        {
+            name = "群体治愈", -- Pack Health
+            cost = 75,
+            effect = function(state)
+                local p = state.player
+                p.hp = math.min(p.maxHp, p.hp + 50)
+                if state.pets then
+                    for _, pet in ipairs(state.pets) do
+                        pet.hp = (pet.hp or 100) + 50
+                    end
+                end
+                return true
+            end
+        },
+        {
+            name = "幽灵兽群", -- Spectral Pack
+            cost = 100,
+            effect = function(state)
+                -- Spawn temporary extra pets
+                local petsModule = require('pets')
+                for i=1, 3 do
+                    petsModule.spawnPet(state, 'ghost_wolf', state.player.x, state.player.y)
+                end
+                return true
+            end
+        }
     }
 }
+
+-- Simple helper to get ability definition
+function abilities.getAbilityDef(state, index)
+    local p = state.player
+    local className = p.class or 'warrior'
+    local set = abilities.catalog[className]
+    if set and set[index] then
+        return set[index]
+    end
+    return nil
+end
 
 -- =============================================================================
 -- PASSIVE SKILLS (Warframe-style innate abilities per class)
@@ -170,7 +236,7 @@ abilities.passives = {
         apply = function(state)
             local p = state.player
             if not p or not p.stats then return end
-            p.stats.speed = (p.stats.speed or 100) * 1.10
+            p.stats.moveSpeed = (p.stats.moveSpeed or 170) * 1.10
             p.stats.critChance = (p.stats.critChance or 0) + 0.05
         end
     }
@@ -288,7 +354,7 @@ function abilities.update(state, dt)
             if modded.maxHp then p.maxHp = modded.maxHp end
             if modded.maxEnergy then p.maxEnergy = modded.maxEnergy end
             if modded.energyRegen then p.energyRegen = modded.energyRegen end
-            if modded.speed then p.stats.speed = modded.speed end
+            if modded.moveSpeed then p.stats.moveSpeed = modded.moveSpeed end
             if modded.armor then p.stats.armor = modded.armor end
             
             if state.texts then
