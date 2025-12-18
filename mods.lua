@@ -42,7 +42,7 @@ mods.warframe = {
     },
     rush = {
         name = "冲刺", desc = "移动速度",
-        stat = 'speed', type = 'mult',
+        stat = 'moveSpeed', type = 'mult',
         cost = {3,4,5,6,7,8}, value = {0.05,0.10,0.15,0.20,0.25,0.30}
     },
     quick_thinking = {

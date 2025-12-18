@@ -8,6 +8,20 @@ local function clamp(v, lo, hi)
     return v
 end
 
+-- Shield System Constants (WF-style)
+local SHIELD_REGEN_DELAY = 3.0    -- Seconds after damage before shield regenerates
+local SHIELD_REGEN_RATE = 0.25     -- Fraction of max shield per second
+local SHIELD_GATE_DURATION = 0.3   -- Invincibility when shield breaks
+
+-- Movement Constants (WF-style)
+local SLIDE_SPEED_MULT = 1.6
+local SLIDE_DRAG = 0.98        -- Speed decay during slide if not moving
+local ROLL_SPEED = 450
+local ROLL_DURATION = 0.45
+local ROLL_DR = 0.75           -- 75% damage reduction during roll
+local BULLET_JUMP_SPEED = 750
+local BULLET_JUMP_DURATION = 0.4
+
 local function getMoveInput()
     local dx, dy = 0, 0
     if love.keyboard.isDown('w') then dy = -1 end
@@ -561,7 +575,29 @@ function player.updateMovement(state, dt)
     local moving = dx ~= 0 or dy ~= 0
     local world = state.world
 
-    if dash and (dash.timer or 0) > 0 then
+    -- Handle Advanced Movement Timers
+    if (p.rollTimer or 0) > 0 then
+        p.rollTimer = p.rollTimer - dt
+        local mx = (p.rollDx or 0) * ROLL_SPEED * dt
+        local my = (p.rollDy or 0) * ROLL_SPEED * dt
+        if world and world.enabled and world.moveCircle then
+            p.x, p.y = world:moveCircle(p.x, p.y, (p.size or 20) / 2, mx, my)
+        else
+            p.x, p.y = p.x + mx, p.y + my
+        end
+        if p.rollTimer <= 0 then p.isRolling = false end
+        moving = true
+    elseif (p.bulletJumpTimer or 0) > 0 then
+        p.bulletJumpTimer = p.bulletJumpTimer - dt
+        local mx = (p.bjDx or 0) * BULLET_JUMP_SPEED * dt
+        local my = (p.bjDy or 0) * BULLET_JUMP_SPEED * dt
+        if world and world.enabled and world.moveCircle then
+            p.x, p.y = world:moveCircle(p.x, p.y, (p.size or 20) / 2, mx, my)
+        else
+            p.x, p.y = p.x + mx, p.y + my
+        end
+        moving = true
+    elseif dash and (dash.timer or 0) > 0 then
         local speed = dash.speed
         if speed == nil then
             local stats = p.stats or {}
@@ -611,15 +647,29 @@ function player.updateMovement(state, dt)
             state.augments.dispatch(state, 'postDash', {player = p})
         end
     elseif moving then
+        local isSliding = love.keyboard.isDown('lctrl') and p.stats.moveSpeed > 0
+        local speed = p.stats.moveSpeed
+        if isSliding then
+            speed = speed * SLIDE_SPEED_MULT
+            p.isSliding = true
+            if state.spawnDashAfterimage and math.random() < 0.2 then
+                state.spawnDashAfterimage(p.x, p.y, p.facing, {alpha=0.1, duration=0.3})
+            end
+        else
+            p.isSliding = false
+        end
+        
         local len = math.sqrt(dx * dx + dy * dy)
-        local mx = (dx / len) * p.stats.moveSpeed * dt
-        local my = (dy / len) * p.stats.moveSpeed * dt
+        local mx = (dx / len) * speed * dt
+        local my = (dy / len) * speed * dt
         if world and world.enabled and world.moveCircle then
             p.x, p.y = world:moveCircle(p.x, p.y, (p.size or 20) / 2, mx, my)
         else
             p.x = p.x + mx
             p.y = p.y + my
         end
+    else
+        p.isSliding = false
     end
 
     if dash and (dash.timer or 0) <= 0 then
@@ -660,15 +710,20 @@ function player.hurt(state, dmg)
     local p = state.player
     if state.benchmarkMode then return end -- invincible during benchmark/debug runs
     if p.invincibleTimer > 0 then return end
+    
     local armor = (p.stats and p.stats.armor) or 0
     local hpBefore = p.hp
-    local applied = math.max(1, math.floor((dmg or 0) - armor))
+    local shieldBefore = p.shield or 0
+    local incoming = math.max(1, math.floor((dmg or 0) - armor))
+    
     local ctx = {
-        amount = applied,
+        amount = incoming,
         dmg = dmg or 0,
         armor = armor,
         hpBefore = hpBefore,
+        shieldBefore = shieldBefore,
         hpAfter = hpBefore,
+        shieldAfter = shieldBefore,
         player = p,
         isMoving = p.isMoving or false,
         movedDist = p.movedDist or 0
@@ -676,28 +731,69 @@ function player.hurt(state, dmg)
     if state and state.augments and state.augments.dispatch then
         state.augments.dispatch(state, 'preHurt', ctx)
     end
-    applied = math.max(0, math.floor(ctx.amount or applied))
-    if ctx.cancel or applied <= 0 then
+    incoming = math.max(0, math.floor(ctx.amount or incoming))
+    if ctx.cancel or incoming <= 0 then
         local inv = ctx.invincibleTimer or 0
         if inv > 0 then
             p.invincibleTimer = math.max(p.invincibleTimer or 0, inv)
         end
         ctx.amount = 0
         ctx.hpAfter = p.hp
+        ctx.shieldAfter = p.shield or 0
         if state and state.augments and state.augments.dispatch then
             state.augments.dispatch(state, 'hurtCancelled', ctx)
         end
         return
     end
+    
+    -- Reset shield regeneration delay
+    p.shieldDelayTimer = 0
+    
+    local shieldDamage = 0
+    local healthDamage = 0
+    local remaining = incoming
+    
+    -- Rolling Damage Reduction (WF-style)
+    if p.isRolling then
+        remaining = math.floor(remaining * (1 - ROLL_DR))
+    end
+    
+    -- Damage shields first (WF-style)
+    if (p.shield or 0) > 0 then
+        shieldDamage = math.min(p.shield, remaining)
+        p.shield = p.shield - shieldDamage
+        remaining = remaining - shieldDamage
+        
+        -- Shield Gating: if shield broke, grant brief invincibility
+        if shieldDamage > 0 and (p.shield or 0) <= 0 then
+            p.invincibleTimer = math.max(p.invincibleTimer or 0, SHIELD_GATE_DURATION)
+            remaining = 0  -- Absorb remaining damage during gate
+            if state.texts then
+                table.insert(state.texts, {x=p.x, y=p.y-50, text="SHIELD GATE!", color={0.4, 0.8, 1}, life=0.8})
+            end
+        end
+    end
+    
+    -- Apply remaining damage to health
+    if remaining > 0 then
+        healthDamage = remaining
+        p.hp = math.max(0, p.hp - healthDamage)
+    end
+    
+    local applied = shieldDamage + healthDamage
+    ctx.amount = applied
+    ctx.shieldDamage = shieldDamage
+    ctx.healthDamage = healthDamage
+    ctx.hpAfter = p.hp
+    ctx.shieldAfter = p.shield or 0
+    
     if applied > 0 then
-        p.hp = math.max(0, p.hp - applied)
-        ctx.amount = applied
-        ctx.hpAfter = p.hp
         if state and state.augments and state.augments.dispatch then
             state.augments.dispatch(state, 'onHurt', ctx)
             state.augments.dispatch(state, 'postHurt', ctx)
         end
     end
+    
     logger.damageTaken(state, applied, p.hp)
     if p.hp <= 0 then
         p.invincibleTimer = 0
@@ -706,11 +802,19 @@ function player.hurt(state, dmg)
         if state.stopMusic then state.stopMusic() end
         logger.gameOver(state, 'death')
     else
-        p.invincibleTimer = 0.5
+        if healthDamage > 0 then
+            p.invincibleTimer = math.max(p.invincibleTimer or 0, 0.5)
+        end
         state.shakeAmount = 5
     end
     if state.playSfx then state.playSfx('hit') end
-    table.insert(state.texts, {x=p.x, y=p.y-30, text="-"..applied, color={1,0,0}, life=1})
+    
+    -- Show damage text with color based on type
+    local textColor = {1, 0, 0}  -- Red for health damage
+    if shieldDamage > 0 and healthDamage == 0 then
+        textColor = {0.4, 0.7, 1}  -- Blue for shield-only damage
+    end
+    table.insert(state.texts, {x=p.x, y=p.y-30, text="-"..applied, color=textColor, life=1})
 end
 
 function player.tickInvincibility(state, dt)
@@ -721,9 +825,28 @@ function player.tickInvincibility(state, dt)
 end
 
 function player.tickRegen(state, dt)
-    local regen = state.player.stats.regen or 0
-    if regen > 0 and state.player.hp < state.player.maxHp then
-        state.player.hp = math.min(state.player.maxHp, state.player.hp + regen * dt)
+    local p = state.player
+    local regen = p.stats.regen or 0
+    if regen > 0 and p.hp < p.maxHp then
+        p.hp = math.min(p.maxHp, p.hp + regen * dt)
+    end
+end
+
+-- Shield Regeneration (WF-style)
+function player.tickShields(state, dt)
+    local p = state.player
+    if not p then return end
+    
+    local maxShield = (p.stats and p.stats.maxShield) or p.maxShield or 0
+    if maxShield <= 0 then return end
+    
+    -- Update shield delay timer
+    p.shieldDelayTimer = (p.shieldDelayTimer or 0) + dt
+    
+    -- Regenerate shields after delay
+    if p.shieldDelayTimer >= SHIELD_REGEN_DELAY and (p.shield or 0) < maxShield then
+        local regen = maxShield * SHIELD_REGEN_RATE * dt
+        p.shield = math.min(maxShield, (p.shield or 0) + regen)
     end
 end
 
@@ -751,37 +874,131 @@ function player.updateAbility(state, dt)
     end
 end
 
--- Use class ability (Q skill)
-function player.useAbility(state)
+-- Use class ability (indexed 1-4)
+function player.useAbility(state, index)
     local p = state.player
-    local ability = p.ability
-    if not ability then
-        p.ability = {cooldown = 0, timer = 0}
-        ability = p.ability
-    end
+    index = index or 1
     
-    -- Check cooldown
-    if (ability.timer or 0) > 0 then
-        return false
-    end
+    local abilities = require('abilities')
+    local def = abilities.getAbilityDef(state, index)
+    if not def then return false end
     
-    -- Get class definition
-    local classKey = p.class or 'warrior'
-    local classDef = state.classes and state.classes[classKey]
-    if not classDef or not classDef.ability or not classDef.ability.execute then
+    -- Check energy and cooldown
+    p.abilityCooldowns = p.abilityCooldowns or {}
+    local cd = p.abilityCooldowns[index] or 0
+    if cd > 0 then return false end
+    
+    local eff = p.stats and p.stats.abilityEfficiency or 1.0
+    local cost = math.floor(def.cost / eff)
+    if (p.energy or 0) < cost then
+        if state.texts then
+            table.insert(state.texts, {x=p.x, y=p.y-40, text="能量不足!", color={1,0,0}, life=0.5})
+        end
         return false
     end
     
     -- Execute ability
-    local success = classDef.ability.execute(state)
+    local success = def.effect(state)
     
-    -- Set cooldown if successful
+    -- Set cooldown and consume energy if successful
     if success then
-        ability.cooldown = classDef.ability.cooldown or 5.0
-        ability.timer = ability.cooldown
+        p.energy = p.energy - cost
+        p.abilityCooldowns[index] = def.cd or 5.0
+        if state.texts then
+            table.insert(state.texts, {x=p.x, y=p.y-60, text=def.name, color={0.5, 1, 1}, life=1.0})
+        end
     end
     
     return success
+end
+
+function player.keypressed(state, key)
+    if state.gameState ~= 'PLAYING' then return false end
+    local p = state.player
+    
+    -- Movement: Roll (LShift)
+    if key == 'lshift' then
+        local dx, dy = getMoveInput()
+        if dx == 0 and dy == 0 then
+            dx = p.facing or 1
+            dy = 0
+        else
+            local len = math.sqrt(dx*dx + dy*dy)
+            dx, dy = dx/len, dy/len
+        end
+        p.isRolling = true
+        p.rollTimer = ROLL_DURATION
+        p.rollDx, p.rollDy = dx, dy
+        if state.spawnEffect then state.spawnEffect('shock', p.x, p.y, 0.8) end
+        return true
+    end
+    
+    -- Movement: Bullet Jump / Dash (Space)
+    if key == 'space' then
+        if p.isSliding then
+            local dx, dy = getMoveInput()
+            if dx == 0 and dy == 0 then dx = p.facing or 1 end
+            local len = math.sqrt(dx*dx + dy*dy)
+            p.bulletJumpTimer = BULLET_JUMP_DURATION
+            p.bjDx, p.bjDy = dx/len, dy/len
+            if state.texts then table.insert(state.texts, {x=p.x, y=p.y-50, text="BULLET JUMP", color={0.4, 1, 0.8}, life=0.6}) end
+            if state.spawnEffect then state.spawnEffect('blast_hit', p.x, p.y, 1.5) end
+            return true
+        else
+            return player.tryDash(state)
+        end
+    end
+    
+    -- Abilities: 1, 2, 3, 4
+    if key == '1' then player.useAbility(state, 1) return true end
+    if key == '2' then player.useAbility(state, 2) return true end
+    if key == '3' then player.useAbility(state, 3) return true end
+    if key == '4' then player.useAbility(state, 4) return true end
+    
+    -- Weapons: F to cycle, E for quick melee, R to reload
+    if key == 'f' then
+        local weapons = require('weapons')
+        weapons.cycleSlots(state)
+        return true
+    end
+    if key == 'e' then
+        player.quickMelee(state)
+        return true
+    end
+    if key == 'r' then
+        local weapons = require('weapons')
+        weapons.startReload(state)
+        return true
+    end
+
+    -- Pets: P to toggle mode
+    if key == 'p' then
+        local pets = require('pets')
+        pets.toggleMode(state)
+        return true
+    end
+    
+    -- Debug: M key to equip test MODs
+    if key == 'm' then
+        local mods = require('mods')
+        local inv = state.inventory
+        local activeSlot = inv and inv.activeSlot or 'ranged'
+        local slotData = inv and inv.weaponSlots and inv.weaponSlots[activeSlot]
+        local activeKey = slotData and slotData.key
+        
+        mods.equipTestMods(state, 'warframe', nil)
+        if activeKey then
+            mods.equipTestMods(state, 'weapons', activeKey)
+        end
+        mods.equipTestMods(state, 'companion', nil)
+        
+        if state.texts then
+            table.insert(state.texts, {x=p.x, y=p.y-50, text="MODs RESTORED (Debug)", color={0.6, 0.9, 0.4}, life=2})
+        end
+        return true
+    end
+    
+    return false
 end
 
 -- =============================================================================

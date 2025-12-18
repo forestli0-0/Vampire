@@ -256,8 +256,11 @@ function state.init()
         facing = 1,
         isMoving = false,
         hp = 100, maxHp = 100,
+        shield = 100, maxShield = 100,
+        energy = 100, maxEnergy = 100,
         level = 1, xp = 0, xpToNextLevel = 10,
         invincibleTimer = 0,
+        shieldDelayTimer = 0,
         dash = {charges = 2, maxCharges = 2, rechargeTimer = 0, timer = 0, dx = 1, dy = 0},
         class = 'warrior', -- Current class: warrior / mage / beastmaster
         ability = {cooldown = 0, timer = 0}, -- Q skill state
@@ -291,6 +294,8 @@ function state.init()
             armor = 0,
             regen = 0,
             energyRegen = 2.0,
+            maxShield = 100,
+            maxEnergy = 100,
             
             -- WF Unified Stats
             abilityStrength = 1.0,
@@ -316,6 +321,8 @@ function state.init()
                 armor = 2,
                 moveSpeed = 170,
                 might = 1.1,
+                maxShield = 80,   -- Warriors rely more on Armor/HP
+                maxEnergy = 100,
                 dashCharges = 3  -- Extra dash charge
             },
             startWeapon = 'heavy_hammer',  -- Fragor melee
@@ -376,6 +383,8 @@ function state.init()
                 armor = 0,
                 moveSpeed = 190,
                 might = 1.0,
+                maxShield = 150, -- Mages rely on Shields
+                maxEnergy = 200, -- Mages have more Energy
                 cooldown = 0.9, -- 10% faster cooldowns
                 critChance = 0.1 -- +10% crit chance
             },

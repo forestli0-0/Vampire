@@ -282,6 +282,31 @@ function weapons.switchSlot(state, slotType)
     return false
 end
 
+-- Cycle through available weapon slots (WF-style 'F' key)
+function weapons.cycleSlots(state)
+    local inv = state.inventory
+    if not inv then return false end
+    local slots = {'ranged', 'melee', 'extra'}
+    local current = inv.activeSlot or 'ranged'
+    local currentIndex = 1
+    for i, s in ipairs(slots) do
+        if s == current then currentIndex = i break end
+    end
+    
+    -- Try next slots in a loop
+    for i = 1, #slots do
+        local nextIndex = (currentIndex + i - 1) % #slots + 1
+        local nextSlot = slots[nextIndex]
+        if nextSlot == 'extra' and not inv.canUseExtraSlot then
+            -- Skip extra if not enabled
+        elseif inv.weaponSlots[nextSlot] then
+            inv.activeSlot = nextSlot
+            return true
+        end
+    end
+    return false
+end
+
 -- Count equipped weapon slots
 function weapons.countSlots(state)
     local count = 0

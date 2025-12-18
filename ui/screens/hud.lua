@@ -138,8 +138,8 @@ local function buildCombatFrame(gameState, parent)
     local endX = LAYOUT.combatX
     local endY = LAYOUT.combatY
     
-    -- Ability Slots
-    local abilities = {'q', 'e', 'c', 'v'} 
+    -- Ability Slots (1, 2, 3, 4)
+    local abilities = {'1', '2', '3', '4'} 
     local slotSize = 40
     local gap = 8
     local totalW = #abilities * slotSize + (#abilities - 1) * gap
@@ -154,11 +154,11 @@ local function buildCombatFrame(gameState, parent)
             x = sx, y = startY,
             w = slotSize, h = slotSize,
             content = nil,
-            sublabel = string.upper(key),
+            sublabel = key,
             cornerRadius = 4
         })
         parent:addChild(slot)
-        widgets.abilitySlots[key] = slot
+        widgets.abilitySlots[i] = slot -- Keyed by index 1-4
     end
     
     -- Energy Bar (Above abilities)
@@ -182,9 +182,7 @@ local function buildCombatFrame(gameState, parent)
     local weaponY = endY - 50 -- Slightly higher
     
     widgets.weaponSlots = {}
-    -- 2 slots: ranged (1), melee (2)
-    local weaponKeys = {'1', '2'}
-    for i, key in ipairs(weaponKeys) do
+    for i = 1, slotCount do
         local wx = weaponStartX + (i-1) * (slotW + gap)
         local slotH = 50
         
@@ -197,18 +195,19 @@ local function buildCombatFrame(gameState, parent)
             cornerRadius = 4
         })
         parent:addChild(panel)
-        
+
+        local slotName = (i == 1 and "PRIMARY") or "MELEE"
         local label = ui.Text.new({
             x = 4, y = 2,
-            text = key,
-            color = {1, 1, 1, 0.5},
+            text = (i == 1 and "F") or "E", -- F to cycle, E for quick melee
+            color = theme.colors.text_dim,
             font = theme.getFont('small')
         })
         panel:addChild(label)
         
         local name = ui.Text.new({
             x = 16, y = 4, w = 70,
-            text = "Weapon",
+            text = slotName,
             color = theme.colors.text
         })
         panel:addChild(name)
@@ -355,20 +354,17 @@ function hud.update(gameState, dt)
             widgets.dashText:setText(string.format("DASH %d/%d", current, max))
         end
         
-        -- Ability Slots
+        -- Ability Slots (updated for index 1-4)
         local abilitiesLib = require('abilities')
-        for key, slot in pairs(widgets.abilitySlots) do
-            local abilityId = abilitiesLib.getAbilityForKey(key)
-            local def = abilityId and abilitiesLib.catalog[abilityId]
-            local cd = p.abilityCooldowns and p.abilityCooldowns[abilityId] or 0
+        for i, slot in pairs(widgets.abilitySlots) do
+            local def = abilitiesLib.getAbilityDef(gameState, i)
+            local cd = p.abilityCooldowns and p.abilityCooldowns[i] or 0
             
             if cd > 0 then
                 slot.iconColor = {0.5, 0.5, 0.5, 0.5}
-                -- Could show text CD here if Slot supported it
             else
                 slot.iconColor = {1, 1, 1, 1}
             end
-            -- TODO: Set icon if available
         end
         
         -- Weapon Slots
