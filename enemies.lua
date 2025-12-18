@@ -521,7 +521,8 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY, opts)
         bulletDamage = bulletDamage,
         bulletLife = bulletLife,
         bulletSize = bulletSize,
-        facing = 1
+        facing = 1,
+        spawnTime = love.timer.getTime()  -- For animation phase offset
     })
     if state.loadMoveAnimationFromFolder then
         local animKey = def.animKey or def.animName or type

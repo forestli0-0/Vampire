@@ -2274,11 +2274,22 @@ function state.init()
         state.enemySprites['plant_bullet'] = plantBullet
     end
     
-    -- 共享骷髅精灵 (用于所有敌人)
-    local skeletonImg = loadImage('assets/characters/skeleton/move_1.PNG')
-    if skeletonImg then
-        skeletonImg:setFilter('nearest', 'nearest')
-        state.enemySprites['skeleton_base'] = skeletonImg
+    -- 共享骷髅精灵动画帧 (用于所有敌人)
+    state.enemySprites['skeleton_frames'] = {}
+    for i = 1, 4 do
+        local img = loadImage('assets/characters/skeleton/move_' .. i .. '.PNG')
+        if img then
+            img:setFilter('nearest', 'nearest')
+            table.insert(state.enemySprites['skeleton_frames'], img)
+        end
+    end
+    -- Fallback if no frames loaded
+    if #state.enemySprites['skeleton_frames'] == 0 then
+        local fallback = loadImage('assets/characters/skeleton/move_1.PNG')
+        if fallback then
+            fallback:setFilter('nearest', 'nearest')
+            table.insert(state.enemySprites['skeleton_frames'], fallback)
+        end
     end
 end
 

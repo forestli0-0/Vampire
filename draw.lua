@@ -960,9 +960,16 @@ function draw.renderWorld(state)
             end
         end
 
-        -- Base draw: Use skeleton sprite for all enemies (tinted by color, scaled by size)
-        local skeletonSprite = state.enemySprites and state.enemySprites['skeleton_base']
-        if skeletonSprite and not e.anim then
+        -- Base draw: Use skeleton animation frames for all enemies (tinted by color, scaled by size)
+        local skeletonFrames = state.enemySprites and state.enemySprites['skeleton_frames']
+        if skeletonFrames and #skeletonFrames > 0 and not e.anim then
+            -- Calculate animation frame (8 FPS, offset by enemy id for variety)
+            local animSpeed = 8  -- frames per second
+            local numFrames = #skeletonFrames
+            local timeOffset = (e.spawnTime or 0) * 0.37  -- Unique offset per enemy
+            local frameIndex = math.floor((love.timer.getTime() + timeOffset) * animSpeed) % numFrames + 1
+            local sprite = skeletonFrames[frameIndex]
+            
             -- Calculate scale based on enemy size (skeleton base is ~24px tall)
             local baseSize = 24
             local targetSize = e.size or 24
@@ -971,8 +978,8 @@ function draw.renderWorld(state)
             local sy = scale
             
             love.graphics.setColor(col)
-            local sw, sh = skeletonSprite:getWidth(), skeletonSprite:getHeight()
-            love.graphics.draw(skeletonSprite, e.x, e.y, 0, sx, sy, sw/2, sh/2)
+            local sw, sh = sprite:getWidth(), sprite:getHeight()
+            love.graphics.draw(sprite, e.x, e.y, 0, sx, sy, sw/2, sh/2)
         elseif e.anim then
             love.graphics.setColor(col)
             local sx = e.facing or 1
@@ -989,14 +996,19 @@ function draw.renderWorld(state)
             local f = math.min(1, ft / 0.1)
             local a = 0.22 + 0.28 * f
             love.graphics.setColor(1, 1, 1, a)
-            if skeletonSprite and not e.anim then
+            if skeletonFrames and #skeletonFrames > 0 and not e.anim then
+                local animSpeed = 8
+                local numFrames = #skeletonFrames
+                local timeOffset = (e.spawnTime or 0) * 0.37
+                local frameIndex = math.floor((love.timer.getTime() + timeOffset) * animSpeed) % numFrames + 1
+                local sprite = skeletonFrames[frameIndex]
                 local baseSize = 24
                 local targetSize = e.size or 24
                 local scale = targetSize / baseSize
                 local sx = (e.facing or 1) * scale
                 local sy = scale
-                local sw, sh = skeletonSprite:getWidth(), skeletonSprite:getHeight()
-                love.graphics.draw(skeletonSprite, e.x, e.y, 0, sx, sy, sw/2, sh/2)
+                local sw, sh = sprite:getWidth(), sprite:getHeight()
+                love.graphics.draw(sprite, e.x, e.y, 0, sx, sy, sw/2, sh/2)
             elseif e.anim then
                 local sx = e.facing or 1
                 e.anim:draw(e.x, e.y, 0, sx, 1)
