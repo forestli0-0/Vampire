@@ -1,4 +1,5 @@
 local logger = require('logger')
+local input = require('input')
 
 local player = {}
 
@@ -23,22 +24,17 @@ local BULLET_JUMP_SPEED = 750
 local BULLET_JUMP_DURATION = 0.4
 
 local function getMoveInput()
-    local dx, dy = 0, 0
-    if love.keyboard.isDown('w') then dy = -1 end
-    if love.keyboard.isDown('s') then dy = 1 end
-    if love.keyboard.isDown('a') then dx = -1 end
-    if love.keyboard.isDown('d') then dx = 1 end
-    return dx, dy
+    return input.getAxis('move_x'), input.getAxis('move_y')
 end
 
 -- Check if player is holding attack key (mouse left or J)
 local function isAttackKeyDown()
-    return love.mouse.isDown(1) or love.keyboard.isDown('j')
+    return input.isDown('fire')
 end
 
--- Check if precision aiming mode (Shift held)
+-- Check if precision aiming mode
 local function isPrecisionAimMode()
-    return love.keyboard.isDown('lshift') or love.keyboard.isDown('rshift')
+    return input.isDown('roll') -- Usually shift by default
 end
 
 -- Get mouse position in world coordinates
@@ -50,43 +46,9 @@ local function getMouseWorldPos(state)
 end
 
 -- Get aim direction based on weapon type and current input
--- Returns dx, dy (normalized) and targetEnemy (if auto-aim)
 function player.getAimDirection(state, weaponDef)
     local p = state.player
-    local isMelee = weaponDef and weaponDef.tags and false
-    -- Check if weapon has 'melee' tag
-    if weaponDef and weaponDef.tags then
-        for _, tag in ipairs(weaponDef.tags) do
-            if tag == 'melee' then isMelee = true; break end
-        end
-    end
-    
-    -- Precision aim mode (Shift): always aim at mouse
-    if isPrecisionAimMode() then
-        local mx, my = getMouseWorldPos(state)
-        local dx, dy = mx - p.x, my - p.y
-        local len = math.sqrt(dx * dx + dy * dy)
-        if len > 0 then
-            return dx / len, dy / len, nil
-        end
-    end
-    
-    -- Default aim based on weapon type
-    if isMelee then
-        -- Melee: aim in movement direction, or facing direction if standing
-        local mdx, mdy = getMoveInput()
-        if mdx ~= 0 or mdy ~= 0 then
-            local len = math.sqrt(mdx * mdx + mdy * mdy)
-            return mdx / len, mdy / len, nil
-        else
-            -- Standing: use last facing direction
-            return p.facing or 1, 0, nil
-        end
-    else
-        -- Ranged: auto-aim at nearest enemy (handled by weapons.lua)
-        -- Return nil to signal "use auto-aim"
-        return nil, nil, nil
-    end
+    return math.cos(p.aimAngle or 0), math.sin(p.aimAngle or 0), nil
 end
 
 -- Update firing state
@@ -677,8 +639,18 @@ function player.updateMovement(state, dt)
         dash.trailY = nil
     end
 
-    if dx > 0 then p.facing = 1
-    elseif dx < 0 then p.facing = -1 end
+    -- Update Aim Angle (360 degrees towards mouse)
+    p.aimAngle = input.getAimAngle(state, p.x, p.y)
+
+    -- Decouple facing from movement if attacking or using abilities
+    local isAttacking = input.isDown('fire') or (p.meleeState and p.meleeState.phase ~= 'idle')
+    if isAttacking then
+        -- Face the crosshair/mouse
+        p.facing = (math.cos(p.aimAngle) >= 0) and 1 or -1
+    elseif dx ~= 0 then
+        -- Standard movement facing
+        p.facing = (dx > 0) and 1 or -1
+    end
     p.isMoving = moving
     local mdx, mdy = p.x - ox, p.y - oy
     p.movedDist = math.sqrt(mdx * mdx + mdy * mdy)
@@ -913,12 +885,11 @@ function player.useAbility(state, index)
 end
 
 function player.keypressed(state, key)
-    if state.gameState ~= 'PLAYING' then return false end
     local p = state.player
     
     -- Movement: Roll (LShift)
-    if key == 'lshift' then
-        local dx, dy = getMoveInput()
+    if input.isActionKey(key, 'roll') then
+        local dx, dy = input.getAxis('move_x'), input.getAxis('move_y')
         if dx == 0 and dy == 0 then
             dx = p.facing or 1
             dy = 0
@@ -934,14 +905,15 @@ function player.keypressed(state, key)
     end
     
     -- Movement: Bullet Jump / Dash (Space)
-    if key == 'space' then
+    if input.isActionKey(key, 'jump') then
         if p.isSliding then
-            local dx, dy = getMoveInput()
+            local dx, dy = input.getAxis('move_x'), input.getAxis('move_y')
             if dx == 0 and dy == 0 then dx = p.facing or 1 end
             local len = math.sqrt(dx*dx + dy*dy)
             p.bulletJumpTimer = BULLET_JUMP_DURATION
-            p.bjDx, p.bjDy = dx/len, dy/len
-            if state.texts then table.insert(state.texts, {x=p.x, y=p.y-50, text="BULLET JUMP", color={0.4, 1, 0.8}, life=0.6}) end
+            p.bjDx, p.bjDy = (dx/len), (dy/len)
+            if state.spawnEffect then state.spawnEffect('shock', p.x, p.y, 1.2) end
+            p.isSliding = false
             if state.spawnEffect then state.spawnEffect('blast_hit', p.x, p.y, 1.5) end
             return true
         else
@@ -949,37 +921,46 @@ function player.keypressed(state, key)
         end
     end
     
-    -- Abilities: 1, 2, 3, 4
-    if key == '1' then player.useAbility(state, 1) return true end
-    if key == '2' then player.useAbility(state, 2) return true end
-    if key == '3' then player.useAbility(state, 3) return true end
-    if key == '4' then player.useAbility(state, 4) return true end
+    -- Escape key: Return to Arsenal
+    if input.isActionKey(key, 'cancel') then
+        local arsenal = require('arsenal')
+        if arsenal.reset then arsenal.reset(state) end
+        state.gameState = 'ARSENAL'
+        table.insert(state.texts or {}, {x=state.player.x, y=state.player.y-50, text="返回准备界面", color={0.8, 0.8, 1}, life=1.5})
+        return true
+    end
     
-    -- Weapons: F to cycle, E for quick melee, R to reload
-    if key == 'f' then
+    -- Abilities: 1, 2, 3, 4
+    if input.isActionKey(key, 'ability1') then player.useAbility(state, 1) return true end
+    if input.isActionKey(key, 'ability2') then player.useAbility(state, 2) return true end
+    if input.isActionKey(key, 'ability3') then player.useAbility(state, 3) return true end
+    if input.isActionKey(key, 'ability4') then player.useAbility(state, 4) return true end
+    
+    -- Weapons: Cycle, Quick Melee, Reload
+    if input.isActionKey(key, 'cycle_weapon') then
         local weapons = require('weapons')
         weapons.cycleSlots(state)
         return true
     end
-    if key == 'e' then
+    if input.isActionKey(key, 'melee') then
         player.quickMelee(state)
         return true
     end
-    if key == 'r' then
+    if input.isActionKey(key, 'reload') then
         local weapons = require('weapons')
         weapons.startReload(state)
         return true
     end
 
-    -- Pets: P to toggle mode
-    if key == 'p' then
+    -- Pets
+    if input.isActionKey(key, 'toggle_pet') then
         local pets = require('pets')
         pets.toggleMode(state)
         return true
     end
     
     -- Debug: M key to equip test MODs
-    if key == 'm' then
+    if input.isActionKey(key, 'debug_mods') then
         local mods = require('mods')
         local inv = state.inventory
         local activeSlot = inv and inv.activeSlot or 'ranged'

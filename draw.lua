@@ -1207,19 +1207,7 @@ function draw.renderWorld(state)
             local range = 90
             local arcWidth = 1.4
             
-            -- Get aim direction
-            local mdx, mdy = 0, 0
-            if love.keyboard.isDown('w') then mdy = -1 end
-            if love.keyboard.isDown('s') then mdy = 1 end
-            if love.keyboard.isDown('a') then mdx = -1 end
-            if love.keyboard.isDown('d') then mdx = 1 end
-            
-            local aimAngle
-            if mdx ~= 0 or mdy ~= 0 then
-                aimAngle = math.atan2(mdy, mdx)
-            else
-                aimAngle = (p.facing or 1) > 0 and 0 or math.pi
-            end
+            local aimAngle = p.aimAngle or 0
             
             -- Arc color based on attack type
             local r, g, b, a = 1, 1, 1, 0.6
