@@ -359,6 +359,9 @@ function hud.update(gameState, dt)
         for i, slot in pairs(widgets.abilitySlots) do
             local def = abilitiesLib.getAbilityDef(gameState, i)
             local cd = p.abilityCooldowns and p.abilityCooldowns[i] or 0
+            local maxCd = (def and def.cd) or 5.0
+            
+            slot.cooldownRatio = math.max(0, math.min(1, cd / maxCd))
             
             if cd > 0 then
                 slot.iconColor = {0.5, 0.5, 0.5, 0.5}

@@ -23,6 +23,7 @@ function Slot.new(opts)
     self.iconColor = opts.iconColor or theme.colors.accent
     self.label = opts.label or nil      -- Optional text label
     self.sublabel = opts.sublabel or nil  -- Secondary label (e.g., "Lv3")
+    self.cooldownRatio = opts.cooldownRatio or 0 -- 0 to 1
     
     -- State
     self.selected = opts.selected or false
@@ -171,6 +172,30 @@ function Slot:drawSelf()
     -- Draw content
     if self.content and not self.locked then
         self:drawContent(gx, gy, w, h)
+    end
+
+    -- Draw cooldown mask (sector/radial)
+    if self.cooldownRatio > 0 then
+        love.graphics.setColor(0, 0, 0, 0.6)
+        local cx, cy = gx + w/2, gy + h/2
+        local radius = math.sqrt(w*w + h*h) / 2 -- Cover the whole slot
+        
+        -- Stencil to keep arc inside slot background
+        love.graphics.stencil(function()
+            if self.cornerRadius > 0 then
+                love.graphics.rectangle('fill', gx, gy, w, h, self.cornerRadius, self.cornerRadius)
+            else
+                love.graphics.rectangle('fill', gx, gy, w, h)
+            end
+        end, "replace", 1)
+        love.graphics.setStencilTest("greater", 0)
+        
+        -- Draw sector clockwise starting from top
+        local startAngle = -math.pi / 2
+        local endAngle = startAngle + math.pi * 2 * self.cooldownRatio
+        love.graphics.arc('fill', 'pie', cx, cy, radius, startAngle, endAngle)
+        
+        love.graphics.setStencilTest()
     end
     
     -- Draw lock overlay
