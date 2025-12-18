@@ -303,10 +303,10 @@ function state.init()
             abilityDuration = 1.0,
             abilityRange = 1.0,
 
-            dashCharges = 2,
+            dashCharges = 1,
             dashCooldown = 3,
             dashDuration = 0.16,     -- seconds of dash movement
-            dashDistance = 80,      -- pixels traveled over dashDuration
+            dashDistance = 45,      -- pixels traveled over dashDuration
             dashInvincible = 0.16    -- i-frames (can be >= dashDuration)
         }
     }
@@ -323,7 +323,7 @@ function state.init()
                 might = 1.1,
                 maxShield = 80,   -- Warriors rely more on Armor/HP
                 maxEnergy = 100,
-                dashCharges = 3  -- Extra dash charge
+                dashCharges = 1  -- Standardized to 1 for balance
             },
             startWeapon = 'heavy_hammer',  -- Fragor melee
             startSecondary = 'lato',       -- Sidearm

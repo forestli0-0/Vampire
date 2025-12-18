@@ -15,12 +15,9 @@ local SHIELD_REGEN_RATE = 0.25     -- Fraction of max shield per second
 local SHIELD_GATE_DURATION = 0.3   -- Invincibility when shield breaks
 
 -- Movement Constants (WF-style)
-local SLIDE_SPEED_MULT = 1.6
+local SLIDE_SPEED_MULT = 1.3
 local SLIDE_DRAG = 0.98        -- Speed decay during slide if not moving
-local ROLL_SPEED = 450
-local ROLL_DURATION = 0.45
-local ROLL_DR = 0.75           -- 75% damage reduction during roll
-local BULLET_JUMP_SPEED = 750
+local BULLET_JUMP_SPEED = 500
 local BULLET_JUMP_DURATION = 0.4
 
 local function getMoveInput()
@@ -34,7 +31,7 @@ end
 
 -- Check if precision aiming mode
 local function isPrecisionAimMode()
-    return input.isDown('roll') -- Usually shift by default
+    return input.isDown('precision_aim')
 end
 
 -- Get mouse position in world coordinates
@@ -64,6 +61,11 @@ function player.updateFiring(state)
         p.isFiring = true
     else
         p.isFiring = manualAttack
+    end
+
+    -- Block firing while sliding (Tactical Rush focus)
+    if p.isSliding then
+        p.isFiring = false
     end
     
     -- Track precision aim mode for UI
@@ -230,7 +232,7 @@ function player.updateMelee(state, dt)
         end
     end
     
-    local attacking = isAttackKeyDown()
+    local attacking = isAttackKeyDown() and not p.isSliding
     
     -- State machine
     if melee.phase == 'idle' then
@@ -351,7 +353,13 @@ local function tickDashRecharge(p, dt)
         return
     end
 
-    dash.rechargeTimer = (dash.rechargeTimer or 0) + dt
+    local rechargeDt = dt
+    if p.isSliding then
+        -- Tactical Rush (Slide) doubles dash recharge speed
+        rechargeDt = rechargeDt * 2
+    end
+
+    dash.rechargeTimer = (dash.rechargeTimer or 0) + rechargeDt
     while dash.rechargeTimer >= cd and dash.charges < maxCharges do
         dash.rechargeTimer = dash.rechargeTimer - cd
         dash.charges = dash.charges + 1
@@ -538,18 +546,7 @@ function player.updateMovement(state, dt)
     local world = state.world
 
     -- Handle Advanced Movement Timers
-    if (p.rollTimer or 0) > 0 then
-        p.rollTimer = p.rollTimer - dt
-        local mx = (p.rollDx or 0) * ROLL_SPEED * dt
-        local my = (p.rollDy or 0) * ROLL_SPEED * dt
-        if world and world.enabled and world.moveCircle then
-            p.x, p.y = world:moveCircle(p.x, p.y, (p.size or 20) / 2, mx, my)
-        else
-            p.x, p.y = p.x + mx, p.y + my
-        end
-        if p.rollTimer <= 0 then p.isRolling = false end
-        moving = true
-    elseif (p.bulletJumpTimer or 0) > 0 then
+    if (p.bulletJumpTimer or 0) > 0 then
         p.bulletJumpTimer = p.bulletJumpTimer - dt
         local mx = (p.bjDx or 0) * BULLET_JUMP_SPEED * dt
         local my = (p.bjDy or 0) * BULLET_JUMP_SPEED * dt
@@ -609,18 +606,24 @@ function player.updateMovement(state, dt)
             state.augments.dispatch(state, 'postDash', {player = p})
         end
     elseif moving then
-        local isSliding = love.keyboard.isDown('lctrl') and p.stats.moveSpeed > 0
+        local SLIDE_ENERGY_DRAIN = 5.0 -- Energy per second
+        local hasEnergy = (p.energy or 0) > 0
+        local isSliding = input.isDown('slide') and p.stats.moveSpeed > 0 and hasEnergy
+        
         local speed = p.stats.moveSpeed
         if isSliding then
+            -- Drain energy over time
+            p.energy = math.max(0, p.energy - SLIDE_ENERGY_DRAIN * dt)
+            
             speed = speed * SLIDE_SPEED_MULT
             p.isSliding = true
+            -- 专注闪避状态 (Focus evasion): no size reduction, just speed + DR (in hurt)
             if state.spawnDashAfterimage and math.random() < 0.2 then
                 state.spawnDashAfterimage(p.x, p.y, p.facing, {alpha=0.1, duration=0.3})
             end
         else
             p.isSliding = false
         end
-        
         local len = math.sqrt(dx * dx + dy * dy)
         local mx = (dx / len) * speed * dt
         local my = (dy / len) * speed * dt
@@ -632,6 +635,7 @@ function player.updateMovement(state, dt)
         end
     else
         p.isSliding = false
+        p.size = 20
     end
 
     if dash and (dash.timer or 0) <= 0 then
@@ -725,9 +729,10 @@ function player.hurt(state, dmg)
     local healthDamage = 0
     local remaining = incoming
     
-    -- Rolling Damage Reduction (WF-style)
-    if p.isRolling then
-        remaining = math.floor(remaining * (1 - ROLL_DR))
+    -- Special Evasion: Tactical Rush (Slide) Damage Reduction
+    if p.isSliding then
+        local SLIDE_DR = 0.30 -- 30% Damage Reduction
+        remaining = math.floor(remaining * (1 - SLIDE_DR))
     end
     
     -- Damage shields first (WF-style)
@@ -887,36 +892,26 @@ end
 function player.keypressed(state, key)
     local p = state.player
     
-    -- Movement: Roll (LShift)
-    if input.isActionKey(key, 'roll') then
-        local dx, dy = input.getAxis('move_x'), input.getAxis('move_y')
-        if dx == 0 and dy == 0 then
-            dx = p.facing or 1
-            dy = 0
-        else
-            local len = math.sqrt(dx*dx + dy*dy)
-            dx, dy = dx/len, dy/len
-        end
-        p.isRolling = true
-        p.rollTimer = ROLL_DURATION
-        p.rollDx, p.rollDy = dx, dy
-        if state.spawnEffect then state.spawnEffect('shock', p.x, p.y, 0.8) end
-        return true
-    end
     
     -- Movement: Bullet Jump / Dash (Space)
     if input.isActionKey(key, 'jump') then
-        if p.isSliding then
+        local dash = ensureDashState(p)
+        if p.isSliding and dash and (dash.charges or 0) > 0 then
+            -- Bullet Jump: Consumes 1 charge (Tactical Rush + Space)
             local dx, dy = input.getAxis('move_x'), input.getAxis('move_y')
             if dx == 0 and dy == 0 then dx = p.facing or 1 end
             local len = math.sqrt(dx*dx + dy*dy)
+            
+            dash.charges = dash.charges - 1
             p.bulletJumpTimer = BULLET_JUMP_DURATION
             p.bjDx, p.bjDy = (dx/len), (dy/len)
+            
             if state.spawnEffect then state.spawnEffect('shock', p.x, p.y, 1.2) end
             p.isSliding = false
             if state.spawnEffect then state.spawnEffect('blast_hit', p.x, p.y, 1.5) end
             return true
         else
+            -- Standard Dash (Space) or failed Bullet Jump fallback
             return player.tryDash(state)
         end
     end

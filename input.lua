@@ -15,7 +15,7 @@ input.keymap = {
     fire = {'mouse1', 'j'},
     melee = {'e'},
     reload = {'r'},
-    roll = {'lshift'},
+    precision_aim = {'lshift'},
     slide = {'lctrl'},
     jump = {'space'},
     
