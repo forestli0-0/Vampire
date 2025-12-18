@@ -960,12 +960,26 @@ function draw.renderWorld(state)
             end
         end
 
-        -- Base draw (keep enemy readable even under sustained hits)
-        love.graphics.setColor(col)
-        if e.anim then
+        -- Base draw: Use skeleton sprite for all enemies (tinted by color, scaled by size)
+        local skeletonSprite = state.enemySprites and state.enemySprites['skeleton_base']
+        if skeletonSprite and not e.anim then
+            -- Calculate scale based on enemy size (skeleton base is ~24px tall)
+            local baseSize = 24
+            local targetSize = e.size or 24
+            local scale = targetSize / baseSize
+            local sx = (e.facing or 1) * scale
+            local sy = scale
+            
+            love.graphics.setColor(col)
+            local sw, sh = skeletonSprite:getWidth(), skeletonSprite:getHeight()
+            love.graphics.draw(skeletonSprite, e.x, e.y, 0, sx, sy, sw/2, sh/2)
+        elseif e.anim then
+            love.graphics.setColor(col)
             local sx = e.facing or 1
             e.anim:draw(e.x, e.y, 0, sx, 1)
         else
+            -- Fallback to rectangle if no sprite available
+            love.graphics.setColor(col)
             love.graphics.rectangle('fill', e.x - e.size/2, e.y - e.size/2, e.size, e.size)
         end
 
@@ -975,7 +989,15 @@ function draw.renderWorld(state)
             local f = math.min(1, ft / 0.1)
             local a = 0.22 + 0.28 * f
             love.graphics.setColor(1, 1, 1, a)
-            if e.anim then
+            if skeletonSprite and not e.anim then
+                local baseSize = 24
+                local targetSize = e.size or 24
+                local scale = targetSize / baseSize
+                local sx = (e.facing or 1) * scale
+                local sy = scale
+                local sw, sh = skeletonSprite:getWidth(), skeletonSprite:getHeight()
+                love.graphics.draw(skeletonSprite, e.x, e.y, 0, sx, sy, sw/2, sh/2)
+            elseif e.anim then
                 local sx = e.facing or 1
                 e.anim:draw(e.x, e.y, 0, sx, 1)
             else

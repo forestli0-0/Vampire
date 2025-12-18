@@ -2273,6 +2273,13 @@ function state.init()
         plantBullet:setFilter('nearest', 'nearest')
         state.enemySprites['plant_bullet'] = plantBullet
     end
+    
+    -- 共享骷髅精灵 (用于所有敌人)
+    local skeletonImg = loadImage('assets/characters/skeleton/move_1.PNG')
+    if skeletonImg then
+        skeletonImg:setFilter('nearest', 'nearest')
+        state.enemySprites['skeleton_base'] = skeletonImg
+    end
 end
 
 return state
