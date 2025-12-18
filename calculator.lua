@@ -683,7 +683,19 @@ function calculator.applyDamage(state, enemy, instance, opts)
             end
             local shown = math.floor(totalApplied + 0.5)
             local textOffsetY = opts.textOffsetY or 0
-            table.insert(state.texts, {x=enemy.x, y=enemy.y-20 + textOffsetY, text=shown, color=color, life=0.5, scale=scale})
+            -- Random offset to prevent stacking
+            local randX = (math.random() - 0.5) * 40
+            local randY = (math.random() - 0.5) * 20
+            local floatSpeed = 50 + math.random() * 30  -- Vary speed for natural spread
+            table.insert(state.texts, {
+                x = enemy.x + randX, 
+                y = enemy.y - 20 + textOffsetY + randY, 
+                text = shown, 
+                color = color, 
+                life = 0.8, 
+                scale = scale,
+                floatSpeed = floatSpeed
+            })
         end
     end
 

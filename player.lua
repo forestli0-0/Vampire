@@ -851,7 +851,8 @@ function player.tickTexts(state, dt)
     for i = #state.texts, 1, -1 do
         local t = state.texts[i]
         t.life = t.life - dt
-        t.y = t.y - 30 * dt
+        local speed = t.floatSpeed or 30
+        t.y = t.y - speed * dt
         if t.life <= 0 then table.remove(state.texts, i) end
     end
 end

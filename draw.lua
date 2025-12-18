@@ -1362,8 +1362,34 @@ function draw.renderWorld(state)
         end
     end
 
-    -- 飘字
-    for _, t in ipairs(state.texts) do love.graphics.setColor(t.color); love.graphics.print(t.text, t.x, t.y) end
+    -- 飘字 (Floating damage numbers with scale and outline)
+    for _, t in ipairs(state.texts) do
+        local scale = t.scale or 1
+        local alpha = math.min(1, (t.life or 0.5) / 0.3)  -- Fade out in last 0.3s
+        local text = tostring(t.text)
+        
+        -- Get font and calculate centered position
+        local font = love.graphics.getFont()
+        local tw = font:getWidth(text) * scale
+        local th = font:getHeight() * scale
+        local drawX = t.x - tw / 2
+        local drawY = t.y - th / 2
+        
+        -- Draw black outline for visibility
+        love.graphics.setColor(0, 0, 0, alpha * 0.8)
+        for ox = -1, 1 do
+            for oy = -1, 1 do
+                if ox ~= 0 or oy ~= 0 then
+                    love.graphics.print(text, drawX + ox, drawY + oy, 0, scale, scale)
+                end
+            end
+        end
+        
+        -- Draw main text
+        love.graphics.setColor(t.color[1], t.color[2], t.color[3], alpha)
+        love.graphics.print(text, drawX, drawY, 0, scale, scale)
+    end
+    love.graphics.setColor(1, 1, 1, 1)
     love.graphics.pop()
 end
 
