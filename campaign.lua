@@ -77,10 +77,10 @@ local function getWorldOptsForStage(stageType, biomeDef)
     end
     src = src or {}
 
-    base.w = src.w or ((stageType == 'boss') and 96 or 112)
-    base.h = src.h or ((stageType == 'boss') and 96 or 112)
-    base.roomMin = src.roomMin or ((stageType == 'boss') and 34 or 10)
-    base.roomMax = src.roomMax or ((stageType == 'boss') and 44 or 18)
+    base.w = src.w or ((stageType == 'boss') and 70 or 90)
+    base.h = src.h or ((stageType == 'boss') and 70 or 90)
+    base.roomMin = src.roomMin or ((stageType == 'boss') and 28 or 8)
+    base.roomMax = src.roomMax or ((stageType == 'boss') and 36 or 14)
     base.corridorWidth = src.corridorWidth or 2
     return base
 end

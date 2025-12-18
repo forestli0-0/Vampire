@@ -252,7 +252,7 @@ function state.init()
 
     state.player = {
         x = 400, y = 300,
-        size = 20,
+        size = 28,
         facing = 1,
         isMoving = false,
         hp = 100, maxHp = 100,
@@ -285,7 +285,7 @@ function state.init()
             worldY = 0
         },
         stats = {
-            moveSpeed = 180,
+            moveSpeed = 140,
             might = 1.0,
             cooldown = 1.0,
             area = 1.0,
@@ -305,9 +305,9 @@ function state.init()
 
             dashCharges = 1,
             dashCooldown = 3,
-            dashDuration = 0.16,     -- seconds of dash movement
-            dashDistance = 45,      -- pixels traveled over dashDuration
-            dashInvincible = 0.16    -- i-frames (can be >= dashDuration)
+            dashDuration = 0.14,     -- seconds of dash movement
+            dashDistance = 56,       -- pixels traveled (2x player width)
+            dashInvincible = 0.14    -- i-frames (can be >= dashDuration)
         }
     }
 
