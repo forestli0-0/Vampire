@@ -94,6 +94,32 @@ local function recomputePetStats(state, pet)
 
     local baseHp = tonumber(base.hp) or 60
     local hpBonus = rank * 6
+    local maxHpBase = (baseHp + hpBonus)
+    
+    -- Apply MOD system
+    local modsModule = require('mods')
+    
+    local baseForMods = {
+        maxHp = maxHpBase,
+        armor = 0,
+        critChance = 0,
+        damage = 1.0 -- Base multiplier
+    }
+    
+    local modded = modsModule.applyCompanionMods(state, baseForMods)
+    modded = modsModule.applyRunCompanionMods(state, modded)
+    
+    -- Inherit from player (Link mods)
+    local p = state.player
+    if p then
+        if modded.healthLink then
+            modded.maxHp = (modded.maxHp or maxHpBase) + (p.maxHp or 100) * modded.healthLink
+        end
+        if modded.armorLink then
+            modded.armor = (modded.armor or 0) + (p.stats and p.stats.armor or 0) * modded.armorLink
+        end
+    end
+
     local vitLv = getPetUpgradeLevel(state, 'pet_upgrade_vitality')
     local hpMul = 1 + 0.12 * vitLv
 
@@ -104,10 +130,13 @@ local function recomputePetStats(state, pet)
         hpPct = math.max(0, math.min(1, oldHp / oldMax))
     end
 
-    local maxHp = math.floor((baseHp + hpBonus) * hpMul + 0.5)
-    maxHp = math.max(1, maxHp)
-    pet.maxHp = maxHp
-    pet.hp = math.min(maxHp, math.max(0, math.floor(maxHp * hpPct + 0.5)))
+    local finalMaxHp = math.floor((modded.maxHp or maxHpBase) * hpMul + 0.5)
+    finalMaxHp = math.max(1, finalMaxHp)
+    pet.maxHp = finalMaxHp
+    pet.hp = math.min(finalMaxHp, math.max(0, math.floor(finalMaxHp * hpPct + 0.5)))
+    pet.armor = modded.armor or 0
+    pet.damageMult = modded.damage or 1.0
+    pet.critBonus = modded.critChance or 0
 
     local baseCd = tonumber(base.cooldown) or (pet.abilityCooldown or 3.0)
     local lvl = ps.runLevel or 1
@@ -154,8 +183,8 @@ local function doPetAbility(state, pet)
                     if dx * dx + dy * dy <= r2 then
                         local procs = 1 + extraProcs
                         applyPetHit(state, e, {
-                            damage = math.max(0, math.floor((6 + (lvl - 1) * 2) * might * dmgMul + 0.5)),
-                            critChance = 0,
+                            damage = math.max(0, math.floor((6 + (lvl - 1) * 2) * might * dmgMul * (pet.damageMult or 1.0) + 0.5)),
+                            critChance = pet.critBonus or 0,
                             critMultiplier = 1.5,
                             statusChance = procs,
                             effectType = 'MAGNETIC',
@@ -174,8 +203,8 @@ local function doPetAbility(state, pet)
                 local stacks = 1 + extraProcs
                 if lvl >= 4 then stacks = stacks + 1 end
                 applyPetHit(state, t, {
-                    damage = math.max(0, math.floor((8 + (lvl - 1) * 2) * might * dmgMul + 0.5)),
-                    critChance = 0,
+                    damage = math.max(0, math.floor((8 + (lvl - 1) * 2) * might * dmgMul * (pet.damageMult or 1.0) + 0.5)),
+                    critChance = pet.critBonus or 0,
                     critMultiplier = 1.5,
                     statusChance = stacks,
                     effectType = 'MAGNETIC',
@@ -198,8 +227,8 @@ local function doPetAbility(state, pet)
                     if dx * dx + dy * dy <= r2 then
                         local procs = 1 + extraProcs
                         applyPetHit(state, e, {
-                            damage = math.max(0, math.floor((7 + (lvl - 1) * 2) * might * dmgMul + 0.5)),
-                            critChance = 0,
+                            damage = math.max(0, math.floor((7 + (lvl - 1) * 2) * might * dmgMul * (pet.damageMult or 1.0) + 0.5)),
+                            critChance = pet.critBonus or 0,
                             critMultiplier = 1.5,
                             statusChance = procs,
                             effectType = 'CORROSIVE',
@@ -218,8 +247,8 @@ local function doPetAbility(state, pet)
                 local stacks = 1 + extraProcs
                 if (t.armor or 0) >= 120 and lvl >= 3 then stacks = stacks + 1 end
                 applyPetHit(state, t, {
-                    damage = math.max(0, math.floor((9 + (lvl - 1) * 2) * might * dmgMul + 0.5)),
-                    critChance = 0,
+                    damage = math.max(0, math.floor((9 + (lvl - 1) * 2) * might * dmgMul * (pet.damageMult or 1.0) + 0.5)),
+                    critChance = pet.critBonus or 0,
                     critMultiplier = 1.5,
                     statusChance = stacks,
                     effectType = 'CORROSIVE',

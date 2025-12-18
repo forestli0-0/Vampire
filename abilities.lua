@@ -41,8 +41,8 @@ abilities.catalog = {
             local p = state.player
             if not p then return false end
             
-            local radius = 150
-            local damage = 80 * (p.stats.might or 1)
+            local radius = 150 * (p.stats.abilityRange or 1.0)
+            local damage = 80 * (p.stats.abilityStrength or 1.0)
             
             -- Damage all enemies in radius
             for _, e in ipairs(state.enemies) do
@@ -81,7 +81,7 @@ abilities.catalog = {
             
             -- Grant temporary shield
             p.tempShield = (p.tempShield or 0) + 50
-            p.tempShieldTimer = 10  -- Duration
+            p.tempShieldTimer = 10 * (p.stats.abilityDuration or 1.0)  -- Duration
             p.invincibleTimer = math.max(p.invincibleTimer or 0, 0.3)
             
             if state.texts then
@@ -104,8 +104,8 @@ abilities.catalog = {
             local p = state.player
             if not p then return false end
             
-            local radius = 300
-            local damage = 200 * (p.stats.might or 1)
+            local radius = 300 * (p.stats.abilityRange or 1.0)
+            local damage = 200 * (p.stats.abilityStrength or 1.0)
             
             -- Massive damage to all enemies
             for _, e in ipairs(state.enemies) do
@@ -235,10 +235,12 @@ function abilities.tryActivate(state, abilityKey)
     local p = state.player
     local def = abilities.catalog[abilityKey]
     
-    -- Consume energy
-    p.energy = (p.energy or 0) - def.cost
+    -- Consume energy (Efficiency reduces cost)
+    local eff = p.stats and p.stats.abilityEfficiency or 1.0
+    local cost = math.floor(def.cost / eff)
+    p.energy = (p.energy or 0) - cost
     
-    -- Set cooldown
+    -- Set cooldown (Duration could affect this, but standard WF is fixed CD or affected by Streamline in some games. Here we keep it fixed but could add Duration scaling if needed)
     p.abilityCooldowns = p.abilityCooldowns or {}
     p.abilityCooldowns[abilityKey] = def.cd
     
@@ -297,7 +299,7 @@ function abilities.update(state, dt)
     end
     
     -- Energy regen (with MOD bonus)
-    local regen = p.energyRegen or 2
+    local regen = (p.stats and p.stats.energyRegen) or p.energyRegen or 2
     p.energy = math.min(p.maxEnergy or 100, (p.energy or 0) + regen * dt)
     
     -- Apply ability CD multiplier if mage passive is active

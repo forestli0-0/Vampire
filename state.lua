@@ -290,10 +290,16 @@ function state.init()
             pickupRange = 120,
             armor = 0,
             regen = 0,
+            energyRegen = 2.0,
+            
+            -- WF Unified Stats
+            abilityStrength = 1.0,
+            abilityEfficiency = 1.0,
+            abilityDuration = 1.0,
+            abilityRange = 1.0,
 
-            -- Dodge / Dash (Hades-like i-frames + reposition, still keeps auto-shoot core loop)
             dashCharges = 2,
-            dashCooldown = 0.9,      -- seconds to recharge 1 charge
+            dashCooldown = 3,
             dashDuration = 0.16,     -- seconds of dash movement
             dashDistance = 80,      -- pixels traveled over dashDuration
             dashInvincible = 0.16    -- i-frames (can be >= dashDuration)

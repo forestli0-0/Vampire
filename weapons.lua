@@ -174,6 +174,9 @@ function weapons.calculateStats(state, weaponKey)
     -- Apply new unified MOD system (mods.lua)
     local modsModule = require('mods')
     stats = modsModule.applyWeaponMods(state, weaponKey, stats)
+    
+    -- Apply run-time MODs (collected during a run)
+    stats = modsModule.applyRunWeaponMods(state, weaponKey, stats)
 
     return stats
 end

@@ -353,6 +353,12 @@ function mods.applyWeaponMods(state, weaponKey, baseStats)
         stats.reloadSpeed = nil
     end
     
+    -- meleeDamage (mult) maps to damage
+    if stats.meleeDamage then
+        stats.damage = (stats.damage or 0) * (1 + stats.meleeDamage)
+        stats.meleeDamage = nil
+    end
+    
     return stats
 end
 
@@ -665,6 +671,12 @@ function mods.applyRunWeaponMods(state, weaponKey, baseStats)
         local bonus = stats.reloadSpeed
         stats.reloadTime = (stats.reloadTime or 1.5) / (1 + bonus)
         stats.reloadSpeed = nil
+    end
+    
+    -- meleeDamage (mult) maps to damage
+    if stats.meleeDamage then
+        stats.damage = (stats.damage or 0) * (1 + stats.meleeDamage)
+        stats.meleeDamage = nil
     end
     
     return stats

@@ -856,6 +856,10 @@ function orbiter.exit()
     
     print("[ORBITER] Applied run MODs")
     
+    -- Recompute pet stats to apply companion mods
+    local pets = require('pets')
+    pets.recompute(state)
+    
     -- Reset UI to HUD before returning to gameplay
     hud.init(state)
     
