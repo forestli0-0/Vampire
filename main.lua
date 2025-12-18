@@ -23,7 +23,6 @@ local pets = require('pets')
 local world = require('world')
 local mission = require('mission')
 local ui = require('ui')
-local ui = require('ui')
 local hud = require('ui.screens.hud')
 local levelupScreen = require('ui.screens.levelup')
 local shopScreen = require('ui.screens.shop')
@@ -215,20 +214,26 @@ end
 
 function love.mousemoved(x, y, dx, dy)
     if state.gameState == 'ORBITER' then
-        orbiterScreen.mousemoved(x, y)
+        orbiterScreen.mousemoved(x, y, dx, dy)
+        return  -- Don't also call ui.mousemoved since orbiter uses same core
     end
     ui.mousemoved(x, y, dx, dy)
 end
 
 function love.mousepressed(x, y, button)
     if state.gameState == 'ORBITER' then
-        if orbiterScreen.mousepressed(x, y, button) then return end
+        orbiterScreen.mousepressed(x, y, button)
+        return  -- Don't also call ui.mousepressed since orbiter uses same core
     end
     if ui.mousepressed(x, y, button) then return end
     -- Other mouse press handling can go here
 end
 
 function love.mousereleased(x, y, button)
+    if state.gameState == 'ORBITER' then
+        orbiterScreen.mousereleased(x, y, button)
+        return  -- Don't also call ui.mousereleased since orbiter uses same core
+    end
     ui.mousereleased(x, y, button)
 end
 

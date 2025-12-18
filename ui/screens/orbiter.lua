@@ -1,29 +1,43 @@
 -- =============================================================================
 -- ORBITER SCREEN (飞船整备界面)
 -- Warframe-style Roguelike: Configure MODs between rooms
+-- Supports: Drag & Drop, Right-click quick actions, Enhanced readability
 -- =============================================================================
 
 local orbiter = {}
 
 local mods = require('mods')
+local ui = require('ui')
+local core = require('ui.core')
+local theme = require('ui.theme')
+local scaling = require('ui.scaling')
 local Widget = require('ui.widgets.widget')
 local Button = require('ui.widgets.button')
 local Text = require('ui.widgets.text')
 local Slot = require('ui.widgets.slot')
+local Panel = require('ui.widgets.panel')
+local hud = require('ui.screens.hud')
 
 local state = nil
-local widgets = {}
+local root = nil
 local currentTab = 'warframe'  -- 'warframe', 'weapons', 'companion'
 local selectedWeaponKey = nil
 local selectedInventoryMod = nil  -- {index, modData}
 local selectedSlotIndex = nil
 
--- Layout constants
-local PANEL_X = 40
-local PANEL_Y = 80
-local PANEL_WIDTH = 340
-local SLOT_SIZE = 50
-local SLOT_GAP = 8
+-- Widget references for updates
+local modSlots = {}      -- Equipment slots (8)
+local invSlots = {}      -- Inventory slots
+local statsTexts = {}    -- Bonus stats display
+
+-- Layout constants - use logical resolution
+local SCREEN_W = scaling.LOGICAL_WIDTH   -- 640
+local SCREEN_H = scaling.LOGICAL_HEIGHT  -- 360
+local PANEL_X = 20
+local PANEL_Y = 50
+local SLOT_SIZE = 44      -- Smaller for 640x360
+local SLOT_GAP = 4
+local INV_COLS = 6
 
 -- =============================================================================
 -- HELPERS
@@ -40,6 +54,24 @@ local function getModName(category, modKey)
         return catalog[modKey].name or modKey
     end
     return modKey
+end
+
+local function getModShortName(category, modKey)
+    local name = getModName(category, modKey)
+    if name then
+        -- For Chinese: UTF-8 Chinese chars are 3 bytes
+        local len = #name
+        if len >= 6 then
+            local first = name:sub(1, 3)
+            local second = name:sub(4, 6)
+            if first:byte(1) and first:byte(1) >= 128 and second:byte(1) and second:byte(1) >= 128 then
+                return first .. second
+            end
+        end
+        if len <= 4 then return name end
+        return name:sub(1, 4)
+    end
+    return "???"
 end
 
 local function getModDesc(category, modKey)
@@ -59,137 +91,270 @@ local function getModCost(category, modKey, rank)
     return 4
 end
 
--- Helper to create button with click handler
-local function createButton(opts, onClick)
-    local btn = Button.new({
-        x = opts.x or 0,
-        y = opts.y or 0,
-        w = opts.w or opts.width or 100,
-        h = opts.h or opts.height or 30,
-        text = opts.text or "",
-        normalColor = opts.normalColor or opts.bgColor or {0.2, 0.2, 0.3, 1},
-        hoverColor = opts.hoverColor or {0.3, 0.4, 0.5, 1},
-        textColor = opts.textColor or {1, 1, 1, 1}
-    })
-    if onClick then
-        btn:on('click', onClick)
+local function getModStat(category, modKey)
+    local catalog = mods.getCatalog(category)
+    if catalog and catalog[modKey] then
+        return catalog[modKey].stat or ""
     end
-    return btn
+    return ""
 end
 
--- Helper to create slot with click handler
-local function createSlot(opts, onClick)
-    local slot = Slot.new({
-        x = opts.x or 0,
-        y = opts.y or 0,
-        w = opts.w or opts.width or SLOT_SIZE,
-        h = opts.h or opts.height or SLOT_SIZE,
-        content = opts.content,
-        label = opts.label,
-        sublabel = opts.sublabel,
-        emptyColor = opts.emptyColor or opts.bgColor or {0.15, 0.15, 0.2, 0.8},
-        filledColor = opts.filledColor or opts.bgColor or {0.2, 0.2, 0.3, 0.8},
-        borderColor = opts.borderColor or {0.3, 0.3, 0.4, 1},
-        selected = opts.selected or false
-    })
-    if onClick then
-        slot:on('click', onClick)
-    end
-    return slot
+-- Stat abbreviations for quick recognition (ASCII-safe)
+local STAT_ABBREVS = {
+    maxHp = "HP", armor = "AR", maxShield = "SH", maxEnergy = "EN",
+    speed = "SP", abilityStrength = "STR", abilityEfficiency = "EFF",
+    abilityDuration = "DUR", abilityRange = "RNG", energyRegen = "REG",
+    damage = "DMG", critChance = "CC", critMult = "CD", fireRate = "FR",
+    multishot = "MS", statusChance = "SC", magSize = "MAG", reloadSpeed = "RLD",
+    meleeDamage = "MEL", healthLink = "HLK", armorLink = "ALK"
+}
+
+local function getStatAbbrev(category, modKey)
+    local stat = getModStat(category, modKey)
+    return STAT_ABBREVS[stat] or "+"
 end
 
 -- =============================================================================
--- INITIALIZATION
+-- CUSTOM MOD SLOT WIDGET (Enhanced readability)
+-- =============================================================================
+
+local ModSlot = setmetatable({}, {__index = Slot})
+ModSlot.__index = ModSlot
+
+function ModSlot.new(opts)
+    opts = opts or {}
+    opts.focusable = true
+    opts.draggable = opts.draggable ~= false
+    opts.acceptDrop = opts.acceptDrop ~= false
+    
+    local self = setmetatable(Slot.new(opts), ModSlot)
+    
+    -- MOD-specific data
+    self.modData = opts.modData
+    self.category = opts.category or 'warframe'
+    self.slotType = opts.slotType or 'equipped'
+    self.slotIndex = opts.slotIndex or 0
+    
+    return self
+end
+
+function ModSlot:drawContent(gx, gy, w, h)
+    if not self.modData then return end
+    
+    local modKey = self.modData.key
+    local category = self.modData.category or self.category
+    local rank = self.modData.rank or 0
+    local rarity = self.modData.rarity or 'COMMON'
+    
+    local color = getColor(rarity)
+    local abbrev = getStatAbbrev(category, modKey)
+    local shortName = getModShortName(category, modKey)
+    
+    -- Background gradient based on rarity
+    love.graphics.setColor(color[1] * 0.3, color[2] * 0.3, color[3] * 0.3, 0.8)
+    love.graphics.rectangle('fill', gx + 2, gy + 2, w - 4, h - 4, 2, 2)
+    
+    -- Stat abbreviation (top)
+    love.graphics.setColor(color[1], color[2], color[3], 0.9)
+    local font = love.graphics.getFont()
+    love.graphics.printf(abbrev, gx, gy + 2, w, 'center')
+    
+    -- Short name (center)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.printf(shortName, gx, gy + h/2 - 5, w, 'center')
+    
+    -- Rank dots (bottom)
+    local dotSize = 3
+    local dotSpacing = 5
+    local totalDotsW = 5 * dotSpacing
+    local startX = gx + (w - totalDotsW) / 2
+    local dotY = gy + h - 8
+    
+    for i = 0, 4 do
+        local dx = startX + i * dotSpacing
+        if i <= rank then
+            love.graphics.setColor(color[1], color[2], color[3], 1)
+        else
+            love.graphics.setColor(0.3, 0.3, 0.3, 0.6)
+        end
+        love.graphics.circle('fill', dx + dotSize/2, dotY, dotSize/2)
+    end
+    
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+function ModSlot:getDragData()
+    if not self.modData then return false end
+    
+    return {
+        type = 'mod',
+        modData = self.modData,
+        source = self,
+        slotType = self.slotType,
+        slotIndex = self.slotIndex,
+        category = self.category,
+        label = getModName(self.modData.category or self.category, self.modData.key)
+    }
+end
+
+function ModSlot:canAcceptDrop(dragData, sourceWidget)
+    if not dragData or dragData.type ~= 'mod' then return false end
+    return dragData.category == self.category or 
+           (dragData.modData and dragData.modData.category == self.category)
+end
+
+-- =============================================================================
+-- UI BUILDING
 -- =============================================================================
 
 function orbiter.init(s)
     state = s
-    widgets = {}
     
-    -- Initialize runMods if not present
     if not state.runMods then
         mods.initRunMods(state)
     end
     
-    -- Determine default weapon key
     if state.inventory and state.inventory.weaponSlots then
-        selectedWeaponKey = state.inventory.weaponSlots.ranged or state.inventory.weaponSlots.melee
+        local ranged = state.inventory.weaponSlots.ranged
+        local melee = state.inventory.weaponSlots.melee
+        selectedWeaponKey = (ranged and ranged.key) or (melee and melee.key)
     end
     
     orbiter.buildUI()
 end
 
 function orbiter.buildUI()
-    widgets = {}
-    local screenW = love.graphics.getWidth()
-    local screenH = love.graphics.getHeight()
+    root = Widget.new({x = 0, y = 0, w = SCREEN_W, h = SCREEN_H})
+    root.visible = true
+    root.enabled = true
     
-    -- Title (using simple text - Text widget may not render correctly, we'll draw manually)
+    -- Background
+    local bg = Panel.new({
+        x = 0, y = 0, w = SCREEN_W, h = SCREEN_H,
+        bgColor = {0.06, 0.06, 0.1, 1}
+    })
+    root:addChild(bg)
+    
+    -- Title
+    local title = Text.new({
+        x = 0, y = 8, w = SCREEN_W,
+        text = "ORBITER - 飞船整备",
+        color = {0.9, 0.95, 1.0, 1},
+        align = 'center'
+    })
+    root:addChild(title)
     
     -- Tab buttons
-    local tabY = 60
+    orbiter.buildTabs(root)
+    
+    -- Weapon selector (for weapons tab)
+    if currentTab == 'weapons' then
+        orbiter.buildWeaponSelector(root)
+    end
+    
+    -- MOD slots section
+    orbiter.buildModSlots(root)
+    
+    -- Inventory section
+    orbiter.buildInventory(root)
+    
+    -- Stats panel (right side)
+    orbiter.buildStatsPanel(root)
+    
+    -- Action buttons
+    orbiter.buildActionButtons(root)
+    
+    -- Instructions
+    local instructions = Text.new({
+        x = 0, y = SCREEN_H - 16, w = SCREEN_W,
+        text = "左键拖拽 | 右键快速装卸 | ESC 退出",
+        color = {0.45, 0.45, 0.55, 1},
+        align = 'center'
+    })
+    root:addChild(instructions)
+    
+    core.setRoot(root)
+    core.enabled = true
+end
+
+function orbiter.buildTabs(parent)
+    local tabY = 28
     local tabs = {
         {key = 'warframe', name = '角色MOD'},
         {key = 'weapons', name = '武器MOD'},
-        {key = 'companion', name = '守护者MOD'}
+        {key = 'companion', name = '守护MOD'}
     }
     
     local tabX = PANEL_X
     for _, tab in ipairs(tabs) do
         local isActive = (currentTab == tab.key)
         local tabKey = tab.key
-        local btn = createButton({
+        
+        local btn = Button.new({
             x = tabX, y = tabY,
-            w = 100, h = 30,
+            w = 80, h = 22,
             text = tab.name,
             normalColor = isActive and {0.3, 0.5, 0.8, 1} or {0.2, 0.2, 0.3, 1},
             hoverColor = {0.4, 0.6, 0.9, 1},
             textColor = isActive and {1, 1, 1, 1} or {0.7, 0.7, 0.8, 1}
-        }, function()
+        })
+        btn:on('click', function()
             currentTab = tabKey
             selectedInventoryMod = nil
             selectedSlotIndex = nil
             orbiter.buildUI()
         end)
-        table.insert(widgets, btn)
-        tabX = tabX + 110
+        parent:addChild(btn)
+        tabX = tabX + 88
     end
+end
+
+function orbiter.buildWeaponSelector(parent)
+    local weaponY = 52
+    local weaponX = PANEL_X
     
-    -- Weapon selector (only for weapons tab)
-    if currentTab == 'weapons' then
-        local weaponY = tabY + 45
-        local weaponX = PANEL_X + 80
-        local slots = state.inventory and state.inventory.weaponSlots or {}
-        for slotType, weaponKey in pairs(slots) do
-            if weaponKey then
-                local def = state.catalog and state.catalog[weaponKey]
-                local name = def and def.name or weaponKey
-                local isSelected = (selectedWeaponKey == weaponKey)
-                local wKey = weaponKey
-                
-                local btn = createButton({
-                    x = weaponX, y = weaponY,
-                    w = 100, h = 26,
-                    text = name,
-                    normalColor = isSelected and {0.4, 0.6, 0.3, 1} or {0.25, 0.25, 0.3, 1},
-                    hoverColor = {0.5, 0.7, 0.4, 1},
-                    textColor = {1, 1, 1, 1}
-                }, function()
-                    selectedWeaponKey = wKey
-                    selectedInventoryMod = nil
-                    selectedSlotIndex = nil
-                    orbiter.buildUI()
-                end)
-                table.insert(widgets, btn)
-                weaponX = weaponX + 110
-            end
+    local label = Text.new({
+        x = weaponX, y = weaponY,
+        text = "武器:",
+        color = {0.7, 0.75, 0.8, 1}
+    })
+    parent:addChild(label)
+    
+    weaponX = weaponX + 40
+    local slots = state.inventory and state.inventory.weaponSlots or {}
+    
+    for slotType, slotData in pairs(slots) do
+        local weaponKey = slotData and slotData.key
+        if weaponKey then
+            local def = state.catalog and state.catalog[weaponKey]
+            local name = def and def.name or weaponKey
+            if #name > 6 then name = name:sub(1, 5) .. ".." end
+            local isSelected = (selectedWeaponKey == weaponKey)
+            local wKey = weaponKey
+            
+            local btn = Button.new({
+                x = weaponX, y = weaponY - 2,
+                w = 70, h = 20,
+                text = name,
+                normalColor = isSelected and {0.4, 0.6, 0.3, 1} or {0.25, 0.25, 0.3, 1},
+                hoverColor = {0.5, 0.7, 0.4, 1},
+                textColor = {1, 1, 1, 1}
+            })
+            btn:on('click', function()
+                selectedWeaponKey = wKey
+                selectedInventoryMod = nil
+                selectedSlotIndex = nil
+                orbiter.buildUI()
+            end)
+            parent:addChild(btn)
+            weaponX = weaponX + 75
         end
     end
+end
+
+function orbiter.buildModSlots(parent)
+    local slotsY = currentTab == 'weapons' and 72 or 52
     
-    -- MOD Slots section
-    local slotsY = currentTab == 'weapons' and (tabY + 85) or (tabY + 50)
-    
-    -- Get slot data
     local category = currentTab == 'weapons' and 'weapons' or currentTab
     local key = currentTab == 'weapons' and selectedWeaponKey or nil
     local slotData = mods.getRunSlotData(state, category, key)
@@ -198,8 +363,19 @@ function orbiter.buildUI()
     local catalog = mods.getCatalog(category)
     local usedCapacity = mods.getTotalCost(slotsData, catalog)
     
+    -- Section label with capacity
+    local capColor = usedCapacity > capacity and {1, 0.4, 0.4, 1} or {0.6, 0.85, 0.6, 1}
+    local sectionLabel = Text.new({
+        x = PANEL_X, y = slotsY,
+        text = string.format("已装备 (%d/%d)", usedCapacity, capacity),
+        color = capColor
+    })
+    parent:addChild(sectionLabel)
+    
     -- Slot grid (2 rows of 4)
-    local slotY = slotsY + 50
+    modSlots = {}
+    local slotY = slotsY + 16
+    
     for i = 1, 8 do
         local row = math.floor((i - 1) / 4)
         local col = (i - 1) % 4
@@ -211,36 +387,69 @@ function orbiter.buildUI()
         local hasContent = slotMod ~= nil
         local slotIdx = i
         local currentSlotMod = slotMod
+        local color = hasContent and getColor(slotMod.rarity) or {0.3, 0.3, 0.4}
         
-        local slot = Slot.new({
+        local slot = ModSlot.new({
             x = slotX, y = slotYPos,
             w = SLOT_SIZE, h = SLOT_SIZE,
             content = hasContent and slotMod.key or nil,
-            sublabel = hasContent and ("R" .. (slotMod.rank or 0)) or nil,
+            modData = hasContent and slotMod or nil,
+            category = category,
+            slotType = 'equipped',
+            slotIndex = slotIdx,
             selected = (selectedSlotIndex == i),
             emptyColor = {0.12, 0.12, 0.18, 0.9},
-            filledColor = hasContent and {getColor(slotMod.rarity)[1] * 0.35, getColor(slotMod.rarity)[2] * 0.35, getColor(slotMod.rarity)[3] * 0.35, 0.9} or {0.15, 0.15, 0.2, 0.9},
-            borderColor = hasContent and {getColor(slotMod.rarity)[1], getColor(slotMod.rarity)[2], getColor(slotMod.rarity)[3], 1} or {0.3, 0.3, 0.4, 1},
-            selectedBorderColor = {1, 1, 0.3, 1}
+            filledColor = hasContent and {color[1] * 0.25, color[2] * 0.25, color[3] * 0.25, 0.9} or {0.15, 0.15, 0.2, 0.9},
+            borderColor = hasContent and {color[1], color[2], color[3], 1} or {0.3, 0.3, 0.4, 1},
+            selectedBorderColor = {1, 1, 0.3, 1},
+            tooltip = hasContent and (getModName(category, slotMod.key) .. ": " .. getModDesc(category, slotMod.key)) or nil
         })
         
+        -- Drop handler
+        slot:on('drop', function(self, dragData, source)
+            if dragData and dragData.type == 'mod' then
+                local modData = dragData.modData
+                
+                if dragData.slotType == 'inventory' then
+                    local success = mods.equipToRunSlot(state, category, key, slotIdx, modData.key, modData.rank)
+                    if success then
+                        for j, m in ipairs(state.runMods.inventory) do
+                            if m == modData then
+                                table.remove(state.runMods.inventory, j)
+                                break
+                            end
+                        end
+                        if state.playSfx then state.playSfx('gem') end
+                    end
+                elseif dragData.slotType == 'equipped' and dragData.slotIndex ~= slotIdx then
+                    local otherMod = slotsData[dragData.slotIndex]
+                    local myMod = slotsData[slotIdx]
+                    slotsData[slotIdx] = otherMod
+                    slotsData[dragData.slotIndex] = myMod
+                    if state.playSfx then state.playSfx('gem') end
+                end
+                
+                orbiter.buildUI()
+            end
+        end)
+        
+        -- Left click
         slot:on('click', function()
             if selectedInventoryMod then
-                -- Equip selected inventory mod to this slot
                 local invMod = selectedInventoryMod.modData
                 local success = mods.equipToRunSlot(state, category, key, slotIdx, invMod.key, invMod.rank)
                 if success then
-                    -- Remove from inventory
                     table.remove(state.runMods.inventory, selectedInventoryMod.index)
                     selectedInventoryMod = nil
                     if state.playSfx then state.playSfx('gem') end
                 end
                 orbiter.buildUI()
             elseif currentSlotMod then
-                -- Unequip this slot
-                mods.unequipFromRunSlot(state, category, key, slotIdx)
-                -- Add back to inventory
-                mods.addToRunInventory(state, currentSlotMod.key, category, currentSlotMod.rank, currentSlotMod.rarity)
+                if selectedSlotIndex == slotIdx then
+                    selectedSlotIndex = nil
+                else
+                    selectedSlotIndex = slotIdx
+                end
                 orbiter.buildUI()
             else
                 selectedSlotIndex = slotIdx
@@ -248,26 +457,58 @@ function orbiter.buildUI()
             end
         end)
         
-        table.insert(widgets, slot)
+        -- Right click - quick unequip
+        slot:on('rightClick', function()
+            if currentSlotMod then
+                mods.unequipFromRunSlot(state, category, key, slotIdx)
+                mods.addToRunInventory(state, currentSlotMod.key, category, currentSlotMod.rank, currentSlotMod.rarity)
+                if state.playSfx then state.playSfx('gem') end
+                orbiter.buildUI()
+            elseif selectedInventoryMod then
+                local invMod = selectedInventoryMod.modData
+                local success = mods.equipToRunSlot(state, category, key, slotIdx, invMod.key, invMod.rank)
+                if success then
+                    table.remove(state.runMods.inventory, selectedInventoryMod.index)
+                    selectedInventoryMod = nil
+                    if state.playSfx then state.playSfx('gem') end
+                end
+                orbiter.buildUI()
+            end
+        end)
+        
+        parent:addChild(slot)
+        modSlots[i] = slot
     end
+end
+
+function orbiter.buildInventory(parent)
+    local category = currentTab == 'weapons' and 'weapons' or currentTab
+    local key = currentTab == 'weapons' and selectedWeaponKey or nil
     
-    -- Inventory section
-    local invY = slotY + 2 * (SLOT_SIZE + SLOT_GAP) + 25
+    local baseY = currentTab == 'weapons' and 72 or 52
+    local invY = baseY + 16 + 2 * (SLOT_SIZE + SLOT_GAP) + 8
     
-    -- Filter inventory by current category
     local inventory = mods.getRunInventoryByCategory(state, category)
     
-    -- Inventory grid
-    local invGridY = invY + 35
-    local invCols = 6
+    local invLabel = Text.new({
+        x = PANEL_X, y = invY,
+        text = string.format("背包 (%d)", #inventory),
+        color = {0.8, 0.85, 0.9, 1}
+    })
+    parent:addChild(invLabel)
+    
+    invSlots = {}
+    local invGridY = invY + 14
+    
     for idx, modData in ipairs(inventory) do
-        local row = math.floor((idx - 1) / invCols)
-        local col = (idx - 1) % invCols
+        if idx > 24 then break end
+        
+        local row = math.floor((idx - 1) / INV_COLS)
+        local col = (idx - 1) % INV_COLS
         
         local invX = PANEL_X + col * (SLOT_SIZE + SLOT_GAP)
         local invYPos = invGridY + row * (SLOT_SIZE + SLOT_GAP)
         
-        -- Find actual index in full inventory for removal
         local actualIdx = 0
         for i, m in ipairs(state.runMods.inventory) do
             if m == modData then
@@ -281,48 +522,220 @@ function orbiter.buildUI()
         local capturedModData = modData
         local capturedIdx = actualIdx
         
-        local slot = Slot.new({
+        local slot = ModSlot.new({
             x = invX, y = invYPos,
             w = SLOT_SIZE, h = SLOT_SIZE,
             content = modData.key,
-            sublabel = "R" .. (modData.rank or 0),
+            modData = modData,
+            category = category,
+            slotType = 'inventory',
+            slotIndex = capturedIdx,
             selected = isSelected,
-            emptyColor = {modColor[1] * 0.2, modColor[2] * 0.2, modColor[3] * 0.2, 0.9},
-            filledColor = {modColor[1] * 0.3, modColor[2] * 0.3, modColor[3] * 0.3, 0.9},
+            emptyColor = {modColor[1] * 0.15, modColor[2] * 0.15, modColor[3] * 0.15, 0.9},
+            filledColor = {modColor[1] * 0.25, modColor[2] * 0.25, modColor[3] * 0.25, 0.9},
             borderColor = isSelected and {1, 1, 0.3, 1} or {modColor[1], modColor[2], modColor[3], 1},
-            selectedBorderColor = {1, 1, 0.3, 1}
+            selectedBorderColor = {1, 1, 0.3, 1},
+            tooltip = getModName(modData.category, modData.key) .. ": " .. getModDesc(modData.category, modData.key)
         })
         
         slot:on('click', function()
             if selectedInventoryMod and selectedInventoryMod.index == capturedIdx then
                 selectedInventoryMod = nil
+            elseif selectedSlotIndex then
+                local success = mods.equipToRunSlot(state, category, key, selectedSlotIndex, capturedModData.key, capturedModData.rank)
+                if success then
+                    table.remove(state.runMods.inventory, capturedIdx)
+                    selectedSlotIndex = nil
+                    if state.playSfx then state.playSfx('gem') end
+                end
+                orbiter.buildUI()
+                return
             else
                 selectedInventoryMod = {index = capturedIdx, modData = capturedModData}
             end
             orbiter.buildUI()
         end)
         
-        table.insert(widgets, slot)
+        slot:on('rightClick', function()
+            local slotData = mods.getRunSlotData(state, category, key)
+            local slotsData = slotData and slotData.slots or {}
+            
+            local targetSlot = nil
+            for i = 1, 8 do
+                if not slotsData[i] then
+                    targetSlot = i
+                    break
+                end
+            end
+            
+            if targetSlot then
+                local success = mods.equipToRunSlot(state, category, key, targetSlot, capturedModData.key, capturedModData.rank)
+                if success then
+                    table.remove(state.runMods.inventory, capturedIdx)
+                    if state.playSfx then state.playSfx('gem') end
+                end
+            elseif selectedSlotIndex and slotsData[selectedSlotIndex] then
+                local oldMod = slotsData[selectedSlotIndex]
+                mods.unequipFromRunSlot(state, category, key, selectedSlotIndex)
+                local success = mods.equipToRunSlot(state, category, key, selectedSlotIndex, capturedModData.key, capturedModData.rank)
+                if success then
+                    table.remove(state.runMods.inventory, capturedIdx)
+                    mods.addToRunInventory(state, oldMod.key, category, oldMod.rank, oldMod.rarity)
+                    selectedSlotIndex = nil
+                    if state.playSfx then state.playSfx('gem') end
+                end
+            end
+            orbiter.buildUI()
+        end)
         
-        -- Max 30 mods visible
-        if idx >= 30 then break end
+        parent:addChild(slot)
+        invSlots[idx] = slot
+    end
+end
+
+function orbiter.buildStatsPanel(parent)
+    local statsX = SCREEN_W / 2 + 30
+    local statsY = 30
+    
+    -- Decorative line
+    local line = Panel.new({
+        x = SCREEN_W / 2 + 10, y = 28,
+        w = 1, h = SCREEN_H - 60,
+        bgColor = {0.25, 0.35, 0.5, 0.4}
+    })
+    parent:addChild(line)
+    
+    -- Stats header
+    local header = Text.new({
+        x = statsX, y = statsY,
+        text = "属性加成",
+        color = {0.85, 0.9, 1.0, 1}
+    })
+    parent:addChild(header)
+    
+    local category = currentTab == 'weapons' and 'weapons' or currentTab
+    local key = currentTab == 'weapons' and selectedWeaponKey or nil
+    local slotData = mods.getRunSlotData(state, category, key)
+    local slotsData = slotData and slotData.slots or {}
+    local catalog = mods.getCatalog(category)
+    
+    local bonuses = {}
+    for _, slotMod in ipairs(slotsData) do
+        if slotMod then
+            local def = catalog and catalog[slotMod.key]
+            if def then
+                local stat = def.stat
+                local rank = slotMod.rank or 0
+                local value = def.value and def.value[rank + 1] or 0
+                bonuses[stat] = (bonuses[stat] or 0) + value
+            end
+        end
     end
     
-    -- Action buttons
-    local buttonY = screenH - 80
+    local statNames = {
+        maxHp = "HP", armor = "护甲", maxShield = "护盾", maxEnergy = "能量",
+        speed = "移速", abilityStrength = "技能强度", abilityEfficiency = "技能效率",
+        abilityDuration = "技能时长", abilityRange = "技能范围", energyRegen = "能量回复",
+        damage = "伤害", critChance = "暴击率", critMult = "暴击倍率",
+        fireRate = "射速", multishot = "多重", statusChance = "异常率",
+        magSize = "弹匣", reloadSpeed = "换弹", meleeDamage = "近战伤害",
+        healthLink = "HP继承", armorLink = "护甲继承", meleeLeeech = "近战吸血"
+    }
     
-    -- Heal button (costs gold)
+    local bonusY = statsY + 18
+    statsTexts = {}
+    
+    if next(bonuses) then
+        for stat, value in pairs(bonuses) do
+            local name = statNames[stat] or stat
+            local display = string.format("%s +%.0f%%", name, value * 100)
+            local text = Text.new({
+                x = statsX, y = bonusY,
+                text = display,
+                color = {0.5, 1.0, 0.5, 1}
+            })
+            parent:addChild(text)
+            table.insert(statsTexts, text)
+            bonusY = bonusY + 14
+        end
+    else
+        local noBonus = Text.new({
+            x = statsX, y = bonusY,
+            text = "(装备MOD获得加成)",
+            color = {0.45, 0.45, 0.5, 1}
+        })
+        parent:addChild(noBonus)
+    end
+    
+    -- Selected mod info
+    if selectedInventoryMod then
+        local modData = selectedInventoryMod.modData
+        local infoY = SCREEN_H - 100
+        
+        local nameText = Text.new({
+            x = statsX, y = infoY,
+            text = getModName(modData.category, modData.key),
+            color = getColor(modData.rarity)
+        })
+        parent:addChild(nameText)
+        
+        local descText = Text.new({
+            x = statsX, y = infoY + 14,
+            text = getModDesc(modData.category, modData.key),
+            color = {0.65, 0.65, 0.75, 1}
+        })
+        parent:addChild(descText)
+        
+        local costText = Text.new({
+            x = statsX, y = infoY + 28,
+            text = string.format("Lv%d | 消耗%d", modData.rank or 0, getModCost(modData.category, modData.key, modData.rank)),
+            color = {0.55, 0.75, 1.0, 1}
+        })
+        parent:addChild(costText)
+    end
+    
+    -- Gold and HP display
+    local goldText = Text.new({
+        x = SCREEN_W - 100, y = SCREEN_H - 60,
+        text = "金: " .. tostring(state.runCurrency or 0),
+        color = {1, 0.9, 0.4, 1}
+    })
+    parent:addChild(goldText)
+    
+    local hpPct = state.player.hp / state.player.maxHp
+    local hpColor
+    if hpPct > 0.5 then
+        hpColor = {0.4, 1, 0.4, 1}
+    elseif hpPct > 0.25 then
+        hpColor = {1, 0.8, 0.3, 1}
+    else
+        hpColor = {1, 0.4, 0.4, 1}
+    end
+    
+    local hpText = Text.new({
+        x = SCREEN_W - 100, y = SCREEN_H - 75,
+        text = string.format("HP: %d/%d", math.floor(state.player.hp), state.player.maxHp),
+        color = hpColor
+    })
+    parent:addChild(hpText)
+end
+
+function orbiter.buildActionButtons(parent)
+    local buttonY = SCREEN_H - 40
+    
+    -- Heal button
     local healCost = 30 + (state.rooms and state.rooms.roomIndex or 1) * 5
     local canHeal = (state.player.hp < state.player.maxHp) and (state.runCurrency or 0) >= healCost
     
-    local healBtn = createButton({
+    local healBtn = Button.new({
         x = PANEL_X, y = buttonY,
-        w = 130, h = 36,
-        text = "回复HP (" .. healCost .. "G)",
+        w = 90, h = 24,
+        text = "回血(" .. healCost .. "G)",
         normalColor = canHeal and {0.25, 0.45, 0.25, 1} or {0.15, 0.15, 0.15, 1},
         hoverColor = canHeal and {0.35, 0.6, 0.35, 1} or {0.15, 0.15, 0.15, 1},
         textColor = canHeal and {1, 1, 1, 1} or {0.4, 0.4, 0.4, 1}
-    }, function()
+    })
+    healBtn:on('click', function()
         if canHeal then
             state.runCurrency = (state.runCurrency or 0) - healCost
             local heal = math.floor(state.player.maxHp * 0.5)
@@ -331,23 +744,23 @@ function orbiter.buildUI()
             orbiter.buildUI()
         end
     end)
-    table.insert(widgets, healBtn)
+    parent:addChild(healBtn)
     
     -- Refill ammo button
     local ammoCost = 20
     local canRefill = (state.runCurrency or 0) >= ammoCost
     
-    local ammoBtn = createButton({
-        x = PANEL_X + 140, y = buttonY,
-        w = 130, h = 36,
-        text = "补充弹药 (" .. ammoCost .. "G)",
+    local ammoBtn = Button.new({
+        x = PANEL_X + 95, y = buttonY,
+        w = 90, h = 24,
+        text = "弹药(" .. ammoCost .. "G)",
         normalColor = canRefill and {0.25, 0.35, 0.45, 1} or {0.15, 0.15, 0.15, 1},
         hoverColor = canRefill and {0.35, 0.45, 0.6, 1} or {0.15, 0.15, 0.15, 1},
         textColor = canRefill and {1, 1, 1, 1} or {0.4, 0.4, 0.4, 1}
-    }, function()
+    })
+    ammoBtn:on('click', function()
         if canRefill then
             state.runCurrency = (state.runCurrency or 0) - ammoCost
-            -- Refill all weapons
             for weaponKey, w in pairs(state.inventory and state.inventory.weapons or {}) do
                 if w.reserve ~= nil then
                     local def = state.catalog and state.catalog[weaponKey]
@@ -359,32 +772,34 @@ function orbiter.buildUI()
             orbiter.buildUI()
         end
     end)
-    table.insert(widgets, ammoBtn)
+    parent:addChild(ammoBtn)
     
     -- Continue button
-    local continueBtn = createButton({
-        x = screenW - 180, y = buttonY,
-        w = 150, h = 40,
-        text = "继续战斗 →",
+    local continueBtn = Button.new({
+        x = SCREEN_W - 110, y = buttonY,
+        w = 100, h = 28,
+        text = "继续战斗 >>",
         normalColor = {0.2, 0.4, 0.6, 1},
         hoverColor = {0.3, 0.55, 0.8, 1},
         textColor = {1, 1, 1, 1}
-    }, function()
+    })
+    continueBtn:on('click', function()
         orbiter.exit()
     end)
-    table.insert(widgets, continueBtn)
+    parent:addChild(continueBtn)
 end
 
+-- =============================================================================
+-- EXIT AND APPLY MODS
+-- =============================================================================
+
 function orbiter.exit()
-    -- Apply run mods to player
-    -- MODs can affect both player-level and stats-level attributes
     local p = state.player
     if not p then
         state.gameState = 'PLAYING'
         return
     end
     
-    -- Save base stats if not already saved (first time entering orbiter in this run)
     if not state._basePlayerStats then
         state._basePlayerStats = {
             maxHp = p.maxHp or 100,
@@ -399,20 +814,14 @@ function orbiter.exit()
     
     local base = state._basePlayerStats
     
-    -- Build combined base stats for warframe MOD calculation
     local baseStats = {
-        -- Player-level attributes (will be mapped back)
         maxHp = base.maxHp,
         maxShield = base.maxShield,
         maxEnergy = base.maxEnergy,
-        
-        -- Stats-level attributes
         armor = base.armor,
-        speed = base.moveSpeed,  -- MOD uses 'speed', player uses 'moveSpeed'
+        speed = base.moveSpeed,
         moveSpeed = base.moveSpeed,
         might = base.might,
-        
-        -- Ability stats (additive bonuses)
         abilityStrength = 0,
         abilityEfficiency = 0,
         abilityDuration = 0,
@@ -420,15 +829,11 @@ function orbiter.exit()
         energyRegen = base.energyRegen
     }
     
-    -- Apply run mods
     local modded = mods.applyRunWarframeMods(state, baseStats)
     
-    -- Apply results back to player
-    -- Player-level attributes
     if modded.maxHp then 
         local oldMaxHp = p.maxHp or 100
         p.maxHp = math.floor(modded.maxHp)
-        -- Also heal proportionally if maxHp increased
         if p.maxHp > oldMaxHp then
             p.hp = math.min(p.maxHp, p.hp + (p.maxHp - oldMaxHp))
         end
@@ -436,14 +841,12 @@ function orbiter.exit()
     if modded.maxShield then p.maxShield = math.floor(modded.maxShield) end
     if modded.maxEnergy then p.maxEnergy = math.floor(modded.maxEnergy) end
     
-    -- Stats-level attributes
     if p.stats then
         if modded.armor then p.stats.armor = modded.armor end
         if modded.moveSpeed then p.stats.moveSpeed = modded.moveSpeed end
-        if modded.speed then p.stats.moveSpeed = modded.speed end  -- Handle 'speed' MOD stat
+        if modded.speed then p.stats.moveSpeed = modded.speed end
         if modded.might then p.stats.might = modded.might end
         
-        -- Ability bonuses (these are additive percentages)
         p.stats.abilityStrength = 1.0 + (modded.abilityStrength or 0)
         p.stats.abilityEfficiency = 1.0 + (modded.abilityEfficiency or 0)
         p.stats.abilityDuration = 1.0 + (modded.abilityDuration or 0)
@@ -451,13 +854,11 @@ function orbiter.exit()
         if modded.energyRegen then p.stats.energyRegen = modded.energyRegen end
     end
     
-    -- Debug output
-    print("[ORBITER] Applied run MODs:")
-    print("  maxHp: " .. base.maxHp .. " -> " .. tostring(p.maxHp))
-    print("  armor: " .. base.armor .. " -> " .. tostring(p.stats and p.stats.armor))
-    print("  moveSpeed: " .. base.moveSpeed .. " -> " .. tostring(p.stats and p.stats.moveSpeed))
+    print("[ORBITER] Applied run MODs")
     
-    -- Return to doors phase
+    -- Reset UI to HUD before returning to gameplay
+    hud.init(state)
+    
     state.gameState = 'PLAYING'
 end
 
@@ -470,202 +871,31 @@ function orbiter.keypressed(key)
         orbiter.exit()
         return true
     end
-    return false
+    return core.keypressed(key)
 end
 
 function orbiter.mousepressed(x, y, button)
-    if button ~= 1 then return false end
-    
-    -- Check all widgets for hit
-    for _, widget in ipairs(widgets) do
-        if widget.contains and widget:contains(x, y) then
-            if widget.onPress then
-                widget:onPress(button, x, y)
-            end
-            if widget.onClick then
-                widget:onClick(x, y)
-            end
-            return true
-        end
-    end
-    return false
+    return core.mousepressed(x, y, button)
 end
 
-function orbiter.mousemoved(x, y)
-    for _, widget in ipairs(widgets) do
-        if widget.contains then
-            local isInside = widget:contains(x, y)
-            if isInside and not widget.hovered then
-                widget.hovered = true
-                if widget.onHoverStart then widget:onHoverStart() end
-            elseif not isInside and widget.hovered then
-                widget.hovered = false
-                if widget.onHoverEnd then widget:onHoverEnd() end
-            end
-        end
-    end
+function orbiter.mousereleased(x, y, button)
+    return core.mousereleased(x, y, button)
+end
+
+function orbiter.mousemoved(x, y, dx, dy)
+    return core.mousemoved(x, y, dx, dy)
 end
 
 -- =============================================================================
--- RENDERING
+-- UPDATE AND DRAW
 -- =============================================================================
-
-function orbiter.draw()
-    local screenW = love.graphics.getWidth()
-    local screenH = love.graphics.getHeight()
-    
-    -- Dark background
-    love.graphics.setColor(0.06, 0.06, 0.1, 1)
-    love.graphics.rectangle('fill', 0, 0, screenW, screenH)
-    
-    -- Title
-    love.graphics.setColor(0.9, 0.95, 1.0, 1)
-    if state.font then love.graphics.setFont(state.titleFont or state.font) end
-    love.graphics.printf("ORBITER - 飞船整备", 0, 20, screenW, 'center')
-    
-    -- Tab indicator
-    love.graphics.setColor(0.3, 0.4, 0.5, 0.3)
-    love.graphics.rectangle('fill', PANEL_X - 10, 55, 340, 40, 4, 4)
-    
-    -- Section labels
-    if state.font then love.graphics.setFont(state.font) end
-    local tabY = 60
-    local slotsY = currentTab == 'weapons' and (tabY + 85) or (tabY + 50)
-    
-    love.graphics.setColor(0.8, 0.85, 0.9, 1)
-    love.graphics.print("已装备 MOD (8槽)", PANEL_X, slotsY + 2)
-    
-    -- Get slot data for capacity display
-    local category = currentTab == 'weapons' and 'weapons' or currentTab
-    local key = currentTab == 'weapons' and selectedWeaponKey or nil
-    local slotData = mods.getRunSlotData(state, category, key)
-    local slotsData = slotData and slotData.slots or {}
-    local capacity = slotData and slotData.capacity or 30
-    local catalog = mods.getCatalog(category)
-    local usedCapacity = mods.getTotalCost(slotsData, catalog)
-    
-    -- Capacity bar
-    if usedCapacity > capacity then
-        love.graphics.setColor(1, 0.4, 0.4, 1)
-    else
-        love.graphics.setColor(0.6, 0.85, 0.6, 1)
-    end
-    love.graphics.print(string.format("容量: %d / %d", usedCapacity, capacity), PANEL_X + 150, slotsY + 2)
-    
-    -- Inventory label
-    local slotY = slotsY + 50
-    local invY = slotY + 2 * (SLOT_SIZE + SLOT_GAP) + 25
-    local inventory = mods.getRunInventoryByCategory(state, category)
-    
-    love.graphics.setColor(0.8, 0.85, 0.9, 1)
-    love.graphics.print("MOD 背包", PANEL_X, invY + 2)
-    love.graphics.setColor(0.5, 0.55, 0.6, 1)
-    love.graphics.print(string.format("(%d个)", #inventory), PANEL_X + 70, invY + 2)
-    
-    -- Decorative line
-    love.graphics.setColor(0.25, 0.35, 0.5, 0.4)
-    love.graphics.setLineWidth(1)
-    love.graphics.line(screenW / 2 + 10, 60, screenW / 2 + 10, screenH - 100)
-    
-    -- Right panel - Stats
-    local statsX = screenW / 2 + 40
-    local statsY = 80
-    
-    love.graphics.setColor(0.85, 0.9, 1.0, 1)
-    love.graphics.print("当前属性加成", statsX, statsY)
-    
-    -- Calculate bonuses
-    local bonusY = statsY + 30
-    local bonuses = {}
-    
-    for _, slotMod in ipairs(slotsData) do
-        if slotMod then
-            local def = catalog and catalog[slotMod.key]
-            if def then
-                local stat = def.stat
-                local rank = slotMod.rank or 0
-                local value = def.value and def.value[rank + 1] or 0
-                bonuses[stat] = (bonuses[stat] or 0) + value
-            end
-        end
-    end
-    
-    local statNames = {
-        maxHp = "生命值", armor = "护甲", maxShield = "护盾", maxEnergy = "能量",
-        speed = "移速", abilityStrength = "技能强度", abilityEfficiency = "技能效率",
-        abilityDuration = "技能持续", abilityRange = "技能范围", energyRegen = "能量回复",
-        damage = "伤害", critChance = "暴击率", critMult = "暴击倍率",
-        fireRate = "射速", multishot = "多重射击", statusChance = "异常几率",
-        magSize = "弹匣", reloadSpeed = "换弹速度", meleeDamage = "近战伤害",
-        healthLink = "生命继承", armorLink = "护甲继承", meleeLeeech = "近战吸血"
-    }
-    
-    if next(bonuses) then
-        for stat, value in pairs(bonuses) do
-            local name = statNames[stat] or stat
-            local display = string.format("+%.0f%%", value * 100)
-            love.graphics.setColor(0.5, 1.0, 0.5, 1)
-            love.graphics.print(name .. ": " .. display, statsX, bonusY)
-            bonusY = bonusY + 20
-        end
-    else
-        love.graphics.setColor(0.45, 0.45, 0.5, 1)
-        love.graphics.print("(无加成 - 装备MOD获得加成)", statsX, bonusY)
-    end
-    
-    -- Selected mod info
-    if selectedInventoryMod then
-        local modData = selectedInventoryMod.modData
-        local infoY = screenH - 180
-        
-        love.graphics.setColor(getColor(modData.rarity))
-        love.graphics.print(getModName(modData.category, modData.key), statsX, infoY)
-        
-        love.graphics.setColor(0.65, 0.65, 0.75, 1)
-        love.graphics.print(getModDesc(modData.category, modData.key), statsX, infoY + 20)
-        
-        love.graphics.setColor(0.55, 0.75, 1.0, 1)
-        love.graphics.print(string.format("等级: %d | 消耗: %d", modData.rank or 0, getModCost(modData.category, modData.key, modData.rank)), statsX, infoY + 40)
-        
-        love.graphics.setColor(1, 1, 0.5, 1)
-        love.graphics.print("点击槽位装备此MOD", statsX, infoY + 60)
-    end
-    
-    -- Gold and HP display
-    love.graphics.setColor(1, 0.9, 0.4, 1)
-    love.graphics.print("金币: " .. tostring(state.runCurrency or 0), screenW - 180, screenH - 115)
-    
-    local hpPct = state.player.hp / state.player.maxHp
-    if hpPct > 0.5 then
-        love.graphics.setColor(0.4, 1, 0.4, 1)
-    elseif hpPct > 0.25 then
-        love.graphics.setColor(1, 0.8, 0.3, 1)
-    else
-        love.graphics.setColor(1, 0.4, 0.4, 1)
-    end
-    love.graphics.print(string.format("HP: %d / %d", math.floor(state.player.hp), state.player.maxHp), screenW - 180, screenH - 135)
-    
-    -- Instructions
-    love.graphics.setColor(0.45, 0.45, 0.55, 1)
-    love.graphics.printf("点击背包MOD选中 → 点击槽位装备 | 点击已装备MOD卸下 | ESC/Tab 退出", 0, screenH - 25, screenW, 'center')
-    
-    -- Draw all widgets
-    for _, widget in ipairs(widgets) do
-        if widget.draw then
-            widget:draw()
-        end
-    end
-    
-    love.graphics.setColor(1, 1, 1, 1)
-end
 
 function orbiter.update(dt)
-    -- Animation updates
-    for _, widget in ipairs(widgets) do
-        if widget.update then
-            widget:update(dt)
-        end
-    end
+    core.update(dt)
+end
+
+function orbiter.draw()
+    core.draw()
 end
 
 return orbiter

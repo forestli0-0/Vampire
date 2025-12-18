@@ -286,6 +286,10 @@ end
 function core.mousemoved(x, y, dx, dy)
     if not core.enabled then return false end
     
+    -- Handle nil dx/dy (can happen when called without delta values)
+    dx = dx or 0
+    dy = dy or 0
+    
     local lx, ly = scaling.toLogical(x, y)
     local ldx, ldy = dx / scaling.getScale(), dy / scaling.getScale()
     
