@@ -113,6 +113,21 @@ mods.weapon = {
         name = "压力点", desc = "近战伤害",
         stat = 'meleeDamage', type = 'mult',
         cost = {4,5,6,7,8,9}, value = {0.20,0.40,0.60,0.80,1.00,1.20}
+    },
+    metal_auger = {
+        name = "金属促退器", desc = "穿透",
+        stat = 'pierce', type = 'add',
+        cost = {6,7,8,9,10,11}, value = {0.4, 0.8, 1.2, 1.6, 2.0, 2.4}
+    },
+    stabilizer = {
+        name = "稳定器", desc = "降低后坐力",
+        stat = 'recoil', type = 'mult',
+        cost = {3,4,5,6,7,8}, value = {0.15, 0.30, 0.45, 0.60, 0.75, 0.90}
+    },
+    guided_ordnance = {
+        name = "制导法令", desc = "降低散射",
+        stat = 'bloom', type = 'mult',
+        cost = {4,5,6,7,8,9}, value = {0.10, 0.20, 0.30, 0.40, 0.50, 0.60}
     }
 }
 

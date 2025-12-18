@@ -231,6 +231,15 @@ function player.updateMelee(state, dt)
             melee.comboTimer = 0
         end
     end
+
+    -- Decay global melee combo (WF-style)
+    if p.meleeCombo and p.meleeCombo > 0 then
+        p.meleeComboTimer = (p.meleeComboTimer or 0) - dt
+        if p.meleeComboTimer <= 0 then
+            p.meleeCombo = 0
+            p.meleeComboTimer = 0
+        end
+    end
     
     local attacking = isAttackKeyDown() and not p.isSliding
     

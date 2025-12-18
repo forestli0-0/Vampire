@@ -291,15 +291,25 @@ function calculator.applyStatus(state, enemy, instance, overrideChance)
 end
 
 function calculator.computeDamage(instance)
-    if not instance then return 1, false end
-    local isCrit = false
-    local mult = 1
-    if math.random() < (instance.critChance or 0) then
-        isCrit = true
-        mult = instance.critMultiplier or 1.5
+    if not instance then return 1, 0 end
+    local chance = instance.critChance or 0
+    local tier = 0
+    if chance > 0 then
+        tier = math.floor(chance)
+        if math.random() < (chance - tier) then
+            tier = tier + 1
+        end
     end
+    
+    local mult = 1
+    if tier > 0 then
+        local cm = instance.critMultiplier or 1.5
+        -- WF formula: 1 + Tier * (Multiplier - 1)
+        mult = 1 + tier * (cm - 1)
+    end
+    
     if mult < 0 then mult = 0 end
-    return mult, isCrit
+    return mult, tier
 end
 
 local function buildDamageMods(enemy, instance, appliedEffects)
@@ -656,11 +666,18 @@ function calculator.applyDamage(state, enemy, instance, opts)
         end
 
         if not opts.noText then
+            local shown = math.floor(totalApplied + 0.5)
             local color = {1,1,1}
             local scale = 1
-            if isCrit then
-                color = {1, 1, 0}
-                scale = 1.5
+            if isCrit and isCrit > 0 then
+                if isCrit == 1 then
+                    color = {1, 1, 0} -- Yellow
+                elseif isCrit == 2 then
+                    color = {1, 0.5, 0} -- Orange
+                else
+                    color = {1, 0, 0} -- Red
+                end
+                scale = 1 + isCrit * 0.25
             elseif totalShield > 0 and totalHealth == 0 then
                 color = {0.4, 0.7, 1}
             end

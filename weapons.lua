@@ -92,9 +92,12 @@ local function getOrderedMods(state, weaponKey)
 end
 
 local function getProjectileCount(stats)
-    local amt = 0
-    if stats and stats.amount then amt = stats.amount end
-    return math.max(1, math.floor(1 + amt))
+    local amt = (stats and stats.amount or 0) + 1
+    local count = math.floor(amt)
+    if math.random() < (amt - count) then
+        count = count + 1
+    end
+    return math.max(1, count)
 end
 
 local function updateQuakes(state, dt)
@@ -201,7 +204,10 @@ function weapons.addWeapon(state, key, owner, slotType)
         magazine = magazine,
         reserve = reserve,
         isReloading = false,
-        reloadTimer = 0
+        reloadTimer = 0,
+        -- Bloom and Recoil state
+        currentBloom = 0,
+        lastFireTime = 0
     }
 end
 
@@ -514,6 +520,11 @@ function Behaviors.MELEE_SWING(state, weaponKey, w, stats, params, sx, sy)
     local might = p.stats and p.stats.might or 1
     local finalDamage = math.floor(baseDamage * might)
     
+    -- Melee Combo Multiplier
+    local combo = p.meleeCombo or 0
+    local comboTier = math.floor(combo / 20)
+    local comboMult = 1 + comboTier * 0.5
+    
     -- Knockback
     local knockback = (stats.knockback or 80) * mult
     
@@ -522,6 +533,7 @@ function Behaviors.MELEE_SWING(state, weaponKey, w, stats, params, sx, sy)
     
     -- Check all enemies in arc
     local hitCount = 0
+    local hitOccurred = false
     for _, e in ipairs(state.enemies) do
         if e.health and e.health > 0 then
             local dx = e.x - sx
@@ -538,7 +550,7 @@ function Behaviors.MELEE_SWING(state, weaponKey, w, stats, params, sx, sy)
                 if angleDiff <= arcWidth / 2 then
                     -- Use calculator.applyHit for proper damage calculation (crits, status, armor)
                     local result = calculator.applyHit(state, e, {
-                        damage = finalDamage,
+                        damage = finalDamage * comboMult,
                         critChance = stats.critChance or 0,
                         critMultiplier = stats.critMultiplier or 1.5,
                         statusChance = stats.statusChance or 0,
@@ -550,6 +562,9 @@ function Behaviors.MELEE_SWING(state, weaponKey, w, stats, params, sx, sy)
                         knockForce = knockback * 0.1
                     })
                     
+                    if result and result.damage and result.damage > 0 then
+                        hitOccurred = true
+                    end
                     hitCount = hitCount + 1
                 end
             end
@@ -588,6 +603,12 @@ function Behaviors.MELEE_SWING(state, weaponKey, w, stats, params, sx, sy)
     -- Screen shake for heavy/finisher
     if melee.attackType == 'heavy' or melee.attackType == 'finisher' then
         state.shakeAmount = (state.shakeAmount or 0) + (melee.attackType == 'finisher' and 8 or 4)
+    end
+    
+    -- Increment global melee combo
+    if hitOccurred then
+        p.meleeCombo = (p.meleeCombo or 0) + hitCount
+        p.meleeComboTimer = 5.0 -- Reset decay timer
     end
     
     return hitCount > 0
@@ -703,11 +724,27 @@ function Behaviors.SHOOT_DIRECTIONAL(state, weaponKey, w, stats, params, sx, sy)
     if baseAngle then
         local shots = getProjectileCount(stats)
         local spread = 0.08
+        
+        -- Apply Bloom
+        local bloomVal = w.currentBloom or 0
+        
+        -- Feedback
+        state.shakeAmount = (state.shakeAmount or 0) + 1.5
+        if state.spawnEffect then
+            state.spawnEffect('hit', sx + math.cos(baseAngle)*20, sy + math.sin(baseAngle)*20, 0.6)
+        end
+
         for i = 1, shots do
-            local ang = baseAngle + (i - (shots + 1) / 2) * spread
+            local bloomOffset = (math.random() - 0.5) * bloomVal * 0.4
+            local ang = baseAngle + (i - (shots + 1) / 2) * spread + bloomOffset
             local target = {x = sx + math.cos(ang) * dist, y = sy + math.sin(ang) * dist}
             weapons.spawnProjectile(state, weaponKey, sx, sy, target, stats)
         end
+        
+        -- Increase Bloom
+        local bloomInc = stats and stats.bloomInc or 0.1
+        w.currentBloom = math.min(1.5, (w.currentBloom or 0) + bloomInc)
+
         return true
     end
     return false
@@ -739,11 +776,21 @@ function Behaviors.SHOOT_SPREAD(state, weaponKey, w, stats, params, sx, sy)
     if baseAngle then
         if state.playSfx then state.playSfx('shoot') end
         
+        -- Feedback
+        state.shakeAmount = (state.shakeAmount or 0) + 3.0
+        if state.spawnEffect then
+            state.spawnEffect('blast_hit', sx + math.cos(baseAngle)*15, sy + math.sin(baseAngle)*15, 0.8)
+        end
+
         -- Shotgun parameters
         params = params or {}
         local pellets = params.pellets or 8
         local spreadAngle = params.spread or 0.4  -- radians total spread
         
+        -- Apply Bloom to base spread
+        local bloomVal = w.currentBloom or 0
+        spreadAngle = spreadAngle + bloomVal * 0.5
+
         -- Fire all pellets
         for i = 1, pellets do
             -- Random spread within cone
@@ -761,6 +808,11 @@ function Behaviors.SHOOT_SPREAD(state, weaponKey, w, stats, params, sx, sy)
             
             weapons.spawnProjectile(state, weaponKey, sx, sy, target, pelletStats)
         end
+
+        -- Increase Bloom
+        local bloomInc = stats and stats.bloomInc or 0.2
+        w.currentBloom = math.min(1.5, (w.currentBloom or 0) + bloomInc)
+
         return true
     end
     return false
@@ -876,6 +928,12 @@ function weapons.update(state, dt)
     local activeSlot = state.inventory and state.inventory.activeSlot or 'ranged'
     
     for key, w in pairs((state.inventory and state.inventory.weapons) or {}) do
+        -- Bloom decay: Decays faster if not firing
+        local bloomDecayRate = 1.0
+        if w.currentBloom and w.currentBloom > 0 then
+            w.currentBloom = math.max(0, w.currentBloom - dt * bloomDecayRate)
+        end
+
         w.timer = (w.timer or 0) - dt
         if w.timer <= 0 then
             local shooter = findOwnerActor(state, w.owner)
