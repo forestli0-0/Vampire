@@ -1502,24 +1502,31 @@ function enemies.update(state, dt)
         local playerRadius = (p.size or 20) / 2
         local enemyRadius = (e.size or 16) / 2
         local inChargeDash = e.attack and e.attack.type == 'charge' and e.attack.phase == 'dash'
-        local contactGrace = (e.noContactDamageTimer or 0) > 0
-        if not inChargeDash and pDist < (playerRadius + enemyRadius) and not e.noContactDamage and not contactGrace then
-            local dmgMult = 1 - getPunctureReduction(e)
-            if dmgMult < 0.25 then dmgMult = 0.25 end
-            local baseContact = ((def and def.contactDamage) or 10) * (e.eliteDamageMult or 1)
-            player.hurt(state, baseContact * dmgMult)
-        end
-        if not inChargeDash and not e.noContactDamage and not contactGrace then
-            local pet = pets.getActive(state)
-            if pet and not pet.downed then
-                local dmgMult = 1 - getPunctureReduction(e)
-                if dmgMult < 0.25 then dmgMult = 0.25 end
-                local baseContact = ((def and def.contactDamage) or 10) * (e.eliteDamageMult or 1)
-                local dist = math.sqrt(((pet.x or 0) - e.x) ^ 2 + ((pet.y or 0) - e.y) ^ 2)
-                local pr = (pet.size or 18) / 2
-                if dist < (pr + enemyRadius) then
-                    pets.hurt(state, pet, baseContact * dmgMult)
-                end
+        
+        -- Collision pushback only (no contact damage - all damage via attacks/bullets)
+        local collisionDist = playerRadius + enemyRadius
+        if not inChargeDash and pDist < collisionDist and pDist > 0.1 then
+            local pushDist = collisionDist - pDist
+            local dx = (p.x - e.x) / pDist
+            local dy = (p.y - e.y) / pDist
+            -- Push player away from enemy
+            local pushRatio = 0.7  -- Player gets pushed more
+            local playerPushX = dx * pushDist * pushRatio
+            local playerPushY = dy * pushDist * pushRatio
+            local enemyPushX = -dx * pushDist * (1 - pushRatio)
+            local enemyPushY = -dy * pushDist * (1 - pushRatio)
+            
+            -- Apply push (with world collision check)
+            if world and world.enabled and world.adjustToWalkable then
+                local newPx, newPy = world:adjustToWalkable(p.x + playerPushX, p.y + playerPushY, 5)
+                if newPx and newPy then p.x, p.y = newPx, newPy end
+                local newEx, newEy = world:adjustToWalkable(e.x + enemyPushX, e.y + enemyPushY, 5)
+                if newEx and newEy then e.x, e.y = newEx, newEy end
+            else
+                p.x = p.x + playerPushX
+                p.y = p.y + playerPushY
+                e.x = e.x + enemyPushX
+                e.y = e.y + enemyPushY
             end
         end
 
