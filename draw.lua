@@ -793,6 +793,12 @@ function draw.renderWorld(state)
 
     -- 地面道具
     for _, item in ipairs(state.floorPickups) do
+        -- Flashing effect for items about to despawn
+        if item.flashing then
+            local flash = math.sin(love.timer.getTime() * 12) > 0
+            if not flash then goto skip_pickup end
+        end
+        
         local sprite = state.pickupSprites and state.pickupSprites[item.kind]
         
         local isGlow = (item.kind == 'magnet' or item.kind == 'chicken' or item.kind == 'chest_xp' or item.kind == 'chest_reward' or item.kind == 'pet_contract' or item.kind == 'pet_revive' or item.kind == 'shop_terminal' or item.kind == 'pet_module_chip' or item.kind == 'pet_upgrade_chip')
@@ -894,6 +900,7 @@ function draw.renderWorld(state)
             end
         end
         if isGlow then love.graphics.setBlendMode("alpha") end
+        ::skip_pickup::
     end
 
     -- 经验宝石 (DEPRECATED - Legacy VS system, kept for backward compatibility)

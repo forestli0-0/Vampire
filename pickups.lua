@@ -249,12 +249,37 @@ function pickups.updateFloorPickups(state, dt)
     local p = state.player
     if not p then return end
     
-    -- Pickup radius: player can pick up items within this range even if not directly touching
-    local pickupRadius = (p.size or 28) + 30  -- Increased pickup range for better feel
+    -- Pickup lifetime constants (WF-style)
+    local PICKUP_LIFETIME = 60       -- Seconds before despawn
+    local PICKUP_WARN_TIME = 45      -- Seconds before starting to flash
+    local now = love.timer.getTime()
+    
+    -- Pickup radius: player can pick up items within this range
+    local pickupRadius = (p.size or 28) + 30
     
     for i = #state.floorPickups, 1, -1 do
         local item = state.floorPickups[i]
         if not item then goto continue end
+        
+        -- Initialize spawn time if not set
+        if not item.spawnTime then
+            item.spawnTime = now
+        end
+        
+        -- Only health_orb and energy_orb can despawn
+        local canDespawn = (item.kind == 'health_orb' or item.kind == 'energy_orb')
+        local age = now - item.spawnTime
+        
+        if canDespawn and age >= PICKUP_LIFETIME then
+            -- Despawn expired orb
+            table.remove(state.floorPickups, i)
+            goto continue
+        end
+        
+        -- Set flashing state for warning (orbs only)
+        if canDespawn and age >= PICKUP_WARN_TIME then
+            item.flashing = true
+        end
         
         -- Distance check with expanded pickup radius
         local dx = p.x - item.x
