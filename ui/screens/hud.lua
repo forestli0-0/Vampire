@@ -9,15 +9,21 @@ local state = nil
 -- References to active widgets for updating
 local widgets = {
     hpBar = nil,
+    hpText = nil,
     shieldBar = nil,
+    shieldText = nil,
     energyBar = nil,
+    energyText = nil,
     xpBar = nil,
+    xpText = nil,
     levelText = nil,
     goldText = nil,
     dashBar = nil,
     dashText = nil,
+    dashValue = nil,
     staticChargeBar = nil,
     staticChargeText = nil,
+    staticChargeValue = nil,
     weaponSlots = {},
     abilitySlots = {},
     objectiveText = nil,
@@ -52,6 +58,9 @@ local LAYOUT = {
     dashColor = {0.5, 0.8, 0.9, 1}
 }
 
+local HUD_NUM_COLOR = {0.9, 0.95, 1, 0.8}
+local HUD_LABEL_COLOR = {0.7, 0.75, 0.85, 0.85}
+
 -------------------------------------------
 -- Builders
 -------------------------------------------
@@ -65,9 +74,11 @@ local function buildPlayerFrame(gameState, parent)
     
     local nameText = ui.Text.new({
         x = x, y = y,
-        text = string.upper(name) .. " [Rank " .. level .. "]",
-        color = theme.colors.text_dim,
-        font = theme.getFont('small')
+        w = LAYOUT.barWidth,
+        text = string.upper(name) .. " Lv" .. tostring(level),
+        color = HUD_LABEL_COLOR,
+        font = theme.getFont('small'),
+        align = 'left'
     })
     parent:addChild(nameText)
     widgets.levelText = nameText
@@ -83,6 +94,16 @@ local function buildPlayerFrame(gameState, parent)
         cornerRadius = 1
     })
     parent:addChild(widgets.shieldBar)
+    widgets.shieldText = ui.Text.new({
+        x = x + 2, y = y - 4,
+        w = LAYOUT.barWidth - 4,
+        text = "0/0",
+        color = HUD_NUM_COLOR,
+        font = theme.getFont('small'),
+        align = 'right',
+        shadow = true
+    })
+    parent:addChild(widgets.shieldText)
     y = y + 8
     
     -- HP Bar
@@ -95,6 +116,16 @@ local function buildPlayerFrame(gameState, parent)
         cornerRadius = 2
     })
     parent:addChild(widgets.hpBar)
+    widgets.hpText = ui.Text.new({
+        x = x + 2, y = y - 3,
+        w = LAYOUT.barWidth - 4,
+        text = "0/0",
+        color = HUD_NUM_COLOR,
+        font = theme.getFont('small'),
+        align = 'right',
+        shadow = true
+    })
+    parent:addChild(widgets.hpText)
     y = y + 14
     
     -- XP Bar (Thin line)
@@ -106,39 +137,60 @@ local function buildPlayerFrame(gameState, parent)
         bgColor = {0,0,0,0}
     })
     parent:addChild(widgets.xpBar)
+    widgets.xpText = ui.Text.new({
+        x = x + 2, y = y - 7,
+        w = LAYOUT.barWidth - 4,
+        text = "0/0",
+        color = HUD_NUM_COLOR,
+        font = theme.getFont('tiny') or theme.getFont('small'),
+        align = 'right',
+        shadow = true
+    })
+    parent:addChild(widgets.xpText)
     y = y + 6
     
     -- Dash / Stamina
+    local dashLabelW = 46
     widgets.dashText = ui.Text.new({
         x = x, y = y,
         text = "DASH",
-        color = {0.8, 0.9, 1, 0.8},
+        color = HUD_LABEL_COLOR,
         font = theme.getFont('small')
     })
     parent:addChild(widgets.dashText)
     
     widgets.dashBar = ui.Bar.new({
-        x = x + 36, y = y + 2,
+        x = x + dashLabelW, y = y + 2,
         w = 100, h = 4,
         value = 100, maxValue = 100,
         fillColor = LAYOUT.dashColor,
         bgColor = {0.1, 0.1, 0.1, 0.5}
     })
     parent:addChild(widgets.dashBar)
+    widgets.dashValue = ui.Text.new({
+        x = x + dashLabelW + 2, y = y - 4,
+        w = 100 - 4,
+        text = "0/0",
+        color = HUD_NUM_COLOR,
+        font = theme.getFont('small'),
+        align = 'right',
+        shadow = true
+    })
+    parent:addChild(widgets.dashValue)
     
     -- Static Charge Bar (Volt only - will be shown/hidden in update)
     y = y + 14
     widgets.staticChargeText = ui.Text.new({
         x = x, y = y,
         text = "STATIC",
-        color = {0.4, 0.8, 1, 0.8},
+        color = HUD_LABEL_COLOR,
         font = theme.getFont('small')
     })
     widgets.staticChargeText.visible = false
     parent:addChild(widgets.staticChargeText)
     
     widgets.staticChargeBar = ui.Bar.new({
-        x = x + 42, y = y + 2,
+        x = x + dashLabelW, y = y + 2,
         w = 94, h = 4,
         value = 0, maxValue = 100,
         fillColor = {0.3, 0.7, 1, 1},
@@ -146,13 +198,25 @@ local function buildPlayerFrame(gameState, parent)
     })
     widgets.staticChargeBar.visible = false
     parent:addChild(widgets.staticChargeBar)
+    widgets.staticChargeValue = ui.Text.new({
+        x = x + dashLabelW + 2, y = y - 5,
+        w = 94 - 4,
+        text = "0/100",
+        color = HUD_NUM_COLOR,
+        font = theme.getFont('small'),
+        align = 'right',
+        shadow = true
+    })
+    widgets.staticChargeValue.visible = false
+    parent:addChild(widgets.staticChargeValue)
     
     -- Gold display (below frame)
     widgets.goldText = ui.Text.new({
         x = x, y = y + 14,
         text = "GOLD 0",
         color = LAYOUT.goldColor,
-        shadow = true
+        shadow = true,
+        font = theme.getFont('small')
     })
     parent:addChild(widgets.goldText)
 end
@@ -197,6 +261,16 @@ local function buildCombatFrame(gameState, parent)
         cornerRadius = 2
     })
     parent:addChild(widgets.energyBar)
+    widgets.energyText = ui.Text.new({
+        x = startX + 2, y = energyY - 5,
+        w = totalW - 4,
+        text = "0/0",
+        color = HUD_NUM_COLOR,
+        font = theme.getFont('small'),
+        align = 'right',
+        shadow = true
+    })
+    parent:addChild(widgets.energyText)
     
     -- Weapon Slots (To the left of abilities)
     -- Default: 2 slots (ranged, melee). 3rd slot (extra) is conditional.
@@ -239,7 +313,7 @@ local function buildCombatFrame(gameState, parent)
         
         -- Ammo display: horizontal layout
         local ammo = ui.Text.new({
-            x = 4, y = 22, w = 82,
+            x = 4, y = 26, w = 82,
             text = "--/--",
             color = theme.colors.text_dim
         })
@@ -247,10 +321,12 @@ local function buildCombatFrame(gameState, parent)
         
         -- Reserve display below
         local reserve = ui.Text.new({
-            x = 4, y = 36, w = 82,
+            x = 4, y = 38, w = 82,
             text = "",
             color = {0.6, 0.7, 0.8, 0.8},
-            font = theme.getFont('small')
+            font = theme.getFont('small'),
+            align = 'left',
+            shadow = true
         })
         panel:addChild(reserve)
         
@@ -353,22 +429,42 @@ function hud.update(gameState, dt)
             -- Use p.maxHp as fallback if stats.maxHp is not defined
             widgets.hpBar.maxValue = stats.maxHp or p.maxHp or 100
         end
+        if widgets.hpText then
+            local cur = math.floor(p.hp or 0)
+            local max = math.floor(stats.maxHp or p.maxHp or 100)
+            widgets.hpText:setText(string.format("%d/%d", cur, max))
+        end
         if widgets.shieldBar then
             widgets.shieldBar.value = p.shield or 0
             widgets.shieldBar.maxValue = stats.maxShield or p.maxShield or 100
+        end
+        if widgets.shieldText then
+            local cur = math.floor(p.shield or 0)
+            local max = math.floor(stats.maxShield or p.maxShield or 100)
+            widgets.shieldText:setText(string.format("%d/%d", cur, max))
         end
         if widgets.xpBar then
             widgets.xpBar.value = p.xp or 0
             widgets.xpBar.maxValue = p.xpToNextLevel or 100
         end
+        if widgets.xpText then
+            local cur = math.floor(p.xp or 0)
+            local max = math.floor(p.xpToNextLevel or 100)
+            widgets.xpText:setText(string.format("%d/%d", cur, max))
+        end
         if widgets.energyBar then
             widgets.energyBar.value = p.energy or 0
             widgets.energyBar.maxValue = stats.maxEnergy or p.maxEnergy or 100
         end
+        if widgets.energyText then
+            local cur = math.floor(p.energy or 0)
+            local max = math.floor(stats.maxEnergy or p.maxEnergy or 100)
+            widgets.energyText:setText(string.format("%d/%d", cur, max))
+        end
         
         -- Level Text
         if widgets.levelText then
-            widgets.levelText:setText(string.upper(p.class or "Tenno") .. " [Rank " .. (p.level or 1) .. "]")
+            widgets.levelText:setText(string.upper(p.class or "Tenno") .. " Lv" .. tostring(p.level or 1))
         end
         
         -- Gold
@@ -401,8 +497,9 @@ function hud.update(gameState, dt)
                 widgets.dashBar.value = max
                 widgets.dashBar.maxValue = max
             end
-            
-            widgets.dashText:setText(string.format("DASH %d/%d", current, max))
+            if widgets.dashValue then
+                widgets.dashValue:setText(string.format("%d/%d", current, max))
+            end
         end
         
         -- Static Charge Bar (Volt only)
@@ -410,6 +507,9 @@ function hud.update(gameState, dt)
             if p.class == 'volt' then
                 widgets.staticChargeBar.visible = true
                 widgets.staticChargeText.visible = true
+                if widgets.staticChargeValue then
+                    widgets.staticChargeValue.visible = true
+                end
                 widgets.staticChargeBar.value = p.staticCharge or 0
                 widgets.staticChargeBar.maxValue = 100
                 
@@ -422,9 +522,15 @@ function hud.update(gameState, dt)
                 else
                     widgets.staticChargeBar.fillColor = {0.3, 0.5, 0.8, 0.8}  -- Dim when low
                 end
+                if widgets.staticChargeValue then
+                    widgets.staticChargeValue:setText(string.format("%d/100", math.floor(charge)))
+                end
             else
                 widgets.staticChargeBar.visible = false
                 widgets.staticChargeText.visible = false
+                if widgets.staticChargeValue then
+                    widgets.staticChargeValue.visible = false
+                end
             end
         end
         
@@ -515,7 +621,7 @@ function hud.update(gameState, dt)
                 if mag then
                     slotData.ammo:setText(string.format("%d / %d", mag, maxMag or mag))
                     if slotData.reserve then
-                        slotData.reserve:setText(string.format("Reserve: %d", reserve or 0))
+                        slotData.reserve:setText(string.format("%d", reserve or 0))
                     end
                 else
                     slotData.ammo:setText("∞")
