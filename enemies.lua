@@ -589,6 +589,27 @@ function enemies.findNearestEnemy(state, maxDist, fromX, fromY, opts)
     return t
 end
 
+-- Check if player is inside any nullifier's bubble (blocks abilities)
+function enemies.isInNullBubble(state)
+    if not state or not state.enemies then return false end
+    local px, py = state.player.x, state.player.y
+    
+    for _, e in ipairs(state.enemies) do
+        if e and (e.health or e.hp or 0) > 0 and e.kind == 'nullifier' then
+            local def = enemyDefs[e.kind] or {}
+            if def.nullBubble and def.nullBubble.radius then
+                local radius = def.nullBubble.radius
+                local dx = px - e.x
+                local dy = py - e.y
+                if dx*dx + dy*dy <= radius * radius then
+                    return true, e  -- Return enemy reference for visual feedback
+                end
+            end
+        end
+    end
+    return false
+end
+
 function enemies.damageEnemy(state, e, dmg, knock, kForce, isCrit, opts)
     opts = opts or {}
     ensureStatus(e)
@@ -1021,6 +1042,37 @@ function enemies.update(state, dt)
             end
         end
 
+        -- Heal Aura mechanic (Ancient Healer)
+        local def = enemyDefs[e.kind] or {}
+        if def.healAura and def.healAura.radius and def.healAura.healRate then
+            local radius = def.healAura.radius
+            local healRate = def.healAura.healRate
+            local r2 = radius * radius
+            
+            for _, other in ipairs(state.enemies) do
+                if other ~= e and (other.health or other.hp or 0) > 0 then
+                    local dx = other.x - e.x
+                    local dy = other.y - e.y
+                    if dx*dx + dy*dy <= r2 then
+                        local maxHp = other.maxHealth or other.maxHp or other.health or 0
+                        if other.health < maxHp then
+                            other.health = math.min(maxHp, other.health + healRate * dt)
+                            other.hp = other.health
+                        end
+                    end
+                end
+            end
+            
+            -- Visual indicator for heal aura (spawn occasionally)
+            e._healAuraVfxTimer = (e._healAuraVfxTimer or 0) - dt
+            if e._healAuraVfxTimer <= 0 then
+                e._healAuraVfxTimer = 1.5  -- VFX every 1.5s
+                if state.spawnAreaField then
+                    state.spawnAreaField('heal', e.x, e.y, radius, 0.8, 0.5)
+                end
+            end
+        end
+
         local pushX, pushY = 0, 0
         if #state.enemies > 1 then
             local checks = math.min(8, #state.enemies - 1)
@@ -1366,6 +1418,95 @@ function enemies.update(state, dt)
                     if atk.distanceTraveled >= (atk.distance or 80) then
                         e.attack = nil
                         e.attackCooldown = atk.cooldown or 3.0
+                    end
+                end
+            elseif atk and atk.type == 'grapple' then
+                -- Scorpion's grapple hook execution
+                if atk.phase == 'windup' then
+                    atk.timer = (atk.timer or 0) - dt * coldMult
+                    if atk.timer <= 0 then
+                        -- Check if player is in range (cone-shaped hit detection)
+                        local ang = atk.ang or 0
+                        local range = atk.range or 280
+                        local dx = p.x - e.x
+                        local dy = p.y - e.y
+                        local dist = math.sqrt(dx * dx + dy * dy)
+                        local playerAng = math.atan2(dy, dx)
+                        local angDiff = math.abs((playerAng - ang + math.pi) % (math.pi * 2) - math.pi)
+                        
+                        local hitPlayer = (dist <= range and angDiff < 0.3)  -- ~17 degree cone
+                        
+                        if hitPlayer then
+                            local damage = atk.damage or 8
+                            local dmgMult = 1 - getPunctureReduction(e)
+                            if dmgMult < 0.25 then dmgMult = 0.25 end
+                            player.hurt(state, damage * dmgMult)
+                            
+                            -- Pull player towards enemy
+                            local pullDist = math.min(atk.pullDistance or 120, dist * 0.6)
+                            local pullAng = math.atan2(e.y - p.y, e.x - p.x)
+                            local newX = p.x + math.cos(pullAng) * pullDist
+                            local newY = p.y + math.sin(pullAng) * pullDist
+                            
+                            -- Respect walls if arena is enabled
+                            if world and world.enabled and world.moveCircle then
+                                p.x, p.y = world:moveCircle(p.x, p.y, (p.size or 20) / 2, 
+                                    math.cos(pullAng) * pullDist, math.sin(pullAng) * pullDist)
+                            else
+                                p.x, p.y = newX, newY
+                            end
+                            
+                            if state.spawnEffect then state.spawnEffect('shock', p.x, p.y, 0.8) end
+                            if state.playSfx then state.playSfx('hit') end
+                            
+                            table.insert(state.texts, {x = p.x, y = p.y - 30, text = "GET OVER HERE!", color = {0.9, 0.7, 0.2}, life = 0.8})
+                        end
+                        
+                        e.attack = nil
+                        e.attackCooldown = atk.cooldown or 5.0
+                    end
+                end
+            elseif atk and atk.type == 'suicide' then
+                -- Volatile Runner's suicide explosion
+                if atk.phase == 'windup' then
+                    atk.timer = (atk.timer or 0) - dt * coldMult
+                    if atk.timer <= 0 then
+                        local damage = atk.damage or 35
+                        local radius = atk.explosionRadius or 80
+                        local dmgMult = 1 - getPunctureReduction(e)
+                        if dmgMult < 0.25 then dmgMult = 0.25 end
+                        damage = damage * dmgMult
+                        
+                        -- Damage to player
+                        local dx = p.x - e.x
+                        local dy = p.y - e.y
+                        local distSq = dx * dx + dy * dy
+                        local pr = (p.size or 20) / 2
+                        local rr = radius + pr
+                        if distSq <= rr * rr then
+                            player.hurt(state, damage)
+                        end
+                        
+                        -- Damage to pet
+                        local pet = pets.getActive(state)
+                        if pet and not pet.downed then
+                            local pdx = (pet.x or 0) - e.x
+                            local pdy = (pet.y or 0) - e.y
+                            local petR = (pet.size or 18) / 2
+                            local prr = radius + petR
+                            if pdx * pdx + pdy * pdy <= prr * prr then
+                                pets.hurt(state, pet, damage)
+                            end
+                        end
+                        
+                        -- Visual and sound effects
+                        if state.spawnEffect then state.spawnEffect('blast_hit', e.x, e.y, 1.5) end
+                        if state.playSfx then state.playSfx('hit') end
+                        
+                        -- Kill self
+                        e.health = 0
+                        e.hp = 0
+                        e.attack = nil
                     end
                 end
             end
@@ -1740,6 +1881,53 @@ function enemies.update(state, dt)
                         state.spawnTelegraphLine(e.x, e.y, e.x + math.cos(angToTarget) * len, e.y + math.sin(angToTarget) * len, 20, windup, {color = {1, 0.5, 0.2}})
                     end
 
+                elseif key == 'grapple' then
+                    -- Scorpion's grapple hook attack
+                    local windup = math.max(0.3, (cfg.windup or 0.5) * windupMult)
+                    local pullDist = cfg.pullDistance or 120
+                    local damage = (cfg.damage or 8) * eliteDamageMult
+                    local cooldown = cfg.cooldown or 5.0
+                    local width = cfg.telegraphWidth or 12
+                    
+                    e.attack = {
+                        type = 'grapple',
+                        phase = 'windup',
+                        timer = windup,
+                        interruptible = true,
+                        ang = angToTarget,
+                        pullDistance = pullDist,
+                        damage = damage,
+                        cooldown = cooldown,
+                        range = cfg.range or 280
+                    }
+                    
+                    -- Show hook telegraph line
+                    if state.spawnTelegraphLine then
+                        local len = cfg.range or 280
+                        state.spawnTelegraphLine(e.x, e.y, e.x + math.cos(angToTarget) * len, e.y + math.sin(angToTarget) * len, width, windup, {color = {0.9, 0.7, 0.2}})
+                    end
+                    
+                elseif key == 'suicide' then
+                    -- Volatile Runner's suicide explosion attack
+                    local windup = math.max(0.1, (cfg.windup or 0.15) * windupMult)
+                    local damage = (cfg.damage or 35) * eliteDamageMult
+                    local radius = cfg.explosionRadius or 80
+                    
+                    e.attack = {
+                        type = 'suicide',
+                        phase = 'windup',
+                        timer = windup,
+                        interruptible = false,
+                        damage = damage,
+                        explosionRadius = radius,
+                        cooldown = 999  -- Doesn't matter, enemy dies
+                    }
+                    
+                    -- Show danger circle
+                    if state.spawnTelegraphCircle then
+                        state.spawnTelegraphCircle(e.x, e.y, radius, windup, {kind = 'danger', intensity = 1.5})
+                    end
+
                 end
             end
         end
@@ -1881,6 +2069,39 @@ function enemies.update(state, dt)
             else
                 if state and state.augments and state.augments.dispatch then
                     state.augments.dispatch(state, 'onKill', {enemy = e, player = state.player, lastDamage = e.lastDamage})
+                end
+
+                -- Check for onDeath explosion (Volatile Runner)
+                local def = enemyDefs[e.kind] or {}
+                if def.onDeath and def.onDeath.explosionRadius and def.onDeath.damage then
+                    local radius = def.onDeath.explosionRadius
+                    local damage = def.onDeath.damage
+                    local r2 = radius * radius
+                    
+                    -- Damage player
+                    local dx = p.x - e.x
+                    local dy = p.y - e.y
+                    local pr = (p.size or 20) / 2
+                    local rr = radius + pr
+                    if dx*dx + dy*dy <= rr * rr then
+                        player.hurt(state, damage)
+                    end
+                    
+                    -- Damage pet
+                    local pet = pets.getActive(state)
+                    if pet and not pet.downed then
+                        local pdx = (pet.x or 0) - e.x
+                        local pdy = (pet.y or 0) - e.y
+                        local petR = (pet.size or 18) / 2
+                        local prr = radius + petR
+                        if pdx*pdx + pdy*pdy <= prr * prr then
+                            pets.hurt(state, pet, damage)
+                        end
+                    end
+                    
+                    -- Explosion visual
+                    if state.spawnEffect then state.spawnEffect('blast_hit', e.x, e.y, 1.3) end
+                    if state.playSfx then state.playSfx('hit') end
                 end
 
                 local isBossDefeated = false

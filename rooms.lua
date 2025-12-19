@@ -111,37 +111,43 @@ local function buildEnemyPool(roomIndex)
         {key = 'skeleton', w = 6}  -- Reduced from 10, melee hybrid
     }
     if roomIndex >= 2 then
-        table.insert(pool, {key = 'bat', w = 4})       -- Reduced from 6
-        table.insert(pool, {key = 'charger', w = 3})   -- Reduced from 4
-        table.insert(pool, {key = 'lancer', w = 8})    -- NEW: basic ranged
+        table.insert(pool, {key = 'bat', w = 4})
+        table.insert(pool, {key = 'charger', w = 3})
+        table.insert(pool, {key = 'lancer', w = 8})           -- Batch 1: ranged
+        table.insert(pool, {key = 'volatile_runner', w = 3})  -- Batch 2: exploder
     end
     if roomIndex >= 3 then
         table.insert(pool, {key = 'plant', w = 4})
+        table.insert(pool, {key = 'scorpion', w = 4})         -- Batch 2: grappler
     end
     if roomIndex >= 4 then
         table.insert(pool, {key = 'spore_mortar', w = 3})
-        table.insert(pool, {key = 'heavy_gunner', w = 5})  -- NEW: burst fire
-        table.insert(pool, {key = 'ballista', w = 3})       -- NEW: sniper
+        table.insert(pool, {key = 'heavy_gunner', w = 5})     -- Batch 1: burst fire
+        table.insert(pool, {key = 'ballista', w = 3})         -- Batch 1: sniper
     end
     if roomIndex >= 5 then
-        table.insert(pool, {key = 'shield_lancer', w = 3}) -- Reduced from 4
-        table.insert(pool, {key = 'bombard', w = 4})        -- NEW: rocket AOE
+        table.insert(pool, {key = 'shield_lancer', w = 3})
+        table.insert(pool, {key = 'bombard', w = 4})          -- Batch 1: rocket AOE
+        table.insert(pool, {key = 'ancient_healer', w = 2})   -- Batch 2: healer
     end
     if roomIndex >= 6 then
-        table.insert(pool, {key = 'armored_brute', w = 2}) -- Reduced from 3
+        table.insert(pool, {key = 'armored_brute', w = 2})
+        table.insert(pool, {key = 'nullifier', w = 2})        -- Batch 2: ability blocker
     end
     return pool
 end
 
 local function chooseEliteKind(roomIndex)
     if (roomIndex or 0) < 4 then return 'skeleton' end
-    local candidates = {'skeleton', 'bat', 'plant', 'charger', 'spore_mortar', 'shield_lancer', 'lancer', 'heavy_gunner'}
+    local candidates = {'skeleton', 'bat', 'plant', 'charger', 'spore_mortar', 'shield_lancer', 'lancer', 'heavy_gunner', 'scorpion'}
     if (roomIndex or 0) >= 5 then
         table.insert(candidates, 'ballista')
         table.insert(candidates, 'bombard')
+        table.insert(candidates, 'ancient_healer')
     end
     if (roomIndex or 0) >= 6 then
         table.insert(candidates, 'armored_brute')
+        table.insert(candidates, 'nullifier')
     end
     return candidates[math.random(#candidates)] or 'skeleton'
 end

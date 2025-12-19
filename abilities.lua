@@ -733,6 +733,16 @@ function abilities.canUse(state, abilityIndex)
     -- Cannot use during casting animation
     if p.isCasting then return false end
     
+    -- Cannot use abilities inside Nullifier bubble
+    local enemiesMod = require('enemies')
+    if enemiesMod.isInNullBubble and enemiesMod.isInNullBubble(state) then
+        if state.texts and not p._nullBubbleWarningCd then
+            table.insert(state.texts, {x = p.x, y = p.y - 40, text = "技能被屏蔽!", color = {0.6, 0.5, 0.9}, life = 0.8})
+            p._nullBubbleWarningCd = 0.8  -- Cooldown to prevent spam
+        end
+        return false
+    end
+    
     -- Check energy (with efficiency preview)
     local eff = p.stats and p.stats.abilityEfficiency or 1.0
     local cost = math.floor(def.cost / eff)
@@ -941,6 +951,12 @@ function abilities.update(state, dt)
     local regen = (p.stats and p.stats.energyRegen) or p.energyRegen or 2
     if p.isCasting then regen = regen * 0.5 end
     p.energy = math.min(p.maxEnergy or 100, (p.energy or 0) + regen * dt)
+    
+    -- Null bubble warning cooldown
+    if p._nullBubbleWarningCd and p._nullBubbleWarningCd > 0 then
+        p._nullBubbleWarningCd = p._nullBubbleWarningCd - dt
+        if p._nullBubbleWarningCd <= 0 then p._nullBubbleWarningCd = nil end
+    end
     
     -- Cooldown tick
     p.abilityCooldowns = p.abilityCooldowns or {}

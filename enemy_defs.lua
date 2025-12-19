@@ -238,6 +238,61 @@ local enemyDefs = {
                       bulletLife = 4, bulletSize = 14,
                       explosive = true, splashRadius = 70, w = 10}
         }
+    },
+    -- ========== Batch 2: Complex Enemies with Special Mechanics ==========
+    -- Scorpion: Grapple hook that pulls player closer
+    scorpion = {
+        hp = 30,
+        speed = 65,
+        size = 24,
+        color = {0.9, 0.7, 0.2},
+        healthType = 'CLONED_FLESH',
+        attacks = {
+            grapple = {range = 280, rangeMin = 80, windup = 0.5, cooldown = 5.0,
+                       pullDistance = 120, damage = 8, telegraphWidth = 12, w = 6},
+            melee = {range = 45, windup = 0.35, cooldown = 1.5, damage = 10, w = 5}
+        }
+    },
+    -- Ancient Healer: Aura that heals nearby enemies
+    ancient_healer = {
+        hp = 90,
+        speed = 45,
+        size = 36,
+        color = {0.3, 0.8, 0.4},
+        healthType = 'INFESTED',
+        healAura = {radius = 160, healRate = 8},  -- heals 8 HP/sec to nearby enemies
+        attacks = {
+            melee = {range = 55, windup = 0.6, cooldown = 2.2, damage = 12, w = 10}
+        }
+    },
+    -- Volatile Runner: Fast suicidal exploder
+    volatile_runner = {
+        hp = 12,
+        speed = 110,
+        size = 18,
+        color = {1.0, 0.4, 0.1},
+        healthType = 'INFESTED',
+        onDeath = {explosionRadius = 80, damage = 30},  -- explode on death
+        attacks = {
+            suicide = {range = 35, windup = 0.15, cooldown = 999,
+                       damage = 35, explosionRadius = 80, w = 10}
+        }
+    },
+    -- Nullifier: Bubble that blocks player abilities
+    nullifier = {
+        hp = 50,
+        shield = 180,
+        speed = 40,
+        size = 26,
+        color = {0.3, 0.4, 0.8},
+        healthType = 'CLONED_FLESH',
+        shieldType = 'PROTO_SHIELD',
+        nullBubble = {radius = 100},  -- disables abilities in this radius
+        attacks = {
+            shoot = {range = 280, rangeMin = 60, windup = 0.5, cooldown = 2.0,
+                     count = 1, spread = 0.1, bulletSpeed = 200, bulletDamage = 8, 
+                     bulletLife = 2.5, bulletSize = 6, w = 10}
+        }
     }
 }
 
