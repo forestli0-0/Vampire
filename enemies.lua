@@ -1661,9 +1661,16 @@ function enemies.update(state, dt)
                         width = width,
                         length = len
                     }
-                    if state.spawnTelegraphLine then
-                        local ex, ey = e.x, e.y
-                        state.spawnTelegraphLine(ex, ey, ex + math.cos(angToTarget) * len, ey + math.sin(angToTarget) * len, width, windup, lineOpts)
+                    -- Only show telegraph line for bosses/elites, normal enemies get "!" indicator
+                    if e.isBoss or e.isElite then
+                        if state.spawnTelegraphLine then
+                            local ex, ey = e.x, e.y
+                            state.spawnTelegraphLine(ex, ey, ex + math.cos(angToTarget) * len, ey + math.sin(angToTarget) * len, width, windup, lineOpts)
+                        end
+                    else
+                        if state.texts then
+                            table.insert(state.texts, {x = e.x, y = e.y - (e.size or 24) - 15, text = "!", color = {1, 0.8, 0.3, 0.8}, life = windup * 0.9, scale = 1.2})
+                        end
                     end
                 elseif key == 'melee' then
                     local windup = math.max(0.25, (cfg.windup or 0.4) * windupMult)
@@ -1681,9 +1688,9 @@ function enemies.update(state, dt)
                         cooldown = cooldown
                     }
                     
-                    -- Show telegraph circle
-                    if state.spawnTelegraphCircle then
-                        state.spawnTelegraphCircle(e.x, e.y, range, windup, {kind = 'danger', intensity = 0.9})
+                    -- Simple "!" indicator for melee (close range, no telegraph circle needed)
+                    if state.texts then
+                        table.insert(state.texts, {x = e.x, y = e.y - (e.size or 24) - 15, text = "!", color = {1, 0.3, 0.3, 0.9}, life = windup * 0.9, scale = 1.1})
                     end
                     
                 elseif key == 'throw' then
@@ -1708,10 +1715,9 @@ function enemies.update(state, dt)
                         cooldown = cooldown
                     }
                     
-                    -- Brief telegraph line
-                    if state.spawnTelegraphLine then
-                        local len = 120
-                        state.spawnTelegraphLine(e.x, e.y, e.x + math.cos(angToTarget) * len, e.y + math.sin(angToTarget) * len, 16, windup, lineOpts)
+                    -- Simple "!" indicator for basic throw (no telegraph line)
+                    if state.texts then
+                        table.insert(state.texts, {x = e.x, y = e.y - (e.size or 24) - 15, text = "!", color = {1, 0.8, 0.3, 0.8}, life = windup * 0.9, scale = 1.2})
                     end
                     
                 elseif key == 'leap' then
@@ -1810,10 +1816,9 @@ function enemies.update(state, dt)
                         cooldown = cooldown
                     }
                     
-                    -- Short telegraph line
-                    if state.spawnTelegraphLine then
-                        local len = 180
-                        state.spawnTelegraphLine(e.x, e.y, e.x + math.cos(angToTarget) * len, e.y + math.sin(angToTarget) * len, 12, windup, lineOpts)
+                    -- Simple "!" indicator for normal ranged attack (no telegraph line)
+                    if state.texts then
+                        table.insert(state.texts, {x = e.x, y = e.y - (e.size or 24) - 15, text = "!", color = {1, 0.8, 0.3, 0.8}, life = windup * 0.9, scale = 1.2})
                     end
                     
                 elseif key == 'snipe' then
@@ -1875,10 +1880,9 @@ function enemies.update(state, dt)
                         spriteKey = 'rocket'  -- Optional visual
                     }
                     
-                    -- Show aim line
-                    if state.spawnTelegraphLine then
-                        local len = 280
-                        state.spawnTelegraphLine(e.x, e.y, e.x + math.cos(angToTarget) * len, e.y + math.sin(angToTarget) * len, 20, windup, {color = {1, 0.5, 0.2}})
+                    -- Simple "!" indicator for rocket (avoidable after launch)
+                    if state.texts then
+                        table.insert(state.texts, {x = e.x, y = e.y - (e.size or 28) - 15, text = "!", color = {1, 0.5, 0.2, 0.9}, life = windup * 0.9, scale = 1.4})
                     end
 
                 elseif key == 'grapple' then
