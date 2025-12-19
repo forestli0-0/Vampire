@@ -1991,7 +1991,7 @@ function draw.renderUI(state)
             
             -- Ammo display
             if w and w.magazine ~= nil then
-                local maxMag = (weaponDef and weaponDef.base.maxMagazine) or 30
+                local maxMag = w.maxMagazine or (weaponDef and weaponDef.base.maxMagazine) or 30
                 local reserve = w.reserve or 0
                 local ammoText = string.format("%d/%d", w.magazine, maxMag)
                 local reserveText = string.format("|%d", reserve)
@@ -2004,7 +2004,7 @@ function draw.renderUI(state)
                 
                 -- Reload bar (if reloading)
                 if w.isReloading then
-                    local reloadTime = (weaponDef and weaponDef.base.reloadTime) or 1.5
+                    local reloadTime = w.reloadTime or (weaponDef and weaponDef.base.reloadTime) or 1.5
                     local progress = 1 - ((w.reloadTimer or 0) / reloadTime)
                     progress = math.max(0, math.min(1, progress))
                     

@@ -760,7 +760,12 @@ function player.hurt(state, dmg)
     local armor = (p.stats and p.stats.armor) or 0
     local hpBefore = p.hp
     local shieldBefore = p.shield or 0
-    local incoming = math.max(1, math.floor((dmg or 0) - armor))
+    local dmgVal = dmg or 0
+    local reduced = dmgVal
+    if armor > 0 then
+        reduced = dmgVal * (300 / (armor + 300))
+    end
+    local incoming = math.max(1, math.floor(reduced))
     
     local ctx = {
         amount = incoming,

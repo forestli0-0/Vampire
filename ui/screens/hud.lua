@@ -484,7 +484,7 @@ function hud.update(gameState, dt)
                 -- Check reload state from the actual weapon data
                 local isReloading = weaponData and weaponData.isReloading
                 local reloadTimer = weaponData and weaponData.reloadTimer or 0
-                local reloadTime = (def and def.base and def.base.reloadTime) or 1.5
+                local reloadTime = (weaponData and weaponData.reloadTime) or (def and def.base and def.base.reloadTime) or 1.5
                 
                 if isReloading and slotData.reloadBar then
                     -- Show reload progress
@@ -509,7 +509,7 @@ function hud.update(gameState, dt)
                 
                 -- Ammo: Magazine on first line, Reserve below
                 local mag = weaponData and weaponData.magazine
-                local maxMag = (def and def.base and def.base.maxMagazine) or (weaponData and weaponData.maxMagazine)
+                local maxMag = (weaponData and weaponData.maxMagazine) or (def and def.base and def.base.maxMagazine)
                 local reserve = weaponData and weaponData.reserve
                 
                 if mag then

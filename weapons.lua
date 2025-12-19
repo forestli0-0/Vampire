@@ -1,6 +1,5 @@
 local enemies = require('enemies')
 local calculator = require('calculator')
-local statsRules = require('stats_rules')
 local player = require('player')
 
 local weapons = {}
@@ -42,53 +41,6 @@ local function cloneStats(base)
     if stats.pierce == nil then stats.pierce = 1 end
     if stats.amount == nil then stats.amount = 0 end
     return stats
-end
-
-local function tagsMatch(weaponTags, targetTags)
-    if not weaponTags or not targetTags then return false end
-    for _, tag in ipairs(targetTags) do
-        for _, wTag in ipairs(weaponTags) do
-            if tag == wTag then return true end
-        end
-    end
-    return false
-end
-
-local function applyPassiveEffects(stats, effect, level)
-    statsRules.applyEffect(stats, effect, level)
-end
-
-local function applyElementAdds(stats, addElements, level)
-    if not addElements or level <= 0 then return end
-    stats.elements = stats.elements or {}
-    stats.damageBreakdown = stats.damageBreakdown or {}
-    local existing = {}
-    for _, e in ipairs(stats.elements) do
-        existing[string.upper(e)] = true
-    end
-    for elem, weight in pairs(addElements) do
-        local key = string.upper(elem)
-        local add = (weight or 0) * level
-        if add > 0 then
-            stats.damageBreakdown[key] = (stats.damageBreakdown[key] or 0) + add
-            if not existing[key] then
-                table.insert(stats.elements, key)
-                existing[key] = true
-            end
-        end
-    end
-end
-
-local function getOrderedMods(state, weaponKey)
-    local wm = state.inventory and state.inventory.weaponMods and state.inventory.weaponMods[weaponKey]
-    local order = wm and wm.modOrder
-    if order and #order > 0 then return order end
-    local keys = {}
-    for k, _ in pairs((wm and wm.mods) or {}) do
-        table.insert(keys, k)
-    end
-    table.sort(keys)
-    return keys
 end
 
 local function getProjectileCount(stats)
@@ -162,24 +114,23 @@ function weapons.calculateStats(state, weaponKey)
     -- All power progression is now handled via state.inventory.weaponMods or base stats.
 
 
-    local wm = state.inventory and state.inventory.weaponMods and state.inventory.weaponMods[weaponKey]
-    for _, modKey in ipairs(getOrderedMods(state, weaponKey)) do
-        local level = wm and wm.mods and wm.mods[modKey]
-        local modDef = state.catalog[modKey]
-        if level and level > 0 and modDef and modDef.targetTags then
-            if tagsMatch(weaponTags, modDef.targetTags) then
-                if modDef.effect then applyPassiveEffects(stats, modDef.effect, level) end
-                if modDef.addElements then applyElementAdds(stats, modDef.addElements, level) end
-            end
-        end
-    end
-    
     -- Apply new unified MOD system (mods.lua)
     local modsModule = require('mods')
     stats = modsModule.applyWeaponMods(state, weaponKey, stats)
     
     -- Apply run-time MODs (collected during a run)
     stats = modsModule.applyRunWeaponMods(state, weaponKey, stats)
+
+    local newMax = stats.maxMagazine or stats.magazine
+    if newMax and invWeapon.magazine ~= nil then
+        invWeapon.maxMagazine = math.floor(newMax)
+        if invWeapon.magazine ~= nil then
+            invWeapon.magazine = math.min(invWeapon.magazine, invWeapon.maxMagazine)
+        end
+    end
+    if stats.reloadTime then
+        invWeapon.reloadTime = stats.reloadTime
+    end
 
     return stats
 end
@@ -1044,7 +995,7 @@ function weapons.update(state, dt)
                             hasAmmo = false
                             -- Auto-reload when empty
                             if (w.reserve or 0) > 0 then
-                                local reloadTime = def.base.reloadTime or 1.5
+                                local reloadTime = w.reloadTime or (def and def.base.reloadTime) or 1.5
                                 w.isReloading = true
                                 w.reloadTimer = reloadTime
                             end
@@ -1083,7 +1034,7 @@ function weapons.updateReload(state, dt)
             if w.reloadTimer <= 0 then
                 -- Complete reload
                 local def = state.catalog[key]
-                local maxMag = (def and def.base.maxMagazine) or 30
+                local maxMag = w.maxMagazine or (def and def.base.maxMagazine) or 30
                 local needed = maxMag - (w.magazine or 0)
                 local transfer = math.min(needed, w.reserve or 0)
                 w.magazine = (w.magazine or 0) + transfer
@@ -1113,11 +1064,11 @@ function weapons.startReload(state)
     if w.magazine == nil then return false end -- No ammo weapon (melee)
     
     local def = state.catalog[weaponKey]
-    local maxMag = (def and def.base.maxMagazine) or 30
+    local maxMag = w.maxMagazine or (def and def.base.maxMagazine) or 30
     if w.magazine >= maxMag then return false end -- Already full
     if (w.reserve or 0) <= 0 then return false end -- No reserve ammo
     
-    local reloadTime = (def and def.base.reloadTime) or 1.5
+    local reloadTime = w.reloadTime or (def and def.base.reloadTime) or 1.5
     w.isReloading = true
     w.reloadTimer = reloadTime
     if state.playSfx then state.playSfx('shoot') end

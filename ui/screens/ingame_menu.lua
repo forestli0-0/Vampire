@@ -673,6 +673,7 @@ function ingameMenu.buildInventory(parent)
                 local success = mods.equipToRunSlot(state, category, key, targetSlot, capturedModData.key, capturedModData.rank)
                 if success then
                     table.remove(state.runMods.inventory, capturedIdx)
+                    mods.refreshActiveStats(state)
                     if state.playSfx then state.playSfx('gem') end
                 end
                 ingameMenu.buildUI()

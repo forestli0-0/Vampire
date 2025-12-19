@@ -318,15 +318,15 @@ function state.init()
             desc = "Melee focused, high armor. Q: War Cry (AoE knockback + stun)",
             baseStats = {
                 maxHp = 120,
-                armor = 2,
+                armor = 120,
                 moveSpeed = 125,
                 might = 1.1,
                 maxShield = 80,   -- Warriors rely more on Armor/HP
                 maxEnergy = 100,
                 dashCharges = 1  -- Standardized to 1 for balance
             },
-            startWeapon = 'heavy_hammer',  -- Fragor melee
-            startSecondary = 'lato',       -- Sidearm
+            startMelee = 'heavy_hammer',  -- Fragor melee
+            startRanged = 'lato',       -- Sidearm
             preferredUpgrades = {'hek', 'boltor', 'dual_zoren'},
             ability = {
                 name = "War Cry",
@@ -384,7 +384,7 @@ function state.init()
             desc = "Magic focused, low HP. Q: Blink (teleport + i-frames)",
             baseStats = {
                 maxHp = 80,
-                armor = 0,
+                armor = 25,
                 moveSpeed = 145,
                 might = 1.0,
                 maxShield = 150, -- Mages rely on Shields
@@ -392,8 +392,8 @@ function state.init()
                 cooldown = 0.9, -- 10% faster cooldowns
                 critChance = 0.1 -- +10% crit chance
             },
-            startWeapon = 'wand',          -- Magic Wand (legacy energy)
-            startSecondary = 'atomos',     -- Energy pistol
+            startRanged = 'wand',          -- Magic Wand
+            startMelee = 'karyst',     -- Dagger
             preferredUpgrades = {'fire_wand', 'static_orb', 'lanka', 'thunder_loop'},
             ability = {
                 name = "Blink",
@@ -447,7 +447,7 @@ function state.init()
             desc = "Pet focused, balanced. Q: Summon Aid (heal/buff pet)",
             baseStats = {
                 maxHp = 100,
-                armor = 1,
+                armor = 60,
                 moveSpeed = 135,
                 might = 1.0,
                 statusChance = 0.15, -- +15% status proc chance
@@ -500,7 +500,7 @@ function state.init()
             desc = "电系战甲。高护盾/能量，技能强化电击。Q: Shock (链电)",
             baseStats = {
                 maxHp = 85,
-                armor = 0,
+                armor = 25,
                 moveSpeed = 155,           -- Volt is still fastest
                 might = 1.0,
                 maxShield = 180,           -- High shields
@@ -1135,75 +1135,6 @@ function state.init()
         -- These effects are now handled by the WF MOD system
         -- ===================================================================
 
-
-        -- Warframe-style Mods (loadout-only, per-weapon)
-        mod_serration = {
-            type = 'mod', name = "Serration",
-            desc = "+15% Damage per rank.",
-            maxLevel = 5,
-            targetTags = {'weapon'},
-            effect = { damage = 0.15 }
-        },
-        mod_split_chamber = {
-            type = 'mod', name = "Split Chamber",
-            desc = "+1 Multishot per rank.",
-            maxLevel = 3,
-            targetTags = {'weapon', 'projectile'},
-            effect = { amount = 1 }
-        },
-        mod_point_strike = {
-            type = 'mod', name = "Point Strike",
-            desc = "+10% Crit Chance per rank.",
-            maxLevel = 5,
-            targetTags = {'weapon'},
-            effect = { critChance = 0.10 }
-        },
-        mod_vital_sense = {
-            type = 'mod', name = "Vital Sense",
-            desc = "+20% Crit Damage per rank.",
-            maxLevel = 5,
-            targetTags = {'weapon'},
-            effect = { critMultiplier = 0.20 }
-        },
-        mod_status_matrix = {
-            type = 'mod', name = "Status Matrix",
-            desc = "+10% Status Chance per rank.",
-            maxLevel = 5,
-            targetTags = {'weapon'},
-            effect = { statusChance = 0.10 }
-        },
-        mod_heated_charge = {
-            type = 'mod', name = "Heated Charge",
-            desc = "Adds Heat damage.",
-            maxLevel = 5,
-            targetTags = {'weapon'},
-            effect = { damage = 0.05 },
-            addElements = { HEAT = 1 }
-        },
-        mod_cryogenic_rounds = {
-            type = 'mod', name = "Cryogenic Rounds",
-            desc = "Adds Cold damage.",
-            maxLevel = 5,
-            targetTags = {'weapon'},
-            effect = { damage = 0.05 },
-            addElements = { COLD = 1 }
-        },
-        mod_stormbringer = {
-            type = 'mod', name = "Stormbringer",
-            desc = "Adds Electric damage.",
-            maxLevel = 5,
-            targetTags = {'weapon'},
-            effect = { damage = 0.05 },
-            addElements = { ELECTRIC = 1 }
-        },
-        mod_infected_clip = {
-            type = 'mod', name = "Infected Clip",
-            desc = "Adds Toxin damage.",
-            maxLevel = 5,
-            targetTags = {'weapon'},
-            effect = { damage = 0.05 },
-            addElements = { TOXIN = 1 }
-        },
 
         -- Mechanics Augments (per-run, change play patterns)
         aug_gilded_instinct = {
