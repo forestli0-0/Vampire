@@ -28,6 +28,7 @@ local levelupScreen = require('ui.screens.levelup')
 local shopScreen = require('ui.screens.shop')
 local gameoverScreen = require('ui.screens.gameover')
 local orbiterScreen = require('ui.screens.orbiter')
+local ingameMenu = require('ui.screens.ingame_menu')
 
 -- Enable new HUD
 draw.useNewHUD = true
@@ -79,6 +80,11 @@ end
 function love.update(dt)
     -- HUD update
     if state.gameState == 'PLAYING' then
+        -- Pause game when in-game menu is open
+        if ingameMenu.isActive() then
+            ingameMenu.update(dt)
+            return
+        end
         hud.update(state, dt)
     end
     
@@ -214,6 +220,10 @@ function love.resize(w, h)
 end
 
 function love.mousemoved(x, y, dx, dy)
+    if state.gameState == 'PLAYING' and ingameMenu.isActive() then
+        ingameMenu.mousemoved(x, y, dx, dy)
+        return
+    end
     if state.gameState == 'ORBITER' then
         orbiterScreen.mousemoved(x, y, dx, dy)
         return  -- Don't also call ui.mousemoved since orbiter uses same core
@@ -222,6 +232,10 @@ function love.mousemoved(x, y, dx, dy)
 end
 
 function love.mousepressed(x, y, button)
+    if state.gameState == 'PLAYING' and ingameMenu.isActive() then
+        ingameMenu.mousepressed(x, y, button)
+        return
+    end
     if state.gameState == 'ORBITER' then
         orbiterScreen.mousepressed(x, y, button)
         return  -- Don't also call ui.mousepressed since orbiter uses same core
@@ -231,6 +245,10 @@ function love.mousepressed(x, y, button)
 end
 
 function love.mousereleased(x, y, button)
+    if state.gameState == 'PLAYING' and ingameMenu.isActive() then
+        ingameMenu.mousereleased(x, y, button)
+        return
+    end
     if state.gameState == 'ORBITER' then
         orbiterScreen.mousereleased(x, y, button)
         return  -- Don't also call ui.mousereleased since orbiter uses same core
@@ -243,6 +261,12 @@ function love.textinput(text)
 end
 
 function love.wheelmoved(x, y)
+    if state.gameState == 'PLAYING' and ingameMenu.isActive() then
+        if ingameMenu.wheelmoved then
+            ingameMenu.wheelmoved(x, y)
+        end
+        return
+    end
     ui.wheelmoved(x, y)
 end
 
@@ -260,6 +284,18 @@ function love.keypressed(key)
     -- UI system key handling
     -- Only process UI input during gameplay to avoid blocking Arsenal/Menu inputs
     if state.gameState == 'PLAYING' then
+        -- Tab toggles in-game menu
+        if key == 'tab' then
+            ingameMenu.toggle(state)
+            return
+        end
+        
+        -- When menu is open, let it handle all input
+        if ingameMenu.isActive() then
+            if ingameMenu.keypressed(key) then return end
+            return  -- Block all other input while menu is open
+        end
+        
         if ui.keypressed(key) then return end
         
         -- Press ESC to pause/return to Arsenal

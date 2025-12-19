@@ -91,12 +91,16 @@ function Widget:clearChildren()
     return self
 end
 
-function Widget:getGlobalPosition()
+function Widget:getGlobalPosition(includeScroll)
     local x, y = self.x, self.y
     local p = self.parent
     while p do
         x = x + p.x
         y = y + p.y
+        if includeScroll then
+            if p.scrollX then x = x - p.scrollX end
+            if p.scrollY then y = y - p.scrollY end
+        end
         p = p.parent
     end
     return x, y

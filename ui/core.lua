@@ -215,26 +215,21 @@ function core.drawDragPreview()
         return
     end
     
-    -- Default preview: semi-transparent copy of widget
-    love.graphics.push()
-    love.graphics.translate(x - core.dragging.x, y - core.dragging.y)
-    
-    -- Draw with transparency
-    love.graphics.setColor(1, 1, 1, 0.7)
-    
-    local gx, gy = core.dragging:getGlobalPosition()
     local w, h = core.dragging.w, core.dragging.h
+    
+    love.graphics.push()
+    love.graphics.translate(x, y)
     
     -- Draw ghost rectangle
     love.graphics.setColor(theme.colors.accent[1], theme.colors.accent[2], theme.colors.accent[3], 0.5)
-    love.graphics.rectangle('fill', gx, gy, w, h, 2, 2)
+    love.graphics.rectangle('fill', 0, 0, w, h, 2, 2)
     love.graphics.setColor(theme.colors.accent[1], theme.colors.accent[2], theme.colors.accent[3], 0.9)
-    love.graphics.rectangle('line', gx, gy, w, h, 2, 2)
+    love.graphics.rectangle('line', 0, 0, w, h, 2, 2)
     
     -- Draw drag data label if available
     if core.dragData and type(core.dragData) == 'table' and core.dragData.label then
         love.graphics.setColor(1, 1, 1, 0.9)
-        love.graphics.printf(core.dragData.label, gx, gy + h/2 - 7, w, 'center')
+        love.graphics.printf(core.dragData.label, 0, h/2 - 7, w, 'center')
     end
     
     love.graphics.pop()
@@ -377,8 +372,8 @@ function core.mousepressed(x, y, button)
             core.dragPending = widget
             core.dragStartX = lx
             core.dragStartY = ly
-            -- Calculate offset from widget origin
-            local gx, gy = widget:getGlobalPosition()
+            -- Calculate offset from widget origin (accounting for scrolls)
+            local gx, gy = widget:getGlobalPosition(true)
             core.dragOffsetX = lx - gx
             core.dragOffsetY = ly - gy
         end
