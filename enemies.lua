@@ -1421,7 +1421,7 @@ function enemies.update(state, dt)
                     end
                 end
             elseif atk and atk.type == 'grapple' then
-                -- Scorpion's grapple hook execution
+                -- Scorpion's grapple hook execution (gradual pull over 3 seconds)
                 if atk.phase == 'windup' then
                     atk.timer = (atk.timer or 0) - dt * coldMult
                     if atk.timer <= 0 then
@@ -1434,36 +1434,92 @@ function enemies.update(state, dt)
                         local playerAng = math.atan2(dy, dx)
                         local angDiff = math.abs((playerAng - ang + math.pi) % (math.pi * 2) - math.pi)
                         
-                        local hitPlayer = (dist <= range and angDiff < 0.3)  -- ~17 degree cone
+                        local hitPlayer = (dist <= range and angDiff < 0.35)  -- ~20 degree cone
                         
                         if hitPlayer then
-                            local damage = atk.damage or 8
+                            -- Initial damage on hook hit
+                            local damage = (atk.damage or 8) * 0.3  -- Reduced initial damage
                             local dmgMult = 1 - getPunctureReduction(e)
                             if dmgMult < 0.25 then dmgMult = 0.25 end
                             player.hurt(state, damage * dmgMult)
                             
-                            -- Pull player towards enemy
-                            local pullDist = math.min(atk.pullDistance or 120, dist * 0.6)
-                            local pullAng = math.atan2(e.y - p.y, e.x - p.x)
-                            local newX = p.x + math.cos(pullAng) * pullDist
-                            local newY = p.y + math.sin(pullAng) * pullDist
+                            -- Start pulling phase
+                            atk.phase = 'pulling'
+                            atk.pullTimer = 3.0  -- 3 seconds to pull player to enemy
+                            atk.pullTotalTime = 3.0
+                            atk.startX = p.x
+                            atk.startY = p.y
+                            atk.targetX = e.x
+                            atk.targetY = e.y
                             
-                            -- Respect walls if arena is enabled
-                            if world and world.enabled and world.moveCircle then
-                                p.x, p.y = world:moveCircle(p.x, p.y, (p.size or 20) / 2, 
-                                    math.cos(pullAng) * pullDist, math.sin(pullAng) * pullDist)
-                            else
-                                p.x, p.y = newX, newY
-                            end
+                            -- Mark player as hooked (for escape detection)
+                            p.grappled = true
+                            p.grappleEnemy = e
+                            p.grappleSlowMult = 0.3  -- Player moves at 30% speed while hooked
                             
-                            if state.spawnEffect then state.spawnEffect('shock', p.x, p.y, 0.8) end
+                            if state.spawnEffect then state.spawnEffect('shock', p.x, p.y, 0.6) end
                             if state.playSfx then state.playSfx('hit') end
-                            
-                            table.insert(state.texts, {x = p.x, y = p.y - 30, text = "GET OVER HERE!", color = {0.9, 0.7, 0.2}, life = 0.8})
+                            table.insert(state.texts, {x = p.x, y = p.y - 30, text = "GET OVER HERE!", color = {0.9, 0.7, 0.2}, life = 1.2})
+                        else
+                            e.attack = nil
+                            e.attackCooldown = atk.cooldown or 5.0
+                        end
+                    end
+                elseif atk.phase == 'pulling' then
+                    -- Check if player escaped (dashed, used movement ability, or enemy died)
+                    local dash = p.dash or {}
+                    local isDashing = (dash.timer and dash.timer > 0)
+                    local escaped = isDashing or
+                                    (p.isSliding) or
+                                    not p.grappled
+                    
+                    if escaped then
+                        -- Player broke free!
+                        p.grappled = false
+                        p.grappleEnemy = nil
+                        p.grappleSlowMult = nil
+                        e.attack = nil
+                        e.attackCooldown = (atk.cooldown or 5.0) * 0.5  -- Shorter cooldown on escape
+                        table.insert(state.texts, {x = p.x, y = p.y - 30, text = "挣脱!", color = {0.4, 1, 0.4}, life = 0.8})
+                    else
+                        -- Continue pulling
+                        atk.pullTimer = atk.pullTimer - dt
+                        local t = 1 - (atk.pullTimer / atk.pullTotalTime)  -- 0 to 1 progress
+                        t = math.min(1, math.max(0, t))
+                        
+                        -- Update target position (enemy may have moved)
+                        atk.targetX = e.x
+                        atk.targetY = e.y
+                        
+                        -- Calculate new position (lerp towards enemy)
+                        local pullX = atk.startX + (atk.targetX - atk.startX) * t
+                        local pullY = atk.startY + (atk.targetY - atk.startY) * t
+                        
+                        -- Apply pull with wall collision
+                        local pullDx = pullX - p.x
+                        local pullDy = pullY - p.y
+                        if world and world.enabled and world.moveCircle then
+                            p.x, p.y = world:moveCircle(p.x, p.y, (p.size or 20) / 2, pullDx, pullDy)
+                        else
+                            p.x, p.y = pullX, pullY
                         end
                         
-                        e.attack = nil
-                        e.attackCooldown = atk.cooldown or 5.0
+                        -- Periodic damage ticks during pull
+                        atk.damageTick = (atk.damageTick or 0) + dt
+                        if atk.damageTick >= 0.8 then
+                            atk.damageTick = 0
+                            local tickDmg = (atk.damage or 8) * 0.15
+                            player.hurt(state, tickDmg)
+                        end
+                        
+                        -- Pull complete or timer expired
+                        if atk.pullTimer <= 0 then
+                            p.grappled = false
+                            p.grappleEnemy = nil
+                            p.grappleSlowMult = nil
+                            e.attack = nil
+                            e.attackCooldown = atk.cooldown or 5.0
+                        end
                     end
                 end
             elseif atk and atk.type == 'suicide' then

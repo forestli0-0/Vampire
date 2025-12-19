@@ -26,7 +26,7 @@ local enemyDefs = {
         healthType = 'FLESH',
         attacks = {
             melee = {range = 45, windup = 0.4, cooldown = 1.8, damage = 8, w = 6},
-            throw = {range = 200, rangeMin = 60, windup = 0.5, cooldown = 3.0, damage = 6, bulletSpeed = 200, bulletLife = 2, bulletSize = 8, w = 3}
+            throw = {range = 200, rangeMin = 60, windup = 0.5, cooldown = 3.0, damage = 6, bulletSpeed = 280, bulletLife = 2, bulletSize = 8, w = 3}
         }
     },
     bat = {
@@ -47,7 +47,7 @@ local enemyDefs = {
         color = {0, 0.7, 0.2},
         healthType = 'INFESTED',
         attacks = {
-            burst = {range = 400, rangeMin = 80, windup = 0.6, count = 3, spread = 0.4, bulletSpeed = 180, bulletDamage = 8, bulletLife = 4, bulletSize = 10, cooldown = 3.5, w = 10}
+            burst = {range = 400, rangeMin = 80, windup = 0.6, count = 3, spread = 0.4, bulletSpeed = 260, bulletDamage = 8, bulletLife = 4, bulletSize = 10, cooldown = 3.5, w = 10}
         }
     },
     charger = {
@@ -69,7 +69,7 @@ local enemyDefs = {
         healthType = 'INFESTED',
         attacks = {
             slam = {range = 420, windup = 0.85, radius = 120, cooldown = 3.0, damage = 16, w = 7},
-            burst = {range = 500, rangeMin = 150, windup = 0.7, count = 5, spread = 0.6, bulletSpeed = 160, bulletDamage = 6, bulletLife = 3, bulletSize = 8, cooldown = 4.0, w = 5}
+            burst = {range = 500, rangeMin = 150, windup = 0.7, count = 5, spread = 0.6, bulletSpeed = 240, bulletDamage = 6, bulletLife = 3, bulletSize = 8, cooldown = 4.0, w = 5}
         }
     },
     dummy_pole = {
@@ -190,7 +190,7 @@ local enemyDefs = {
         healthType = 'CLONED_FLESH',
         attacks = {
             shoot = {range = 350, rangeMin = 100, windup = 0.6, cooldown = 1.8, 
-                     count = 1, spread = 0.05, bulletSpeed = 320, bulletDamage = 10, 
+                     count = 1, spread = 0.05, bulletSpeed = 450, bulletDamage = 10, 
                      bulletLife = 3, bulletSize = 6, w = 10}
         }
     },
@@ -205,7 +205,7 @@ local enemyDefs = {
         armorType = 'FERRITE_ARMOR',
         attacks = {
             burst = {range = 320, rangeMin = 80, windup = 0.4, cooldown = 2.0,
-                     count = 6, spread = 0.35, bulletSpeed = 280, bulletDamage = 6, 
+                     count = 6, spread = 0.35, bulletSpeed = 380, bulletDamage = 6, 
                      bulletLife = 2.5, bulletSize = 5, w = 10}
         }
     },
@@ -218,7 +218,7 @@ local enemyDefs = {
         healthType = 'CLONED_FLESH',
         attacks = {
             snipe = {range = 600, rangeMin = 200, windup = 1.2, cooldown = 4.0,
-                     count = 1, spread = 0, bulletSpeed = 500, bulletDamage = 35, 
+                     count = 1, spread = 0, bulletSpeed = 650, bulletDamage = 35, 
                      bulletLife = 3, bulletSize = 8, 
                      telegraphLength = 400, telegraphWidth = 8, w = 10}
         }
@@ -234,7 +234,7 @@ local enemyDefs = {
         armorType = 'ALLOY_ARMOR',
         attacks = {
             rocket = {range = 400, rangeMin = 120, windup = 0.9, cooldown = 3.5,
-                      count = 1, spread = 0, bulletSpeed = 200, bulletDamage = 28, 
+                      count = 1, spread = 0, bulletSpeed = 300, bulletDamage = 28, 
                       bulletLife = 4, bulletSize = 14,
                       explosive = true, splashRadius = 70, w = 10}
         }
@@ -290,7 +290,7 @@ local enemyDefs = {
         nullBubble = {radius = 100},  -- disables abilities in this radius
         attacks = {
             shoot = {range = 280, rangeMin = 60, windup = 0.5, cooldown = 2.0,
-                     count = 1, spread = 0.1, bulletSpeed = 200, bulletDamage = 8, 
+                     count = 1, spread = 0.1, bulletSpeed = 320, bulletDamage = 8, 
                      bulletLife = 2.5, bulletSize = 6, w = 10}
         }
     }

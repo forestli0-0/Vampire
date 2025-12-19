@@ -285,7 +285,7 @@ function state.init()
             worldY = 0
         },
         stats = {
-            moveSpeed = 140,
+            moveSpeed = 110,
             might = 1.0,
             cooldown = 1.0,
             area = 1.0,
@@ -319,7 +319,7 @@ function state.init()
             baseStats = {
                 maxHp = 120,
                 armor = 2,
-                moveSpeed = 170,
+                moveSpeed = 125,
                 might = 1.1,
                 maxShield = 80,   -- Warriors rely more on Armor/HP
                 maxEnergy = 100,
@@ -385,7 +385,7 @@ function state.init()
             baseStats = {
                 maxHp = 80,
                 armor = 0,
-                moveSpeed = 190,
+                moveSpeed = 145,
                 might = 1.0,
                 maxShield = 150, -- Mages rely on Shields
                 maxEnergy = 200, -- Mages have more Energy
@@ -448,7 +448,7 @@ function state.init()
             baseStats = {
                 maxHp = 100,
                 armor = 1,
-                moveSpeed = 180,
+                moveSpeed = 135,
                 might = 1.0,
                 statusChance = 0.15, -- +15% status proc chance
                 petHpBonus = 0.25  -- +25% pet HP
@@ -501,7 +501,7 @@ function state.init()
             baseStats = {
                 maxHp = 85,
                 armor = 0,
-                moveSpeed = 200,           -- Volt is fast
+                moveSpeed = 155,           -- Volt is still fastest
                 might = 1.0,
                 maxShield = 180,           -- High shields
                 maxEnergy = 200,           -- High energy for ability spam

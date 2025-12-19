@@ -381,6 +381,13 @@ function player.tryDash(state, dirX, dirY)
 
     -- Cancel melee attack on dash (Hades-style responsiveness)
     player.cancelMelee(state)
+    
+    -- Escape from grapple hook (Scorpion)
+    if p.grappled then
+        p.grappled = false
+        p.grappleEnemy = nil
+        p.grappleSlowMult = nil
+    end
 
     local dash = ensureDashState(p)
     if not dash or (dash.maxCharges or 0) <= 0 then return false end
