@@ -108,30 +108,38 @@ end
 
 local function buildEnemyPool(roomIndex)
     local pool = {
-        {key = 'skeleton', w = 10}
+        {key = 'skeleton', w = 6}  -- Reduced from 10, melee hybrid
     }
     if roomIndex >= 2 then
-        table.insert(pool, {key = 'bat', w = 6})
-        table.insert(pool, {key = 'charger', w = 4})
+        table.insert(pool, {key = 'bat', w = 4})       -- Reduced from 6
+        table.insert(pool, {key = 'charger', w = 3})   -- Reduced from 4
+        table.insert(pool, {key = 'lancer', w = 8})    -- NEW: basic ranged
     end
     if roomIndex >= 3 then
         table.insert(pool, {key = 'plant', w = 4})
     end
     if roomIndex >= 4 then
         table.insert(pool, {key = 'spore_mortar', w = 3})
+        table.insert(pool, {key = 'heavy_gunner', w = 5})  -- NEW: burst fire
+        table.insert(pool, {key = 'ballista', w = 3})       -- NEW: sniper
     end
     if roomIndex >= 5 then
-        table.insert(pool, {key = 'shield_lancer', w = 4})
+        table.insert(pool, {key = 'shield_lancer', w = 3}) -- Reduced from 4
+        table.insert(pool, {key = 'bombard', w = 4})        -- NEW: rocket AOE
     end
     if roomIndex >= 6 then
-        table.insert(pool, {key = 'armored_brute', w = 3})
+        table.insert(pool, {key = 'armored_brute', w = 2}) -- Reduced from 3
     end
     return pool
 end
 
 local function chooseEliteKind(roomIndex)
     if (roomIndex or 0) < 4 then return 'skeleton' end
-    local candidates = {'skeleton', 'bat', 'plant', 'charger', 'spore_mortar', 'shield_lancer'}
+    local candidates = {'skeleton', 'bat', 'plant', 'charger', 'spore_mortar', 'shield_lancer', 'lancer', 'heavy_gunner'}
+    if (roomIndex or 0) >= 5 then
+        table.insert(candidates, 'ballista')
+        table.insert(candidates, 'bombard')
+    end
     if (roomIndex or 0) >= 6 then
         table.insert(candidates, 'armored_brute')
     end

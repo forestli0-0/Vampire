@@ -1174,7 +1174,10 @@ function enemies.update(state, dt)
                                 damage = bulletDmg,
                                 type = e.kind,
                                 rotation = ang,
-                                spriteKey = spriteKey
+                                spriteKey = spriteKey,
+                                -- Explosive properties for bombard rockets
+                                explosive = atk.explosive,
+                                splashRadius = atk.splashRadius
                             })
                         end
                         e.attack = nil
@@ -1637,6 +1640,104 @@ function enemies.update(state, dt)
                     -- Show charge line
                     if state.spawnTelegraphLine then
                         state.spawnTelegraphLine(e.x, e.y, e.x + math.cos(angToTarget) * distance, e.y + math.sin(angToTarget) * distance, width, windup, lineOpts)
+                    end
+
+                -- ===== New Attack Types for Batch 1 Ranged Enemies =====
+                elseif key == 'shoot' then
+                    -- Single accurate shot (Lancer-style)
+                    local windup = math.max(0.3, (cfg.windup or 0.6) * windupMult)
+                    local count = cfg.count or 1
+                    local spread = cfg.spread or 0.05
+                    local bulletSpeed = (cfg.bulletSpeed or 320) * (e.eliteBulletSpeedMult or 1)
+                    local bulletDamage = (cfg.bulletDamage or 10) * eliteDamageMult
+                    local bulletLife = cfg.bulletLife or 3
+                    local bulletSize = cfg.bulletSize or 6
+                    local cooldown = cfg.cooldown or 1.8
+                    
+                    e.attack = {
+                        type = 'burst',  -- Reuse burst execution logic
+                        phase = 'windup',
+                        timer = windup,
+                        interruptible = true,
+                        ang = angToTarget,
+                        count = count,
+                        spread = spread,
+                        bulletSpeed = bulletSpeed,
+                        bulletDamage = bulletDamage,
+                        bulletLife = bulletLife,
+                        bulletSize = bulletSize,
+                        cooldown = cooldown
+                    }
+                    
+                    -- Short telegraph line
+                    if state.spawnTelegraphLine then
+                        local len = 180
+                        state.spawnTelegraphLine(e.x, e.y, e.x + math.cos(angToTarget) * len, e.y + math.sin(angToTarget) * len, 12, windup, lineOpts)
+                    end
+                    
+                elseif key == 'snipe' then
+                    -- High damage sniper shot with long telegraph (Ballista-style)
+                    local windup = math.max(0.8, (cfg.windup or 1.2) * windupMult)
+                    local bulletSpeed = (cfg.bulletSpeed or 500) * (e.eliteBulletSpeedMult or 1)
+                    local bulletDamage = (cfg.bulletDamage or 35) * eliteDamageMult
+                    local bulletLife = cfg.bulletLife or 3
+                    local bulletSize = cfg.bulletSize or 8
+                    local cooldown = cfg.cooldown or 4.0
+                    local telegraphLen = cfg.telegraphLength or 400
+                    local telegraphWidth = cfg.telegraphWidth or 8
+                    
+                    e.attack = {
+                        type = 'burst',  -- Reuse burst execution logic
+                        phase = 'windup',
+                        timer = windup,
+                        interruptible = true,
+                        ang = angToTarget,
+                        count = 1,
+                        spread = 0,
+                        bulletSpeed = bulletSpeed,
+                        bulletDamage = bulletDamage,
+                        bulletLife = bulletLife,
+                        bulletSize = bulletSize,
+                        cooldown = cooldown
+                    }
+                    
+                    -- Long visible telegraph line (sniper laser sight)
+                    if state.spawnTelegraphLine then
+                        state.spawnTelegraphLine(e.x, e.y, e.x + math.cos(angToTarget) * telegraphLen, e.y + math.sin(angToTarget) * telegraphLen, telegraphWidth, windup, {color = {1, 0.2, 0.2}})
+                    end
+                    
+                elseif key == 'rocket' then
+                    -- Explosive projectile (Bombard-style)
+                    local windup = math.max(0.5, (cfg.windup or 0.9) * windupMult)
+                    local bulletSpeed = (cfg.bulletSpeed or 200) * (e.eliteBulletSpeedMult or 1)
+                    local bulletDamage = (cfg.bulletDamage or 28) * eliteDamageMult
+                    local bulletLife = cfg.bulletLife or 4
+                    local bulletSize = cfg.bulletSize or 14
+                    local cooldown = cfg.cooldown or 3.5
+                    local splashRadius = cfg.splashRadius or 70
+                    
+                    e.attack = {
+                        type = 'burst',  -- Reuse burst execution logic
+                        phase = 'windup',
+                        timer = windup,
+                        interruptible = true,
+                        ang = angToTarget,
+                        count = 1,
+                        spread = 0,
+                        bulletSpeed = bulletSpeed,
+                        bulletDamage = bulletDamage,
+                        bulletLife = bulletLife,
+                        bulletSize = bulletSize,
+                        cooldown = cooldown,
+                        explosive = true,
+                        splashRadius = splashRadius,
+                        spriteKey = 'rocket'  -- Optional visual
+                    }
+                    
+                    -- Show aim line
+                    if state.spawnTelegraphLine then
+                        local len = 280
+                        state.spawnTelegraphLine(e.x, e.y, e.x + math.cos(angToTarget) * len, e.y + math.sin(angToTarget) * len, 20, windup, {color = {1, 0.5, 0.2}})
                     end
 
                 end

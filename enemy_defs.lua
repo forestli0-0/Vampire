@@ -179,6 +179,65 @@ local enemyDefs = {
         healthType = 'FOSSILIZED',
         shieldType = 'PROTO_SHIELD',
         armorType = 'INFESTED_SINEW'
+    },
+    -- ========== Batch 1: Simple Ranged Enemies (WF-style) ==========
+    -- Lancer: Basic ranged rifleman, single accurate shots
+    lancer = {
+        hp = 18,
+        speed = 50,
+        size = 22,
+        color = {0.6, 0.6, 0.7},
+        healthType = 'CLONED_FLESH',
+        attacks = {
+            shoot = {range = 350, rangeMin = 100, windup = 0.6, cooldown = 1.8, 
+                     count = 1, spread = 0.05, bulletSpeed = 320, bulletDamage = 10, 
+                     bulletLife = 3, bulletSize = 6, w = 10}
+        }
+    },
+    -- Heavy Gunner: Sustained fire suppression, armored
+    heavy_gunner = {
+        hp = 75,
+        armor = 60,
+        speed = 30,
+        size = 32,
+        color = {0.5, 0.4, 0.3},
+        healthType = 'CLONED_FLESH',
+        armorType = 'FERRITE_ARMOR',
+        attacks = {
+            burst = {range = 320, rangeMin = 80, windup = 0.4, cooldown = 2.0,
+                     count = 6, spread = 0.35, bulletSpeed = 280, bulletDamage = 6, 
+                     bulletLife = 2.5, bulletSize = 5, w = 10}
+        }
+    },
+    -- Ballista: Sniper with long windup, high damage, telegraph line
+    ballista = {
+        hp = 25,
+        speed = 25,
+        size = 22,
+        color = {0.4, 0.5, 0.6},
+        healthType = 'CLONED_FLESH',
+        attacks = {
+            snipe = {range = 600, rangeMin = 200, windup = 1.2, cooldown = 4.0,
+                     count = 1, spread = 0, bulletSpeed = 500, bulletDamage = 35, 
+                     bulletLife = 3, bulletSize = 8, 
+                     telegraphLength = 400, telegraphWidth = 8, w = 10}
+        }
+    },
+    -- Bombard: Rocket launcher with AOE explosion
+    bombard = {
+        hp = 55,
+        armor = 45,
+        speed = 35,
+        size = 28,
+        color = {0.8, 0.3, 0.2},
+        healthType = 'CLONED_FLESH',
+        armorType = 'ALLOY_ARMOR',
+        attacks = {
+            rocket = {range = 400, rangeMin = 120, windup = 0.9, cooldown = 3.5,
+                      count = 1, spread = 0, bulletSpeed = 200, bulletDamage = 28, 
+                      bulletLife = 4, bulletSize = 14,
+                      explosive = true, splashRadius = 70, w = 10}
+        }
     }
 }
 

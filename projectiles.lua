@@ -472,9 +472,41 @@ function projectiles.updateEnemyBullets(state, dt)
         end
 
         if eb.life <= 0 or math.abs(eb.x - state.player.x) > 1500 or math.abs(eb.y - state.player.y) > 1500 then
+            -- Check if explosive bullet expired near targets (detonation)
+            if eb.explosive and eb.splashRadius and eb.splashRadius > 0 then
+                local splashR = eb.splashRadius
+                local splashR2 = splashR * splashR
+                local px, py = state.player.x, state.player.y
+                local dx, dy = eb.x - px, eb.y - py
+                if dx*dx + dy*dy <= splashR2 and state.player.invincibleTimer <= 0 then
+                    player.hurt(state, eb.damage * 0.6)  -- Reduced splash damage
+                end
+                local pet = pets.getActive(state)
+                if pet and not pet.downed then
+                    local pdx, pdy = eb.x - (pet.x or 0), eb.y - (pet.y or 0)
+                    if pdx*pdx + pdy*pdy <= splashR2 then
+                        pets.hurt(state, pet, eb.damage * 0.6)
+                    end
+                end
+                if state.spawnEffect then state.spawnEffect('blast_hit', eb.x, eb.y, 1.2) end
+            end
             table.remove(state.enemyBullets, i)
         elseif state.player.invincibleTimer <= 0 and util.checkCollision(eb, {x=state.player.x, y=state.player.y, size=state.player.size}) then
             player.hurt(state, eb.damage)
+            -- Handle explosive splash damage on direct hit
+            if eb.explosive and eb.splashRadius and eb.splashRadius > 0 then
+                local splashR = eb.splashRadius
+                if state.spawnEffect then state.spawnEffect('blast_hit', eb.x, eb.y, 1.2) end
+                -- Also hurt pet if in splash radius
+                local pet = pets.getActive(state)
+                if pet and not pet.downed then
+                    local pdx = eb.x - (pet.x or 0)
+                    local pdy = eb.y - (pet.y or 0)
+                    if pdx*pdx + pdy*pdy <= splashR * splashR then
+                        pets.hurt(state, pet, eb.damage * 0.6)
+                    end
+                end
+            end
             table.remove(state.enemyBullets, i)
         else
             local pet = pets.getActive(state)
