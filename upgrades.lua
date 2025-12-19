@@ -45,7 +45,6 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
     if allowFallback == nil then allowFallback = true end
     local poolExisting = {}
     local poolNew = {}
-    local evolvePool = {}
     local added = {}
     local function addOption(list, opt)
         local key = opt.key .. (opt.evolveFrom or "")
@@ -211,19 +210,7 @@ function upgrades.generateUpgradeOptions(state, request, allowFallback)
             end
         end
 
-        -- 可进化时将进化体作为额外选项（不会重复出现）
-        if item.type == 'weapon' and canEvolve(state, key) then
-            local targetKey = item.evolveInfo.target
-            local target = state.catalog[targetKey]
-            addOption(evolvePool, {
-                key = targetKey,
-                type = target.type,
-                name = target.name,
-                desc = "Evolve " .. item.name .. " into " .. target.name,
-                def = target,
-                evolveFrom = key
-            })
-        end
+
         ::continue_catalog::
     end
 
