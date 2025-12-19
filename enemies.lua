@@ -1838,16 +1838,26 @@ function enemies.update(state, dt)
                         local xpValue = e.xp or (e.isElite and 50 or 10)
                         if e.isBoss then xpValue = 500 end
                         
-                        -- Spawn visual XP particle (Gem)
-                        if state.gems then
-                            table.insert(state.gems, {
-                                x = e.x, 
-                                y = e.y, 
-                                value = xpValue, 
-                                spawnTime = state.gameTimer or 0,
-                                magnetized = false
+                        -- Gain XP directly (Warframe style affinity)
+                        require('pickups').addXp(state, xpValue)
+                        
+                        -- Show pale floating text near player
+                        if state.texts then
+                            local px = state.player.x
+                            local py = state.player.y
+                            -- Slight random offset to prevent overlap
+                            local ox = (math.random() - 0.5) * 40
+                            local oy = (math.random() - 0.5) * 40 - 30
+                            table.insert(state.texts, {
+                                x = px + ox, 
+                                y = py + oy, 
+                                text = "+" .. tostring(xpValue) .. " XP", 
+                                color = {0.6, 0.65, 0.7, 0.8}, -- Pale blue-grey
+                                life = 0.6,
+                                scale = 0.8
                             })
                         end
+
 
                         local exploreMode = (state.runMode == 'explore') or (state.world and state.world.enabled)
                         if exploreMode then

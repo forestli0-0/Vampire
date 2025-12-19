@@ -9,7 +9,7 @@ local pickups = {}
 
 -- updateMagnetSpawns removed
 
-local function addXp(state, amount)
+function pickups.addXp(state, amount)
     local p = state.player
     p.xp = p.xp + amount
     logger.gainXp(state, amount)
@@ -104,7 +104,7 @@ function pickups.updateGems(state, dt)
             else
                 amt = ctx.amount or amt
                 ctx.amount = amt
-                addXp(state, amt)
+                pickups.addXp(state, amt)
                 if state and state.augments and state.augments.dispatch then
                     state.augments.dispatch(state, 'postPickup', ctx)
                 end
