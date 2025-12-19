@@ -669,6 +669,41 @@ function calculator.applyDamage(state, enemy, instance, opts)
             local shown = math.floor(totalApplied + 0.5)
             local color = {1,1,1}
             local scale = 1
+            local life = 0.8
+            local alpha = 1.0
+            
+            -- === DAMAGE-BASED SCALING ===
+            -- Tiny damage (1-5): very small, fades fast, less visible
+            -- Small damage (6-20): smaller than normal
+            -- Normal damage (21-100): standard size
+            -- Big damage (101-500): larger
+            -- Huge damage (500+): very large and prominent
+            if shown <= 5 then
+                -- Tiny DoT ticks - barely visible
+                scale = 0.5
+                life = 0.35
+                alpha = 0.5
+                color = {0.7, 0.7, 0.7}  -- Dimmer white
+            elseif shown <= 20 then
+                -- Small damage
+                scale = 0.7
+                life = 0.5
+                alpha = 0.7
+            elseif shown <= 100 then
+                -- Normal damage - standard
+                scale = 1.0
+                life = 0.8
+            elseif shown <= 500 then
+                -- Big damage - larger
+                scale = 1.2
+                life = 1.0
+            else
+                -- Huge damage - very prominent
+                scale = 1.5
+                life = 1.2
+            end
+            
+            -- Crit overrides (add to base scale)
             if isCrit and isCrit > 0 then
                 if isCrit == 1 then
                     color = {1, 1, 0} -- Yellow
@@ -677,22 +712,30 @@ function calculator.applyDamage(state, enemy, instance, opts)
                 else
                     color = {1, 0, 0} -- Red
                 end
-                scale = 1 + isCrit * 0.25
+                -- Crits add to scale and always show prominently
+                scale = scale + isCrit * 0.25
+                life = math.max(life, 0.8)
+                alpha = 1.0
             elseif totalShield > 0 and totalHealth == 0 then
                 color = {0.4, 0.7, 1}
             end
-            local shown = math.floor(totalApplied + 0.5)
+            
+            -- Apply alpha to color
+            color[4] = alpha
+            
             local textOffsetY = opts.textOffsetY or 0
-            -- Random offset to prevent stacking
-            local randX = (math.random() - 0.5) * 40
-            local randY = (math.random() - 0.5) * 20
+            -- Random offset to prevent stacking (smaller offset for tiny damage)
+            local offsetMult = (shown <= 5) and 0.3 or 1.0
+            local randX = (math.random() - 0.5) * 40 * offsetMult
+            local randY = (math.random() - 0.5) * 20 * offsetMult
             local floatSpeed = 50 + math.random() * 30  -- Vary speed for natural spread
+            
             table.insert(state.texts, {
                 x = enemy.x + randX, 
                 y = enemy.y - 20 + textOffsetY + randY, 
                 text = shown, 
                 color = color, 
-                life = 0.8, 
+                life = life, 
                 scale = scale,
                 floatSpeed = floatSpeed
             })

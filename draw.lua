@@ -1590,8 +1590,13 @@ function draw.renderWorld(state)
     -- 飘字 (Floating damage numbers with scale and outline)
     for _, t in ipairs(state.texts) do
         local scale = t.scale or 1
-        local alpha = math.min(1, (t.life or 0.5) / 0.3)  -- Fade out in last 0.3s
+        local fadeAlpha = math.min(1, (t.life or 0.5) / 0.3)  -- Fade out in last 0.3s
+        local colorAlpha = t.color[4] or 1  -- Get alpha from color (if specified)
+        local alpha = fadeAlpha * colorAlpha  -- Combine both alphas
         local text = tostring(t.text)
+        
+        -- Skip very low alpha (saves draw calls for tiny/faded damage)
+        if alpha < 0.05 then goto continue_text end
         
         -- Use state.font explicitly to ensure Chinese font support
         -- (Don't rely on getFont which might be corrupted by other code)
@@ -1602,12 +1607,14 @@ function draw.renderWorld(state)
         local drawX = t.x - tw / 2
         local drawY = t.y - th / 2
         
-        -- Draw black outline for visibility
-        love.graphics.setColor(0, 0, 0, alpha * 0.8)
-        for ox = -1, 1 do
-            for oy = -1, 1 do
-                if ox ~= 0 or oy ~= 0 then
-                    love.graphics.print(text, drawX + ox, drawY + oy, 0, scale, scale)
+        -- Draw black outline for visibility (skip for very small scale)
+        if scale >= 0.6 then
+            love.graphics.setColor(0, 0, 0, alpha * 0.8)
+            for ox = -1, 1 do
+                for oy = -1, 1 do
+                    if ox ~= 0 or oy ~= 0 then
+                        love.graphics.print(text, drawX + ox, drawY + oy, 0, scale, scale)
+                    end
                 end
             end
         end
@@ -1615,6 +1622,8 @@ function draw.renderWorld(state)
         -- Draw main text
         love.graphics.setColor(t.color[1], t.color[2], t.color[3], alpha)
         love.graphics.print(text, drawX, drawY, 0, scale, scale)
+        
+        ::continue_text::
     end
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.pop()
