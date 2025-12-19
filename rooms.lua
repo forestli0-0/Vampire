@@ -349,45 +349,23 @@ local function spawnRewardChest(state, r)
 
     local cx = r.roomCenterX or state.player.x
     local cy = r.roomCenterY or state.player.y
-    -- Ensure chest doesn't spawn in a wall (e.g., center pillar)
+    -- Ensure position is valid for door spawn later
     if state.world and state.world.enabled and state.world.adjustToWalkable then
-        -- Use a larger search radius (12 tiles approx 384px) to ensure we find a valid spot
         local ax, ay = state.world:adjustToWalkable(cx, cy, 12)
         if ax and ay then
             cx, cy = ax, ay
         elseif state.world.sampleValidFloor then
-            -- Absolute fallback: Find ANY valid floor tile
             cx, cy = state.world:sampleValidFloor(50)
         end
     end
+    
+    -- Store room center for door positioning
+    r.roomCenterX = cx
+    r.roomCenterY = cy
 
-    local rewardType = r.roomRewardType
-    if rewardType == nil then
-        local cycle = r.rewardCycle
-        if type(cycle) == 'table' and #cycle > 0 then
-            rewardType = cycle[((r.roomIndex or 1) - 1) % #cycle + 1]
-        end
-    end
-    local chest = {
-        x = cx,
-        y = cy,
-        w = 20,
-        h = 20,
-        kind = 'room_reward',
-        room = r.roomIndex,
-        rewardType = rewardType,
-        roomKind = r.roomKind,
-        bonusLevelUps = nil
-    }
-    if r.roomKind == 'elite' then
-        local bonus = tonumber(r.eliteRoomBonusUpgrades) or 0
-        bonus = math.max(0, math.floor(bonus))
-        if bonus > 0 then
-            chest.bonusLevelUps = bonus
-        end
-    end
-    table.insert(state.chests, chest)
-    r.rewardChest = chest
+    -- SKIP CHEST: Go directly to doors phase without spawning a chest
+    -- (No chest, no orbiter - straight to mission selection)
+    r.rewardChest = nil  -- Mark as consumed immediately
 
     -- Extra pet progression (low frequency): elite rooms may drop a pet chip.
     if r.roomKind == 'elite' and state.floorPickups then
@@ -401,15 +379,13 @@ local function spawnRewardChest(state, r)
         end
     end
 
-    local rewardLabel = ''
-    if rewardType then rewardLabel = ' (' .. string.upper(tostring(rewardType)) .. ')' end
     local clearLabel = (r.roomKind == 'elite') and 'ELITE CLEAR!' or 'ROOM CLEAR!'
     table.insert(state.texts, {
         x = cx,
         y = cy - 100,
-        text = clearLabel .. rewardLabel,
-        color = {0.8, 1, 0.8},
-        life = 1.8
+        text = clearLabel,
+        color = {0.3, 1, 0.4},
+        life = 1.2
     })
 end
 
@@ -418,9 +394,10 @@ local function spawnDoors(state, r)
     clearList(state.doors)
 
     -- Three mission types for Warframe-style door selection
+    -- Center door is exterminate for quick access during testing
     local missionTypes = {
-        {type = 'exterminate', name = '歼灭', color = {1.0, 0.5, 0.4}},
         {type = 'defense', name = '防御', color = {0.4, 0.8, 1.0}},
+        {type = 'exterminate', name = '歼灭', color = {1.0, 0.5, 0.4}},  -- CENTER
         {type = 'survival', name = '生存', color = {0.5, 1.0, 0.5}}
     }
 
@@ -676,10 +653,7 @@ function rooms.update(state, dt)
     end
 
     if r.phase == 'reward' then
-        -- advance only after the room reward chest has been opened/consumed.
-        if r.rewardChest and containsRef(state.chests, r.rewardChest) then
-            return
-        end
+        -- Since chest is skipped, go straight to doors
         r.rewardChest = nil
 
         -- if the next room is the boss room, skip branching and move on.
@@ -690,23 +664,9 @@ function rooms.update(state, dt)
             return
         end
 
-        -- Enter orbiter (ship) phase for MOD configuration
-        r.phase = 'orbiter'
-        state.gameState = 'ORBITER'
-        
-        -- Initialize orbiter UI
-        local ok, orbiterModule = pcall(require, 'ui.screens.orbiter')
-        if ok and orbiterModule and orbiterModule.init then
-            orbiterModule.init(state)
-        end
-        
-        table.insert(state.texts, {
-            x = state.player.x,
-            y = state.player.y - 80,
-            text = "进入飞船整备...",
-            color = {0.6, 0.8, 1},
-            life = 1.0
-        })
+        -- Skip orbiter, go directly to doors phase
+        r.phase = 'doors'
+        spawnDoors(state, r)
         return
     end
 
