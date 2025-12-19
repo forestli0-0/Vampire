@@ -859,16 +859,17 @@ function abilities.interruptCast(state, reason)
     return true
 end
 
--- Get ability index for keyboard input (Q=1, E=2, C=3, V=4)
+-- Get ability index for keyboard input (1, 2, 3, 4)
 function abilities.getAbilityForKey(key)
     local keyMap = {
-        q = 1, Q = 1,
-        e = 2, E = 2,
-        c = 3, C = 3,
-        v = 4, V = 4
+        ['1'] = 1,
+        ['2'] = 2,
+        ['3'] = 3,
+        ['4'] = 4
     }
     return keyMap[key]
 end
+
 
 -- Alias for backward compatibility (used by HUD)
 abilities.getAbilityDef = abilities.getAbilityByIndex

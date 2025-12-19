@@ -502,13 +502,12 @@ function player.keypressed(state, key)
     local p = state.player
     local input = require('input')
     
-    -- Weapon slot switching (1/2 for 2-slot system, F to cycle)
-    if key == '1' or input.isActionKey(key, 'weapon1') then return player.switchWeaponSlot(state, 'ranged') end
-    if key == '2' or input.isActionKey(key, 'weapon2') then return player.switchWeaponSlot(state, 'melee') end
+    -- Weapon cycling (F key)
     if input.isActionKey(key, 'cycle_weapon') then
         local weapons = require('weapons')
         return weapons.cycleSlots(state)
     end
+
     
     -- Reload (R key)
     if input.isActionKey(key, 'reload') then
