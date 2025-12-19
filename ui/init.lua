@@ -16,10 +16,12 @@ ui.Bar = require('ui.widgets.bar')
 ui.Slot = require('ui.widgets.slot')
 ui.Text = require('ui.widgets.text')
 ui.Tooltip = require('ui.widgets.tooltip')
+ui.ScrollContainer = require('ui.widgets.scroll_container')
 
 -------------------------------------------
 -- Convenience Functions
 -------------------------------------------
+
 
 --- Initialize the UI system
 function ui.init()
@@ -85,10 +87,15 @@ function ui.keypressed(key, scancode, isrepeat)
 end
 
 --- Forward text input event
----@return boolean consumed Whether UI consumed the event
 function ui.textinput(text)
     return ui.core.textinput(text)
 end
+
+--- Forward mouse wheel event
+function ui.wheelmoved(x, y)
+    return ui.core.wheelmoved(x, y)
+end
+
 
 -------------------------------------------
 -- Utility Constructors
@@ -135,6 +142,14 @@ end
 function ui.newTooltip(opts)
     return ui.Tooltip.new(opts)
 end
+
+--- Create a new ScrollContainer
+---@param opts table Options
+---@return table ScrollContainer widget
+function ui.newScrollContainer(opts)
+    return ui.ScrollContainer.new(opts)
+end
+
 
 -------------------------------------------
 -- Layout Helpers

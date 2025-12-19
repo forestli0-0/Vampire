@@ -509,14 +509,22 @@ function orbiter.buildInventory(parent)
     invSlots = {}
     local invGridY = invY + 14
     
+    -- Inventory scrollable container
+    local scrollW = INV_COLS * (SLOT_SIZE + SLOT_GAP)
+    local scrollH = SCREEN_H - invGridY - 24
+    local scrollContainer = ui.newScrollContainer({
+        x = PANEL_X, y = invGridY,
+        w = scrollW, h = scrollH,
+        scrollbarVisible = true
+    })
+    parent:addChild(scrollContainer)
+    
     for idx, modData in ipairs(inventory) do
-        if idx > 24 then break end
-        
         local row = math.floor((idx - 1) / INV_COLS)
         local col = (idx - 1) % INV_COLS
         
-        local invX = PANEL_X + col * (SLOT_SIZE + SLOT_GAP)
-        local invYPos = invGridY + row * (SLOT_SIZE + SLOT_GAP)
+        local invX = col * (SLOT_SIZE + SLOT_GAP)
+        local invYPos = row * (SLOT_SIZE + SLOT_GAP)
         
         local actualIdx = 0
         for i, m in ipairs(state.runMods.inventory) do
@@ -597,9 +605,10 @@ function orbiter.buildInventory(parent)
             orbiter.buildUI()
         end)
         
-        parent:addChild(slot)
+        scrollContainer:addChild(slot)
         invSlots[idx] = slot
     end
+
 end
 
 function orbiter.buildStatsPanel(parent)

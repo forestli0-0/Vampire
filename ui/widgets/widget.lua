@@ -293,6 +293,12 @@ function Widget:onRightClick(x, y)
     self:emit('rightClick', x, y)
 end
 
+-- Called on mouse wheel movement
+function Widget:onWheel(x, y)
+    self:emit('wheel', x, y)
+end
+
+
 -- Called when widget gains focus
 function Widget:onFocus()
     self.focused = true

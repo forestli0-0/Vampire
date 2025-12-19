@@ -98,16 +98,21 @@ end
 -- Hit Testing
 -------------------------------------------
 
-local function hitTest(widget, x, y)
+function core.hitTest(widget, x, y)
     if not widget or not widget.visible or not widget.enabled then
         return nil
     end
     
+    -- If widget has custom hitTest override, use it
+    if widget.hitTest and widget.hitTest ~= core.hitTest then
+        return widget:hitTest(x, y)
+    end
+
     -- Check children first (reverse order for proper z-order)
     if widget.children then
         for i = #widget.children, 1, -1 do
             local child = widget.children[i]
-            local hit = hitTest(child, x, y)
+            local hit = core.hitTest(child, x, y)
             if hit then return hit end
         end
     end
@@ -135,7 +140,7 @@ function core.update(dt)
     -- Update hover state
     local newHover = nil
     if core.root then
-        newHover = hitTest(core.root, core.mouseX, core.mouseY)
+        newHover = core.hitTest(core.root, core.mouseX, core.mouseY)
     end
     
     if newHover ~= core.hover then
@@ -360,7 +365,7 @@ function core.mousepressed(x, y, button)
     -- Hit test
     local widget = nil
     if core.root then
-        widget = hitTest(core.root, lx, ly)
+        widget = core.hitTest(core.root, lx, ly)
     end
     
     if widget then
@@ -452,6 +457,16 @@ function core.mousereleased(x, y, button)
     return false
 end
 
+function core.wheelmoved(x, y)
+    if not core.enabled then return false end
+    
+    if core.hover and core.hover.onWheel then
+        core.hover:onWheel(x, y)
+        return true
+    end
+    
+    return false
+end
 function core.keypressed(key, scancode, isrepeat)
     if not core.enabled then return false end
     

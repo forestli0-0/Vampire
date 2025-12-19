@@ -484,13 +484,22 @@ local function buildRightColumn(gameState, parent)
     parent:addChild(libLabel)
     y = y + 14
     
-    -- MOD library cards (in right column only!)
+    -- MOD library scrollable container
+    local scrollH = LAYOUT.screenH - y - 10
+    local scrollContainer = ui.newScrollContainer({
+        x = x, y = y,
+        w = LAYOUT.rightW, h = scrollH,
+        scrollbarVisible = true
+    })
+    parent:addChild(scrollContainer)
+    
+    -- MOD library cards (local coordinates within scroll container)
     local modList = gameState.arsenal and gameState.arsenal.modList or {}
     modCards = {}
     
-    local cardX = x
-    local cardY = y
-    local maxX = LAYOUT.screenW - 12 - LAYOUT.libraryCardW
+    local cardX = 0 -- Local to scroll container
+    local cardY = 0
+    local maxX = LAYOUT.rightW - 12 - LAYOUT.libraryCardW
     local cardsPerRow = math.floor((LAYOUT.rightW - 8) / (LAYOUT.libraryCardW + LAYOUT.libraryCardSpacing))
     
     for i, modKey in ipairs(modList) do
@@ -525,16 +534,17 @@ local function buildRightColumn(gameState, parent)
         end)
 
         
-        parent:addChild(card)
+        scrollContainer:addChild(card)
         table.insert(modCards, card)
         
         -- Next position
         cardX = cardX + LAYOUT.libraryCardW + LAYOUT.libraryCardSpacing
         if cardX > maxX then
-            cardX = x
+            cardX = 0
             cardY = cardY + LAYOUT.libraryCardH + LAYOUT.libraryCardSpacing
         end
     end
+
 end
 
 -------------------------------------------

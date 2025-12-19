@@ -242,6 +242,11 @@ function love.textinput(text)
     ui.textinput(text)
 end
 
+function love.wheelmoved(x, y)
+    ui.wheelmoved(x, y)
+end
+
+
 function love.quit()
     -- 退出时尝试刷新日志落盘
     if logger.flushIfActive then logger.flushIfActive(state, 'quit') end
