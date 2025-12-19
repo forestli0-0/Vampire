@@ -1860,37 +1860,39 @@ function enemies.update(state, dt)
                                 table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 0.55})
                             end
         
-                            -- === RESOURCE DROPS (Health, Energy, Ammo) for Explore Mode ===
+                            -- === RESOURCE DROPS (Warframe-style rates) ===
                             state.floorPickups = state.floorPickups or {}
                             local pl = state.player
                             local eRatio = (pl and pl.energy or 0) / (pl and pl.maxEnergy or 100)
                             local hRatio = (pl and pl.hp or 0) / (pl and pl.maxHp or 100)
                             
-                            -- Pity system: boost drop rates when low on resources
-                            local energyChance = (eRatio < 0.3) and 0.25 or 0.12
-                            local healthChance = (hRatio < 0.4) and 0.18 or 0.10
-                            local ammoChance = 0.15
+                            -- WF drop rates: very low base, slight pity boost when critical
+                            -- Normal: health 3%, energy 2%, ammo 3%
+                            -- Pity (low resources): health 6%, energy 5%, ammo 5%
+                            local healthChance = (hRatio < 0.3) and 0.06 or 0.03
+                            local energyChance = (eRatio < 0.25) and 0.05 or 0.02
+                            local ammoChance = 0.03
                             
                             if e.isElite then
-                                -- Elite guaranteed drops
-                                if math.random() < 0.50 then
+                                -- Elite drops: higher but not guaranteed (WF eximus style)
+                                if math.random() < 0.20 then
                                     table.insert(state.floorPickups, {x=e.x + 15, y=e.y, size=12, kind='health_orb', amount=25})
                                 end
-                                if math.random() < 0.45 then
+                                if math.random() < 0.15 then
                                     table.insert(state.floorPickups, {x=e.x - 15, y=e.y, size=12, kind='energy_orb', amount=35})
                                 end
-                                if math.random() < 0.40 then
+                                if math.random() < 0.12 then
                                     table.insert(state.floorPickups, {x=e.x, y=e.y + 15, size=12, kind='ammo', amount=30})
                                 end
                                 -- Pet module chip
                                 local pet = pets.getActive(state)
                                 if pet and not pet.downed and (pet.module or 'default') == 'default' then
-                                    if math.random() < 0.35 then
+                                    if math.random() < 0.15 then
                                         table.insert(state.floorPickups, {x = e.x + 26, y = e.y + 8, size = 14, kind = 'pet_module_chip'})
                                     end
                                 end
                             else
-                                -- Normal enemy drops with pity
+                                -- Normal enemy drops (WF-style low rates)
                                 local roll = math.random()
                                 if roll < healthChance then
                                     table.insert(state.floorPickups, {x=e.x, y=e.y, size=10, kind='health_orb', amount=15})
@@ -1931,7 +1933,7 @@ function enemies.update(state, dt)
                             state.floorPickups = state.floorPickups or {}  -- IMPORTANT: Ensure floorPickups is initialized!
                             
                             if e.isElite then
-                                -- Elite drops: guaranteed resource + chance for health/energy/MOD
+                                -- Elite drops: WF eximus style (higher but not guaranteed)
                                 local gain = 8 + math.floor((state.rooms and state.rooms.roomIndex) or 1)
                                 if state.gainGold then
                                     state.gainGold(gain, {source = 'kill', enemy = e, x = e.x, y = e.y - 20, life = 0.65})
@@ -1940,22 +1942,21 @@ function enemies.update(state, dt)
                                     table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " CREDITS", color = {0.95, 0.9, 0.45}, life = 0.65})
                                 end
                                 
-                                -- Health orb (40% chance)
-                                if math.random() < 0.40 then
+                                -- Health orb (20% chance - WF style)
+                                if math.random() < 0.20 then
                                     table.insert(state.floorPickups, {x=e.x + 15, y=e.y, size=12, kind='health_orb'})
                                 end
-                                -- Energy orb (35% chance)
-                                if math.random() < 0.35 then
+                                -- Energy orb (15% chance - WF style)
+                                if math.random() < 0.15 then
                                     table.insert(state.floorPickups, {x=e.x - 15, y=e.y, size=12, kind='energy_orb'})
                                 end
-                                -- Rare MOD drop (80% chance for elite - DEBUG HIGH RATE)
-                                if math.random() < 0.80 then
-                                    -- Use new in-run MOD drop system
+                                -- MOD drop (lower rate - 40% for elite)
+                                if math.random() < 0.40 then
                                     local modsModule = require('mods')
                                     local categories = {'warframe', 'weapons', 'companion'}
                                     local category = categories[math.random(#categories)]
                                     local pool = modsModule.buildDropPool(category)
-                                    local rolled = modsModule.rollMod(pool, 0.5) -- Elite has 50% bonus rare chance
+                                    local rolled = modsModule.rollMod(pool, 0.5)
                                     if rolled then
                                         modsModule.addToRunInventory(state, rolled.key, rolled.category, 0, rolled.rarity)
                                         local rarityDef = modsModule.RARITY[rolled.rarity] or modsModule.RARITY.COMMON
@@ -1972,28 +1973,24 @@ function enemies.update(state, dt)
                                     end
                                 end
                             else
-                                -- Normal enemy drops
-                                local roll = math.random()
-                                
-                                -- WF-style pity system: if low on resources, increase drop rates
+                                -- Normal enemy drops (WF-style low rates)
                                 local p = state.player
                                 local eRatio = (p and p.energy or 0) / (p and p.maxEnergy or 100)
-                                local aRatio = 1.0
-                                local wep = state.inventory and state.inventory.weapons and state.inventory.weapons[state.inventory.activeSlot]
-                                if wep and wep.reserve and wep.maxReserve then aRatio = wep.reserve / wep.maxReserve end
+                                local hRatio = (p and p.hp or 0) / (p and p.maxHp or 100)
                                 
-                                local energyChance = (eRatio < 0.25) and 0.25 or 0.12
-                                local ammoChance = (aRatio < 0.25) and 0.30 or 0.15
-                                local healthChance = (p and p.hp < p.maxHp * 0.4) and 0.12 or 0.08
+                                -- WF drop rates: very low base, slight pity boost
+                                local healthChance = (hRatio < 0.3) and 0.06 or 0.03
+                                local energyChance = (eRatio < 0.25) and 0.05 or 0.02
+                                local ammoChance = 0.03
+                                local creditChance = 0.08
 
+                                local roll = math.random()
                                 if roll < healthChance then
-                                    -- Health orb
                                     table.insert(state.floorPickups, {x=e.x, y=e.y, size=10, kind='health_orb'})
                                 elseif roll < healthChance + energyChance then
-                                    -- Energy orb
                                     table.insert(state.floorPickups, {x=e.x, y=e.y, size=10, kind='energy_orb'})
-                                elseif roll < healthChance + energyChance + 0.10 then
-                                    -- Resources/credits (8% -> 10% chance)
+                                elseif roll < healthChance + energyChance + creditChance then
+                                    -- Credits drop
                                     local gain = 1 + (math.random() < 0.3 and 1 or 0)
                                     if state.gainGold then
                                         state.gainGold(gain, {source = 'kill', enemy = e, x = e.x, y = e.y - 20, life = 0.55})
@@ -2003,7 +2000,7 @@ function enemies.update(state, dt)
                                     end
                                 end
                                 
-                                -- Primary Ammo drop check
+                                -- Ammo drop (separate roll, WF style)
                                 if math.random() < ammoChance then
                                     table.insert(state.floorPickups, {x=e.x + 5, y=e.y - 5, size=10, kind='ammo'})
                                 end

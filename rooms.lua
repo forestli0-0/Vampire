@@ -275,29 +275,29 @@ local function startRoom(state, r)
             table.insert(state.texts, {x=state.player.x, y=state.player.y-50, text="存活60秒!", color={0.6, 0.9, 1}, life=2})
         end
         
-        -- Spawn resource crates in room (Ammo & Energy)
+        -- Spawn resource crate in room (WF-style: limited supply)
         state.floorPickups = state.floorPickups or {}
-        local numCrates = 1 + (r.roomIndex >= 3 and 1 or 0)
-        for _ = 1, numCrates do
-            local crateX, crateY
-            if state.world and state.world.sampleSpawn then
-                crateX, crateY = state.world:sampleSpawn(state.player.x, state.player.y, 100, 400, 8)
-            else
-                local angle = math.random() * 6.28
-                local dist = 80 + math.random() * 120
-                crateX = r.roomCenterX + math.cos(angle) * dist
-                crateY = r.roomCenterY + math.sin(angle) * dist
-            end
-            if crateX and crateY then
-                -- Spawn Ammo Crate
+        -- Only 1 ammo crate per room, placed somewhere accessible
+        local crateX, crateY
+        if state.world and state.world.sampleSpawn then
+            crateX, crateY = state.world:sampleSpawn(state.player.x, state.player.y, 100, 400, 8)
+        else
+            local angle = math.random() * 6.28
+            local dist = 80 + math.random() * 120
+            crateX = r.roomCenterX + math.cos(angle) * dist
+            crateY = r.roomCenterY + math.sin(angle) * dist
+        end
+        if crateX and crateY then
+            -- Ammo Crate (always 1)
+            table.insert(state.floorPickups, {
+                x = crateX, y = crateY, size = 20, kind = 'ammo',
+                fullRefill = true
+            })
+            -- Energy Crate only in later rooms (50% chance after room 4)
+            if r.roomIndex >= 4 and math.random() < 0.5 then
                 table.insert(state.floorPickups, {
-                    x = crateX, y = crateY, size = 20, kind = 'ammo',
-                    fullRefill = true
-                })
-                -- Spawn Energy Crate nearby
-                table.insert(state.floorPickups, {
-                    x = crateX + 15, y = crateY + 15, size = 18, kind = 'energy',
-                    amount = 50  -- Bulk energy refill
+                    x = crateX + 20, y = crateY + 15, size = 18, kind = 'energy',
+                    amount = 35
                 })
             end
         end
