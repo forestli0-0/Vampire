@@ -411,6 +411,17 @@ function arsenal.startRun(state, opts)
         if bs.maxHp then
             state.player.maxHp = bs.maxHp
             state.player.hp = bs.maxHp
+            state.player.stats.maxHp = bs.maxHp  -- Sync to stats for HUD
+        end
+        if bs.maxShield then
+            state.player.maxShield = bs.maxShield
+            state.player.shield = bs.maxShield
+            state.player.stats.maxShield = bs.maxShield  -- Sync to stats for HUD
+        end
+        if bs.maxEnergy then
+            state.player.maxEnergy = bs.maxEnergy
+            state.player.energy = bs.maxEnergy
+            state.player.stats.maxEnergy = bs.maxEnergy  -- Sync to stats for HUD
         end
         if bs.armor then state.player.stats.armor = bs.armor end
         if bs.moveSpeed then state.player.stats.moveSpeed = bs.moveSpeed end
@@ -433,6 +444,11 @@ function arsenal.startRun(state, opts)
             state.player.stats.petHpBonus = bs.petHpBonus
         end
     end
+    
+    -- Ensure stats are synced with player fields (for HUD compatibility)
+    state.player.stats.maxHp = state.player.stats.maxHp or state.player.maxHp or 100
+    state.player.stats.maxShield = state.player.stats.maxShield or state.player.maxShield or 100
+    state.player.stats.maxEnergy = state.player.stats.maxEnergy or state.player.maxEnergy or 100
     
     -- Initialize ability cooldown
     state.player.ability = state.player.ability or {cooldown = 0, timer = 0}

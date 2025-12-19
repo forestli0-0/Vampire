@@ -247,10 +247,22 @@ end
 
 function pickups.updateFloorPickups(state, dt)
     local p = state.player
-    local radius = (p.size or 20) / 2
+    if not p then return end
+    
+    -- Pickup radius: player can pick up items within this range even if not directly touching
+    local pickupRadius = (p.size or 28) + 30  -- Increased pickup range for better feel
+    
     for i = #state.floorPickups, 1, -1 do
         local item = state.floorPickups[i]
-        if util.checkCollision({x=p.x, y=p.y, size=p.size}, item) then
+        if not item then goto continue end
+        
+        -- Distance check with expanded pickup radius
+        local dx = p.x - item.x
+        local dy = p.y - item.y
+        local dist = math.sqrt(dx*dx + dy*dy)
+        local itemRadius = (item.size or 16) / 2
+        
+        if dist < (pickupRadius / 2 + itemRadius) then
             local consume = true
             if item.kind == 'ammo' then
                 -- Ammo pickup: refill reserve ammo for all weapons
@@ -325,7 +337,7 @@ function pickups.updateFloorPickups(state, dt)
                 end
             elseif item.kind == 'energy_orb' then
                 -- WF-style energy orb (restores ability energy)
-                local amt = item.amount or 15
+                local amt = item.amount or 25
                 local maxEnergy = p.maxEnergy or 100
                 local current = p.energy or 0
                 if current < maxEnergy then
@@ -534,6 +546,7 @@ function pickups.updateFloorPickups(state, dt)
                 table.remove(state.floorPickups, i)
             end
         end
+        ::continue::
     end
 end
 

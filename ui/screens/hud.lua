@@ -347,13 +347,13 @@ function hud.update(gameState, dt)
         
         -- HP/Shield/XP/Energy
         if widgets.hpBar then
-            widgets.hpBar.value = p.hp
-            widgets.hpBar.maxValue = stats.maxHp or 100
+            widgets.hpBar.value = p.hp or 0
+            -- Use p.maxHp as fallback if stats.maxHp is not defined
+            widgets.hpBar.maxValue = stats.maxHp or p.maxHp or 100
         end
         if widgets.shieldBar then
-            -- Shield logic if exists, otherwise 0
             widgets.shieldBar.value = p.shield or 0
-            widgets.shieldBar.maxValue = stats.maxShield or 100
+            widgets.shieldBar.maxValue = stats.maxShield or p.maxShield or 100
         end
         if widgets.xpBar then
             widgets.xpBar.value = p.xp or 0
@@ -361,7 +361,7 @@ function hud.update(gameState, dt)
         end
         if widgets.energyBar then
             widgets.energyBar.value = p.energy or 0
-            widgets.energyBar.maxValue = stats.maxEnergy or 100
+            widgets.energyBar.maxValue = stats.maxEnergy or p.maxEnergy or 100
         end
         
         -- Level Text
