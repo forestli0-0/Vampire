@@ -1016,6 +1016,38 @@ function draw.renderWorld(state)
                 love.graphics.rectangle('fill', e.x - e.size/2, e.y - e.size/2, e.size, e.size)
             end
         end
+        
+        -- Attack windup visual indicator
+        local atk = e.attack
+        if atk and atk.phase == 'windup' then
+            local timer = atk.timer or 0
+            local pulse = 0.5 + 0.5 * math.sin(love.timer.getTime() * 12)
+            local size = (e.size or 24) / 2 + 4
+            
+            -- Red pulsing ring around enemy during windup
+            love.graphics.setColor(1, 0.2, 0.2, 0.4 + 0.3 * pulse)
+            love.graphics.setLineWidth(2)
+            love.graphics.circle('line', e.x, e.y, size + 4 * pulse)
+            
+            -- Exclamation mark above enemy
+            love.graphics.setColor(1, 0.3, 0.2, 0.6 + 0.4 * pulse)
+            local excX, excY = e.x, e.y - (e.size or 24) / 2 - 12
+            -- Use state.font to ensure Chinese font support (avoid default font)
+            love.graphics.setFont(state.font)
+            love.graphics.printf("!", excX - 10, excY, 20, "center")
+            
+            love.graphics.setLineWidth(1)
+        end
+        
+        -- Attacking (dash/leap) visual indicator
+        if atk and (atk.phase == 'dash' or atk.phase == 'leaping') then
+            local size = (e.size or 24) / 2 + 6
+            love.graphics.setColor(1, 0.5, 0.1, 0.6)
+            love.graphics.setLineWidth(3)
+            love.graphics.circle('line', e.x, e.y, size)
+            love.graphics.setLineWidth(1)
+        end
+        
         if e.status and e.status.static then
             local r = (e.size or 16) * 0.75
             vfx.drawElectricAura(e.x, e.y, r, 0.9)
@@ -1402,8 +1434,10 @@ function draw.renderWorld(state)
         local alpha = math.min(1, (t.life or 0.5) / 0.3)  -- Fade out in last 0.3s
         local text = tostring(t.text)
         
-        -- Get font and calculate centered position
-        local font = love.graphics.getFont()
+        -- Use state.font explicitly to ensure Chinese font support
+        -- (Don't rely on getFont which might be corrupted by other code)
+        local font = state.font or love.graphics.getFont()
+        love.graphics.setFont(font)
         local tw = font:getWidth(text) * scale
         local th = font:getHeight() * scale
         local drawX = t.x - tw / 2

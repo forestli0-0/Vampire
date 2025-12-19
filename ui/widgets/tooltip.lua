@@ -44,7 +44,12 @@ end
 -------------------------------------------
 
 function Tooltip:updateSize()
-    local font = love.graphics.getFont()
+    -- Save current font to restore later
+    local prevFont = love.graphics.getFont()
+    
+    -- Use theme font to ensure Chinese support
+    local font = theme.getFont('normal') or prevFont
+    love.graphics.setFont(font)
     local pad = self.padding
     local maxW = self.maxWidth - pad * 2
     
@@ -58,6 +63,11 @@ function Tooltip:updateSize()
     
     self.w = self.maxWidth
     self.h = titleHeight + textHeight + pad * 2
+    
+    -- Restore previous font
+    if prevFont then
+        love.graphics.setFont(prevFont)
+    end
 end
 
 -------------------------------------------
@@ -87,6 +97,13 @@ end
 
 function Tooltip:drawSelf()
     if self.alpha <= 0 then return end
+    
+    -- Save current font to restore later (prevents font state pollution)
+    local prevFont = love.graphics.getFont()
+    
+    -- Use theme font to ensure Chinese support
+    local font = theme.getFont('normal') or prevFont
+    love.graphics.setFont(font)
     
     local gx, gy = self:getGlobalPosition()
     local w, h = self.w, self.h
@@ -118,7 +135,7 @@ function Tooltip:drawSelf()
             self.alpha
         )
         love.graphics.print(self.title, gx + pad, textY)
-        textY = textY + love.graphics.getFont():getHeight() + 4
+        textY = textY + font:getHeight() + 4
     end
     
     -- Draw text
@@ -129,6 +146,11 @@ function Tooltip:drawSelf()
     love.graphics.printf(self.text, gx + pad, textY, w - pad * 2, 'left')
     
     love.graphics.setColor(1, 1, 1, 1)
+    
+    -- Restore previous font
+    if prevFont then
+        love.graphics.setFont(prevFont)
+    end
 end
 
 -------------------------------------------

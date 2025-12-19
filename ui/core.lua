@@ -239,7 +239,12 @@ end
 function core.drawTooltip(text, x, y)
     if not text or text == "" then return end
     
-    local font = love.graphics.getFont()
+    -- Save current font to restore later (prevents font state pollution)
+    local prevFont = love.graphics.getFont()
+    
+    -- Use theme font to ensure Chinese support
+    local font = theme.getFont('normal') or prevFont
+    love.graphics.setFont(font)
     local padding = theme.sizes.padding_normal
     local maxWidth = theme.sizes.tooltip_max_width
     
@@ -277,6 +282,11 @@ function core.drawTooltip(text, x, y)
     love.graphics.printf(text, tx + padding, ty + padding, maxWidth - padding * 2, 'left')
     
     love.graphics.setColor(1, 1, 1, 1)
+    
+    -- Restore previous font
+    if prevFont then
+        love.graphics.setFont(prevFont)
+    end
 end
 
 -------------------------------------------

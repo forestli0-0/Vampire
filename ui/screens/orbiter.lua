@@ -141,6 +141,9 @@ end
 function ModSlot:drawContent(gx, gy, w, h)
     if not self.modData then return end
     
+    -- Save current font to restore later (prevents font state pollution)
+    local prevFont = love.graphics.getFont()
+    
     local modKey = self.modData.key
     local category = self.modData.category or self.category
     local rank = self.modData.rank or 0
@@ -156,7 +159,8 @@ function ModSlot:drawContent(gx, gy, w, h)
     
     -- Stat abbreviation (top)
     love.graphics.setColor(color[1], color[2], color[3], 0.9)
-    local font = love.graphics.getFont()
+    local font = theme.getFont('small') or prevFont
+    love.graphics.setFont(font)
     love.graphics.printf(abbrev, gx, gy + 2, w, 'center')
     
     -- Short name (center)
@@ -181,6 +185,11 @@ function ModSlot:drawContent(gx, gy, w, h)
     end
     
     love.graphics.setColor(1, 1, 1, 1)
+    
+    -- Restore previous font
+    if prevFont then
+        love.graphics.setFont(prevFont)
+    end
 end
 
 function ModSlot:getDragData()
