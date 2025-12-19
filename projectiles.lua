@@ -382,21 +382,8 @@ function projectiles.updatePlayerBullets(state, dt)
                         end
                     end
                 end
-                -- 玩家投射物抵消敌方子弹
-                if state.enemyBullets and #state.enemyBullets > 0 then
-                    for ebIndex = #state.enemyBullets, 1, -1 do
-                        local eb = state.enemyBullets[ebIndex]
-                        if util.checkCollision(b, eb) then
-                            table.remove(state.enemyBullets, ebIndex)
-                            b.pierce = (b.pierce or 1) - 1
-                            if b.pierce <= 0 then
-                                table.remove(state.bullets, i)
-                                hit = true
-                            end
-                            break
-                        end
-                    end
-                end
+                -- [[ Bullet-to-bullet cancellation removed: Only melee attacks should cancel bullets ]]
+
                 if not hit and b.type == 'axe' and b.y > state.player.y + 600 then
                     table.remove(state.bullets, i)
                 end
