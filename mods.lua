@@ -819,7 +819,11 @@ function mods.refreshActiveStats(state)
     baseStats.abilityEfficiency = baseStats.abilityEfficiency or 1.0
     baseStats.abilityDuration = baseStats.abilityDuration or 1.0
     baseStats.abilityRange = baseStats.abilityRange or 1.0
-    baseStats.dashCharges = baseStats.dashCharges or 1
+    baseStats.dashCharges = baseStats.dashCharges or (p.stats and p.stats.dashCharges) or 1
+    baseStats.dashCooldown = baseStats.dashCooldown or (p.stats and p.stats.dashCooldown) or 3
+    baseStats.dashDuration = baseStats.dashDuration or (p.stats and p.stats.dashDuration) or 0.14
+    baseStats.dashDistance = baseStats.dashDistance or (p.stats and p.stats.dashDistance) or 56
+    baseStats.dashInvincible = baseStats.dashInvincible or (p.stats and p.stats.dashInvincible) or 0.14
     
     -- 2. Apply persistent mods (Warframe category)
     -- [Implementation note: arsenal-persistent mods for character are handled here if implemented]
