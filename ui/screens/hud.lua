@@ -16,6 +16,8 @@ local widgets = {
     goldText = nil,
     dashBar = nil,
     dashText = nil,
+    staticChargeBar = nil,
+    staticChargeText = nil,
     weaponSlots = {},
     abilitySlots = {},
     objectiveText = nil,
@@ -124,9 +126,30 @@ local function buildPlayerFrame(gameState, parent)
     })
     parent:addChild(widgets.dashBar)
     
+    -- Static Charge Bar (Volt only - will be shown/hidden in update)
+    y = y + 14
+    widgets.staticChargeText = ui.Text.new({
+        x = x, y = y,
+        text = "STATIC",
+        color = {0.4, 0.8, 1, 0.8},
+        font = theme.getFont('small')
+    })
+    widgets.staticChargeText.visible = false
+    parent:addChild(widgets.staticChargeText)
+    
+    widgets.staticChargeBar = ui.Bar.new({
+        x = x + 42, y = y + 2,
+        w = 94, h = 4,
+        value = 0, maxValue = 100,
+        fillColor = {0.3, 0.7, 1, 1},
+        bgColor = {0.1, 0.1, 0.2, 0.5}
+    })
+    widgets.staticChargeBar.visible = false
+    parent:addChild(widgets.staticChargeBar)
+    
     -- Gold display (below frame)
     widgets.goldText = ui.Text.new({
-        x = x, y = y + 20,
+        x = x, y = y + 14,
         text = "GOLD 0",
         color = LAYOUT.goldColor,
         shadow = true
@@ -378,6 +401,29 @@ function hud.update(gameState, dt)
             end
             
             widgets.dashText:setText(string.format("DASH %d/%d", current, max))
+        end
+        
+        -- Static Charge Bar (Volt only)
+        if widgets.staticChargeBar and widgets.staticChargeText then
+            if p.class == 'volt' then
+                widgets.staticChargeBar.visible = true
+                widgets.staticChargeText.visible = true
+                widgets.staticChargeBar.value = p.staticCharge or 0
+                widgets.staticChargeBar.maxValue = 100
+                
+                -- Color changes based on charge level
+                local charge = p.staticCharge or 0
+                if charge >= 80 then
+                    widgets.staticChargeBar.fillColor = {0.6, 1, 1, 1}  -- Bright cyan when near full
+                elseif charge >= 40 then
+                    widgets.staticChargeBar.fillColor = {0.4, 0.8, 1, 1}  -- Normal blue
+                else
+                    widgets.staticChargeBar.fillColor = {0.3, 0.5, 0.8, 0.8}  -- Dim when low
+                end
+            else
+                widgets.staticChargeBar.visible = false
+                widgets.staticChargeText.visible = false
+            end
         end
         
         -- Ability Slots (updated for index 1-4)

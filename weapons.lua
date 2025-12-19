@@ -609,6 +609,72 @@ function Behaviors.MELEE_SWING(state, weaponKey, w, stats, params, sx, sy)
     if hitOccurred then
         p.meleeCombo = (p.meleeCombo or 0) + hitCount
         p.meleeComboTimer = 5.0 -- Reset decay timer
+        
+        -- VOLT PASSIVE: Static Discharge - release accumulated charge on melee hit
+        if p.class == 'volt' and (p.staticCharge or 0) > 10 then
+            local staticDamage = math.floor(p.staticCharge * 2)  -- 2 damage per charge point
+            p.staticCharge = 0  -- Consume all charge
+            
+            -- Apply electric damage to all enemies in arc
+            local ok, calc = pcall(require, 'calculator')
+            for _, e in ipairs(state.enemies) do
+                if e.health and e.health > 0 then
+                    local dx = e.x - sx
+                    local dy = e.y - sy
+                    local dist = math.sqrt(dx * dx + dy * dy)
+                    
+                    if dist <= range then
+                        local angleToEnemy = math.atan2(dy, dx)
+                        local angleDiff = math.abs(angleToEnemy - aimAngle)
+                        if angleDiff > math.pi then angleDiff = 2 * math.pi - angleDiff end
+                        
+                        if angleDiff <= arcWidth / 2 then
+                            -- Apply static discharge damage
+                            if ok and calc then
+                                local staticInstance = calc.createInstance({
+                                    damage = staticDamage,
+                                    critChance = 0.25,
+                                    critMultiplier = 2.0,
+                                    statusChance = 0.8,
+                                    elements = {'ELECTRIC'},
+                                    damageBreakdown = {ELECTRIC = 1},
+                                    weaponTags = {'ability', 'electric', 'melee'}
+                                })
+                                calc.applyHit(state, e, staticInstance)
+                            else
+                                e.health = (e.health or 0) - staticDamage
+                            end
+                            
+                            -- VFX: lightning arc from player to enemy
+                            state.voltLightningChains = state.voltLightningChains or {}
+                            table.insert(state.voltLightningChains, {
+                                segments = {{
+                                    x1 = sx, y1 = sy,
+                                    x2 = e.x, y2 = e.y,
+                                    width = 10
+                                }},
+                                timer = 0.25,
+                                alpha = 1.0
+                            })
+                        end
+                    end
+                end
+            end
+            
+            -- Visual feedback
+            if state.spawnEffect then
+                state.spawnEffect('shock', sx, sy, 1.5)
+            end
+            if state.texts then
+                table.insert(state.texts, {
+                    x = sx, y = sy - 40,
+                    text = string.format("静电释放! +%d", staticDamage),
+                    color = {0.4, 0.8, 1},
+                    life = 1.0
+                })
+            end
+            if state.playSfx then state.playSfx('hit') end
+        end
     end
     
     return hitCount > 0

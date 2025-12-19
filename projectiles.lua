@@ -104,15 +104,48 @@ local function buildInstanceFromBullet(bullet, enemy, effectData, knock, knockFo
         distance = math.sqrt(dx * dx + dy * dy)
     end
     
+    -- Get base damage, potentially boosted by electric shield
+    local damage = bullet.damage or 0
+    local elements = bullet.elements
+    local damageBreakdown = bullet.damageBreakdown
+    
+    -- Check if bullet has passed through electric shield (damage boost)
+    if bullet.shieldBoosted then
+        local bonus = bullet.shieldDamageBonus or 0.5
+        damage = math.floor(damage * (1 + bonus))
+        -- Add ELECTRIC element if not already present
+        if elements then
+            local hasElectric = false
+            for _, e in ipairs(elements) do
+                if e == 'ELECTRIC' then hasElectric = true break end
+            end
+            if not hasElectric then
+                local newElements = {}
+                for _, e in ipairs(elements) do table.insert(newElements, e) end
+                table.insert(newElements, 'ELECTRIC')
+                elements = newElements
+            end
+        else
+            elements = {'ELECTRIC'}
+        end
+        -- Add electric to damage breakdown
+        if damageBreakdown then
+            local newBreakdown = {}
+            for k, v in pairs(damageBreakdown) do newBreakdown[k] = v end
+            newBreakdown.ELECTRIC = (newBreakdown.ELECTRIC or 0) + bonus
+            damageBreakdown = newBreakdown
+        end
+    end
+    
     return calculator.createInstance({
-        damage = bullet.damage or 0,
+        damage = damage,
         critChance = bullet.critChance or 0,
         critMultiplier = bullet.critMultiplier or 1.5,
         statusChance = bullet.statusChance or 0,
         effectType = bullet.effectType,
         effectData = effectData,
-        elements = bullet.elements,
-        damageBreakdown = bullet.damageBreakdown,
+        elements = elements,
+        damageBreakdown = damageBreakdown,
         weaponTags = bullet.weaponTags,
         knock = knock,
         knockForce = knockForce,
@@ -122,6 +155,50 @@ local function buildInstanceFromBullet(bullet, enemy, effectData, knock, knockFo
         falloffEnd = bullet.falloffEnd,
         falloffMin = bullet.falloffMin
     })
+end
+
+-- Check if bullet passes through electric shield arc
+local function checkShieldBoost(state, bullet, ox, oy, nx, ny)
+    local p = state.player
+    if not p or not p.electricShield or not p.electricShield.active then return end
+    if bullet.shieldBoosted then return end  -- Already boosted
+    
+    local shield = p.electricShield
+    local arcRadius = shield.distance or 60
+    local arcWidth = shield.arcWidth or 1.2
+    local shieldAngle = shield.angle or 0
+    
+    -- Check if the bullet path crosses the arc
+    -- Simplified: check if new position is at arc radius and within angle
+    local dx = nx - p.x
+    local dy = ny - p.y
+    local dist = math.sqrt(dx * dx + dy * dy)
+    
+    -- Check if crossing the arc radius (from inside to outside or vice versa)
+    local odx = ox - p.x
+    local ody = oy - p.y
+    local oldDist = math.sqrt(odx * odx + ody * ody)
+    
+    local tolerance = 15
+    local crossingArc = (oldDist < arcRadius - tolerance and dist >= arcRadius - tolerance) or
+                        (oldDist <= arcRadius + tolerance and dist > arcRadius + tolerance)
+    
+    if crossingArc or (math.abs(dist - arcRadius) < tolerance) then
+        -- Check if within arc angle
+        local bulletAngle = math.atan2(dy, dx)
+        local angleDiff = (bulletAngle - shieldAngle + math.pi) % (math.pi * 2) - math.pi
+        
+        if math.abs(angleDiff) <= arcWidth / 2 then
+            -- Bullet passes through shield - apply boost!
+            bullet.shieldBoosted = true
+            bullet.shieldDamageBonus = shield.damageBonus or 0.5
+            
+            -- Visual feedback
+            if state.spawnEffect then
+                state.spawnEffect('shock', nx, ny, 0.4)
+            end
+        end
+    end
 end
 
 local function applyProjectileHit(state, enemy, bullet, effectData, knock, knockForce)
@@ -194,6 +271,9 @@ function projectiles.updatePlayerBullets(state, dt)
                     goto continue_player_bullet
                 end
             end
+            
+            -- Check if bullet passes through Electric Shield (damage boost)
+            checkShieldBoost(state, b, ox, oy, b.x, b.y)
 
             b.life = b.life - dt
 
@@ -336,6 +416,33 @@ function projectiles.updateEnemyBullets(state, dt)
             table.remove(state.enemyBullets, 1)
         end
     end
+    
+    -- Helper function to check if a point is within the electric shield arc
+    local function isInShieldArc(px, py, bx, by, shield)
+        if not shield or not shield.active then return false end
+        
+        local arcRadius = shield.distance or 60
+        local arcWidth = shield.arcWidth or 1.2
+        local shieldAngle = shield.angle or 0
+        
+        -- Calculate distance from player to bullet
+        local dx = bx - px
+        local dy = by - py
+        local dist = math.sqrt(dx * dx + dy * dy)
+        
+        -- Check if within arc radius range (some tolerance)
+        local tolerance = 20
+        if dist < arcRadius - tolerance or dist > arcRadius + tolerance then
+            return false
+        end
+        
+        -- Check if within arc angle range
+        local bulletAngle = math.atan2(dy, dx)
+        local angleDiff = (bulletAngle - shieldAngle + math.pi) % (math.pi * 2) - math.pi
+        
+        return math.abs(angleDiff) <= arcWidth / 2
+    end
+    
     for i = #state.enemyBullets, 1, -1 do
         local eb = state.enemyBullets[i]
         local ox, oy = eb.x, eb.y
@@ -347,6 +454,31 @@ function projectiles.updateEnemyBullets(state, dt)
         local world = state.world
         if world and world.enabled and world.segmentHitsWall then
             if world:segmentHitsWall(ox, oy, eb.x, eb.y) then
+                table.remove(state.enemyBullets, i)
+                goto continue_enemy_bullet
+            end
+        end
+        
+        -- Check if blocked by Volt's Electric Shield
+        local p = state.player
+        if p and p.electricShield and p.electricShield.active then
+            if isInShieldArc(p.x, p.y, eb.x, eb.y, p.electricShield) then
+                -- Bullet blocked by shield!
+                if state.spawnEffect then
+                    state.spawnEffect('shock', eb.x, eb.y, 0.6)
+                end
+                -- Create small lightning VFX
+                state.voltLightningChains = state.voltLightningChains or {}
+                table.insert(state.voltLightningChains, {
+                    segments = {{
+                        x1 = eb.x, y1 = eb.y,
+                        x2 = eb.x + (math.random() - 0.5) * 30,
+                        y2 = eb.y + (math.random() - 0.5) * 30,
+                        width = 6
+                    }},
+                    timer = 0.15,
+                    alpha = 0.8
+                })
                 table.remove(state.enemyBullets, i)
                 goto continue_enemy_bullet
             end

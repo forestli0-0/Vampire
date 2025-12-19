@@ -678,6 +678,14 @@ function player.updateMovement(state, dt)
     p.isMoving = moving
     local mdx, mdy = p.x - ox, p.y - oy
     p.movedDist = math.sqrt(mdx * mdx + mdy * mdy)
+    
+    -- VOLT PASSIVE: Static Discharge - accumulate electric charge while moving
+    -- Only for Volt class
+    if p.class == 'volt' and p.movedDist > 0 then
+        p.staticCharge = p.staticCharge or 0
+        local chargeRate = 0.15  -- Charge per pixel moved
+        p.staticCharge = math.min(100, p.staticCharge + p.movedDist * chargeRate)
+    end
 
     local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
     
@@ -869,6 +877,285 @@ function player.updateAbility(state, dt)
     if (ability.timer or 0) > 0 then
         ability.timer = ability.timer - dt
         if ability.timer < 0 then ability.timer = 0 end
+    end
+end
+
+-- Update Volt-specific ability effects
+function player.updateVoltEffects(state, dt)
+    local p = state.player
+    if not p then return end
+    
+    -- Update lightning chain VFX
+    if state.voltLightningChains then
+        for i = #state.voltLightningChains, 1, -1 do
+            local chain = state.voltLightningChains[i]
+            chain.timer = chain.timer - dt
+            chain.alpha = math.max(0, chain.timer / 0.5)
+            if chain.timer <= 0 then
+                table.remove(state.voltLightningChains, i)
+            end
+        end
+    end
+    
+    -- Update Speed buff (TEMPORARY - restore original speed when expired)
+    if p.speedBuffActive and p.speedBuffTimer then
+        p.speedBuffTimer = p.speedBuffTimer - dt
+        if p.speedBuffTimer <= 0 then
+            -- Restore original speed
+            p.stats.moveSpeed = p.originalMoveSpeed or 170
+            p.stats.attackSpeedMult = p.originalAttackSpeed or 1.0
+            p.speedBuffActive = false
+            p.speedBuffTimer = 0
+            p.speedBuffMult = 1.0
+            p.attackSpeedBuffMult = 1.0
+            p.speedAuraRadius = nil
+            -- Visual notification
+            if state.texts then
+                table.insert(state.texts, {
+                    x = p.x, y = p.y - 30,
+                    text = "极速结束",
+                    color = {0.6, 0.6, 0.8},
+                    life = 1.0
+                })
+            end
+        end
+    end
+    
+    -- Update Electric Shield (follow player aim)
+    if p.electricShield and p.electricShield.active then
+        p.electricShield.timer = p.electricShield.timer - dt
+        
+        if p.electricShield.timer <= 0 then
+            -- Shield expired
+            p.electricShield.active = false
+            p.electricShield = nil
+            if state.texts then
+                table.insert(state.texts, {
+                    x = p.x, y = p.y - 30,
+                    text = "电盾消散",
+                    color = {0.6, 0.6, 0.8},
+                    life = 1.0
+                })
+            end
+        else
+            -- Update shield position (follow player aim)
+            if p.electricShield.followPlayer then
+                local angle = p.aimAngle or 0
+                local dist = p.electricShield.distance or 60
+                p.electricShield.x = p.x + math.cos(angle) * dist
+                p.electricShield.y = p.y + math.sin(angle) * dist
+                p.electricShield.angle = angle
+            end
+        end
+    end
+    
+    -- Update Discharge wave (expanding ring with damage)
+    if p.dischargeWave and p.dischargeWave.active then
+        local wave = p.dischargeWave
+        wave.timer = wave.timer - dt
+        
+        -- Expand the wave
+        local oldRadius = wave.currentRadius
+        wave.currentRadius = wave.currentRadius + wave.expandSpeed * dt
+        
+        -- Cap at maxRadius for damage calculation (but keep checking for all enemies)
+        local effectiveNewRadius = math.min(wave.currentRadius, wave.maxRadius)
+        local effectiveOldRadius = math.min(oldRadius, wave.maxRadius)
+        
+        -- Hit enemies within the expanding ring (NO enemy count limit!)
+        -- Continue checking as long as we haven't hit maxRadius yet
+        if effectiveOldRadius < wave.maxRadius then
+            local ok, calc = pcall(require, 'calculator')
+            for _, e in ipairs(state.enemies or {}) do
+                if e and not e.isDummy and not wave.hitEnemies[e] then
+                    local dx, dy = e.x - wave.x, e.y - wave.y
+                    local dist = math.sqrt(dx * dx + dy * dy)
+                    
+                    -- Check if enemy is within the expanding ring OR within maxRadius
+                    -- Hit if: enemy distance is between old radius and new radius
+                    if dist <= effectiveNewRadius and dist >= effectiveOldRadius then
+                        wave.hitEnemies[e] = true
+                        
+                        -- Apply primary damage
+                        if ok and calc then
+                            local instance = calc.createInstance({
+                                damage = wave.damage,
+                                critChance = 0.20,
+                                critMultiplier = 2.5,
+                                statusChance = 1.0,
+                                elements = {'ELECTRIC'},
+                                damageBreakdown = {ELECTRIC = 1},
+                                weaponTags = {'ability', 'area', 'electric'}
+                            })
+                            calc.applyHit(state, e, instance)
+                        else
+                            e.health = (e.health or 0) - wave.damage
+                        end
+                        
+                        -- Stun the enemy
+                        e.frozenTimer = wave.stunDuration
+                        
+                        -- TESLA NODE: Mark enemy as a node in the electric network
+                        e.teslaNode = {
+                            active = true,
+                            timer = wave.teslaNodeDuration or wave.stunDuration,
+                            dps = wave.teslaNodeDPS or 15,
+                            range = wave.teslaNodeRange or 120,
+                            damageTickTimer = 0  -- For damage tick timing
+                        }
+                        
+                        -- Spawn hit effect
+                        if state.spawnEffect then
+                            state.spawnEffect('shock', e.x, e.y, 1.0)
+                        end
+                        
+                        -- Create secondary chain lightning to nearby enemies
+                        local chainR2 = wave.chainRange * wave.chainRange
+                        for _, e2 in ipairs(state.enemies or {}) do
+                            if e2 and e2 ~= e and not e2.isDummy and not wave.hitEnemies[e2] then
+                                local dx2, dy2 = e2.x - e.x, e2.y - e.y
+                                if dx2 * dx2 + dy2 * dy2 <= chainR2 then
+                                    -- Store chain for VFX
+                                    state.voltLightningChains = state.voltLightningChains or {}
+                                    table.insert(state.voltLightningChains, {
+                                        segments = {{
+                                            x1 = e.x, y1 = e.y,
+                                            x2 = e2.x, y2 = e2.y,
+                                            width = 8
+                                        }},
+                                        timer = 0.3,
+                                        alpha = 0.7
+                                    })
+                                    -- Apply chain damage (but don't mark as hit - main wave will hit them)
+                                    if ok and calc then
+                                        local chainInstance = calc.createInstance({
+                                            damage = wave.chainDamage,
+                                            critChance = 0.10,
+                                            critMultiplier = 2.0,
+                                            statusChance = 0.80,
+                                            elements = {'ELECTRIC'},
+                                            damageBreakdown = {ELECTRIC = 1},
+                                            weaponTags = {'ability', 'electric'}
+                                        })
+                                        calc.applyHit(state, e2, chainInstance)
+                                    else
+                                        e2.health = (e2.health or 0) - wave.chainDamage
+                                    end
+                                    break  -- Only one chain per enemy hit
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
+        -- Deactivate when timer expires
+        if wave.timer <= 0 then
+            wave.active = false
+            p.dischargeWave = nil
+        end
+    end
+    
+    -- Update Discharge wave VFX (separate from damage logic)
+    if state.voltDischargeWaves then
+        for i = #state.voltDischargeWaves, 1, -1 do
+            local wave = state.voltDischargeWaves[i]
+            wave.timer = wave.timer - dt
+            -- Expand but cap at maxRadius to match damage logic
+            if wave.currentRadius < wave.maxRadius then
+                wave.currentRadius = wave.currentRadius + wave.expandSpeed * dt
+                if wave.currentRadius > wave.maxRadius then
+                    wave.currentRadius = wave.maxRadius
+                end
+            end
+            wave.alpha = math.max(0, wave.timer * 2)  -- Fade out
+            if wave.timer <= 0 then
+                table.remove(state.voltDischargeWaves, i)
+            end
+        end
+    end
+    
+    -- ========== TESLA NODE NETWORK UPDATE ==========
+    -- Collect all active Tesla nodes
+    local teslaNodes = {}
+    for _, e in ipairs(state.enemies or {}) do
+        if e and e.teslaNode and e.teslaNode.active then
+            table.insert(teslaNodes, e)
+        end
+    end
+    
+    -- Process Tesla node network
+    if #teslaNodes > 0 then
+        local ok, calc = pcall(require, 'calculator')
+        
+        -- Clear previous frame's Tesla arcs
+        state.teslaArcs = {}
+        
+        for i, e1 in ipairs(teslaNodes) do
+            local node = e1.teslaNode
+            node.timer = node.timer - dt
+            node.damageTickTimer = (node.damageTickTimer or 0) + dt
+            
+            -- Check if node expired
+            if node.timer <= 0 then
+                node.active = false
+                e1.teslaNode = nil
+            else
+                -- Find nearby Tesla nodes and create arcs
+                local nodeRange2 = node.range * node.range
+                
+                for j = i + 1, #teslaNodes do
+                    local e2 = teslaNodes[j]
+                    if e2 and e2.teslaNode and e2.teslaNode.active then
+                        local dx = e2.x - e1.x
+                        local dy = e2.y - e1.y
+                        local dist2 = dx * dx + dy * dy
+                        
+                        if dist2 <= nodeRange2 then
+                            -- Create arc VFX between nodes
+                            table.insert(state.teslaArcs, {
+                                x1 = e1.x, y1 = e1.y,
+                                x2 = e2.x, y2 = e2.y,
+                                alpha = 0.7 + 0.3 * math.sin(love.timer.getTime() * 10)
+                            })
+                            
+                            -- Apply damage tick every 0.5 seconds
+                            if node.damageTickTimer >= 0.5 then
+                                local tickDamage = math.floor(node.dps * 0.5)
+                                
+                                if ok and calc then
+                                    local instance = calc.createInstance({
+                                        damage = tickDamage,
+                                        critChance = 0.10,
+                                        critMultiplier = 1.5,
+                                        statusChance = 0.5,
+                                        elements = {'ELECTRIC'},
+                                        damageBreakdown = {ELECTRIC = 1},
+                                        weaponTags = {'ability', 'electric', 'tesla'}
+                                    })
+                                    calc.applyHit(state, e1, instance)
+                                    calc.applyHit(state, e2, instance)
+                                else
+                                    e1.health = (e1.health or 0) - tickDamage
+                                    e2.health = (e2.health or 0) - tickDamage
+                                end
+                            end
+                        end
+                    end
+                end
+                
+                -- Reset damage tick timer
+                if node.damageTickTimer >= 0.5 then
+                    node.damageTickTimer = 0
+                end
+                
+                -- Keep enemy stunned while Tesla node is active
+                if e1.frozenTimer and e1.frozenTimer < 0.2 then
+                    e1.frozenTimer = 0.2  -- Keep slightly stunned
+                end
+            end
+        end
     end
 end
 

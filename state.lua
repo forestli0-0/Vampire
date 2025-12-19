@@ -333,10 +333,14 @@ function state.init()
                 cooldown = 8.0,
                 execute = function(state)
                     local p = state.player
-                    local radius = 180
+                    local str = p.stats.abilityStrength or 1.0
+                    local rng = p.stats.abilityRange or 1.0
+                    local dur = p.stats.abilityDuration or 1.0
+                    
+                    local radius = 180 * rng
                     local r2 = radius * radius
                     local knockForce = 200
-                    local stunDuration = 0.8
+                    local stunDuration = 0.8 * dur
                     
                     -- Visual/audio feedback
                     if state.playSfx then state.playSfx('hit') end
@@ -346,7 +350,7 @@ function state.init()
                     local ok, calc = pcall(require, 'calculator')
                     if ok and calc then
                         local instance = calc.createInstance({
-                            damage = math.floor(15 * (p.stats.might or 1)),
+                            damage = math.floor(25 * str * (p.stats.might or 1)),
                             critChance = 0.1,
                             critMultiplier = 1.5,
                             statusChance = 0.8,
@@ -396,7 +400,10 @@ function state.init()
                 cooldown = 5.0,
                 execute = function(state)
                     local p = state.player
-                    local distance = 120
+                    local str = p.stats.abilityStrength or 1.0
+                    local rng = p.stats.abilityRange or 1.0
+                    
+                    local distance = 120 * rng
                     
                     -- Get aim direction (movement or facing)
                     local dx, dy = 0, 0
@@ -425,8 +432,8 @@ function state.init()
                         p.x, p.y = newX, newY
                     end
                     
-                    -- Brief invincibility
-                    p.invincibleTimer = math.max(p.invincibleTimer or 0, 0.3)
+                    -- Brief invincibility (scales with strength)
+                    p.invincibleTimer = math.max(p.invincibleTimer or 0, 0.3 * str)
                     
                     -- Visual effect
                     if state.playSfx then state.playSfx('shoot') end
@@ -453,6 +460,10 @@ function state.init()
                 name = "Summon Aid",
                 cooldown = 12.0,
                 execute = function(state)
+                    local p = state.player
+                    local str = p.stats.abilityStrength or 1.0
+                    local dur = p.stats.abilityDuration or 1.0
+                    
                     local pets = state.pets
                     local pet = pets and pets.list and pets.list[1]
                     
@@ -460,10 +471,10 @@ function state.init()
                         -- Heal pet
                         pet.hp = pet.maxHp or 100
                         
-                        -- Temporary buff (stored on pet)
-                        pet.buffTimer = (pet.buffTimer or 0) + 6.0
-                        pet.buffDamage = 2.0 -- 2x damage
-                        pet.buffCooldown = 0.5 -- 50% faster ability
+                        -- Temporary buff (stored on pet, scales with strength/duration)
+                        pet.buffTimer = (pet.buffTimer or 0) + 6.0 * dur
+                        pet.buffDamage = 1.0 + 1.0 * str  -- 2x damage at 100% str
+                        pet.buffCooldown = 0.5  -- 50% faster ability
                         
                         if state.playSfx then state.playSfx('shoot') end
                         if state.spawnEffect then state.spawnEffect('heal', pet.x, pet.y) end
@@ -480,6 +491,97 @@ function state.init()
                         if state.playSfx then state.playSfx('shoot') end
                         return false -- Don't consume cooldown
                     end
+                    return true
+                end
+            }
+        },
+        volt = {
+            name = "Volt",
+            desc = "电系战甲。高护盾/能量，技能强化电击。Q: Shock (链电)",
+            baseStats = {
+                maxHp = 85,
+                armor = 0,
+                moveSpeed = 200,           -- Volt is fast
+                might = 1.0,
+                maxShield = 180,           -- High shields
+                maxEnergy = 200,           -- High energy for ability spam
+                dashCharges = 1,
+                abilityStrength = 1.15,    -- +15% ability damage
+                statusChance = 0.10        -- +10% electric procs
+            },
+            startWeapon = 'static_orb',    -- Amprex (chain lightning)
+            startSecondary = 'atomos',     -- Energy pistol
+            preferredUpgrades = {'lanka', 'thunder_loop', 'atomos', 'braton'},
+            ability = {
+                name = "Shock",
+                cooldown = 4.0,
+                execute = function(state)
+                    local p = state.player
+                    local str = p.stats.abilityStrength or 1.0
+                    local rng = p.stats.abilityRange or 1.0
+                    
+                    -- Find nearest enemy
+                    local nearestEnemy, nearestDist = nil, math.huge
+                    for _, e in ipairs(state.enemies or {}) do
+                        if e and not e.isDummy and e.health and e.health > 0 then
+                            local dx, dy = e.x - p.x, e.y - p.y
+                            local dist = dx * dx + dy * dy
+                            if dist < nearestDist then
+                                nearestDist = dist
+                                nearestEnemy = e
+                            end
+                        end
+                    end
+                    
+                    if not nearestEnemy then return false end
+                    
+                    local ok, calc = pcall(require, 'calculator')
+                    if ok and calc then
+                        local damage = math.floor(35 * str)
+                        local chainRange = 150 * rng
+                        local chainR2 = chainRange * chainRange
+                        local maxChains = 4
+                        
+                        local instance = calc.createInstance({
+                            damage = damage,
+                            critChance = 0.15,
+                            critMultiplier = 2.0,
+                            statusChance = 0.80,
+                            elements = {'ELECTRIC'},
+                            damageBreakdown = {ELECTRIC = 1},
+                            weaponTags = {'ability', 'electric'}
+                        })
+                        
+                        -- Chain lightning
+                        local hit = {[nearestEnemy] = true}
+                        local current = nearestEnemy
+                        calc.applyHit(state, current, instance)
+                        if state.spawnEffect then state.spawnEffect('static', current.x, current.y, 0.8) end
+                        
+                        for i = 1, maxChains do
+                            local nextEnemy, nextDist = nil, math.huge
+                            for _, e in ipairs(state.enemies or {}) do
+                                if e and not e.isDummy and not hit[e] and e.health and e.health > 0 then
+                                    local dx, dy = e.x - current.x, e.y - current.y
+                                    local dist = dx * dx + dy * dy
+                                    if dist < chainR2 and dist < nextDist then
+                                        nextDist = dist
+                                        nextEnemy = e
+                                    end
+                                end
+                            end
+                            if nextEnemy then
+                                hit[nextEnemy] = true
+                                current = nextEnemy
+                                calc.applyHit(state, current, instance)
+                                if state.spawnEffect then state.spawnEffect('static', current.x, current.y, 0.6) end
+                            else
+                                break
+                            end
+                        end
+                    end
+                    
+                    if state.playSfx then state.playSfx('shoot') end
                     return true
                 end
             }

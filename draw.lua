@@ -1122,6 +1122,165 @@ function draw.renderWorld(state)
         end
     end
 
+    -- ========== VOLT ABILITY VFX ==========
+    
+    -- Volt 1: Lightning Chain VFX (from Shock ability)
+    if state.voltLightningChains then
+        for _, chain in ipairs(state.voltLightningChains) do
+            for _, seg in ipairs(chain.segments or {}) do
+                vfx.drawLightningSegment(seg.x1, seg.y1, seg.x2, seg.y2, seg.width or 14, chain.alpha or 1)
+            end
+        end
+    end
+    
+    -- Volt 2: Speed Aura (while buffed)
+    local p = state.player
+    if p and p.speedBuffActive and p.speedAuraRadius then
+        local pulse = 0.7 + 0.3 * math.sin(love.timer.getTime() * 8)
+        local r = p.speedAuraRadius * pulse
+        vfx.drawElectricAura(p.x, p.y, r, 0.5)
+        -- Speed trail effect
+        love.graphics.setColor(0.4, 0.8, 1, 0.25)
+        love.graphics.setLineWidth(2)
+        love.graphics.circle('line', p.x, p.y, r * 1.2)
+        love.graphics.setLineWidth(1)
+    end
+    
+    -- Volt 3: Electric Shield (arc barrier in front of player)
+    if p and p.electricShield and p.electricShield.active then
+        local shield = p.electricShield
+        local px, py = p.x, p.y
+        local angle = shield.angle or 0
+        local arcRadius = shield.distance or 60
+        local arcWidth = shield.arcWidth or 1.2  -- Radians, about 70 degrees
+        
+        -- Draw arc shield
+        love.graphics.setBlendMode('add')
+        local pulse = 0.6 + 0.4 * math.sin(love.timer.getTime() * 6)
+        
+        -- Outer glow arc (thicker, dimmer)
+        love.graphics.setColor(0.3, 0.7, 1, 0.25 * pulse)
+        love.graphics.setLineWidth(12)
+        love.graphics.arc('line', 'open', px, py, arcRadius + 5, angle - arcWidth/2, angle + arcWidth/2)
+        
+        -- Main arc (medium thickness)
+        love.graphics.setColor(0.5, 0.85, 1, 0.5 * pulse)
+        love.graphics.setLineWidth(6)
+        love.graphics.arc('line', 'open', px, py, arcRadius, angle - arcWidth/2, angle + arcWidth/2)
+        
+        -- Core arc (thin, bright)
+        love.graphics.setColor(0.8, 0.95, 1, 0.9 * pulse)
+        love.graphics.setLineWidth(2)
+        love.graphics.arc('line', 'open', px, py, arcRadius, angle - arcWidth/2, angle + arcWidth/2)
+        
+        -- Electric sparks along the arc
+        local sparkCount = 5
+        for i = 1, sparkCount do
+            local sparkAngle = angle - arcWidth/2 + (i - 0.5) * arcWidth / sparkCount
+            local sparkOffset = math.sin(love.timer.getTime() * 8 + i * 1.5) * 3
+            local sx = px + math.cos(sparkAngle) * (arcRadius + sparkOffset)
+            local sy = py + math.sin(sparkAngle) * (arcRadius + sparkOffset)
+            
+            -- Small spark
+            love.graphics.setColor(0.9, 1, 1, 0.7 * pulse)
+            love.graphics.circle('fill', sx, sy, 2 + math.sin(love.timer.getTime() * 12 + i) * 1)
+        end
+        
+        love.graphics.setLineWidth(1)
+        love.graphics.setBlendMode('alpha')
+        
+        -- Timer indicator (small text near shield)
+        local remaining = shield.timer or 0
+        if remaining > 0 then
+            local textX = px + math.cos(angle) * (arcRadius + 20)
+            local textY = py + math.sin(angle) * (arcRadius + 20)
+            love.graphics.setColor(0.4, 0.8, 1, 0.7)
+            love.graphics.printf(string.format("%.0fs", remaining), textX - 20, textY - 8, 40, "center")
+        end
+    end
+    
+    -- Volt 4: Discharge Wave (expanding electric ring)
+    if state.voltDischargeWaves then
+        for _, wave in ipairs(state.voltDischargeWaves) do
+            local r = wave.currentRadius or 0
+            local alpha = wave.alpha or 1
+            
+            if r > 0 then
+                -- Main ring (electric glow)
+                love.graphics.setBlendMode('add')
+                local ringWidth = 20
+                
+                -- Outer glow
+                love.graphics.setColor(0.3, 0.7, 1, 0.3 * alpha)
+                love.graphics.setLineWidth(ringWidth)
+                love.graphics.circle('line', wave.x, wave.y, r)
+                
+                -- Core ring
+                love.graphics.setColor(0.6, 0.9, 1, 0.6 * alpha)
+                love.graphics.setLineWidth(ringWidth / 2)
+                love.graphics.circle('line', wave.x, wave.y, r)
+                
+                -- Inner bright core
+                love.graphics.setColor(0.9, 1, 1, 0.9 * alpha)
+                love.graphics.setLineWidth(2)
+                love.graphics.circle('line', wave.x, wave.y, r)
+                
+                -- Electric arcs around the ring
+                local arcCount = math.floor(r / 50) + 4
+                for i = 1, arcCount do
+                    local ang = (love.timer.getTime() * 2 + i * (2 * math.pi / arcCount)) % (2 * math.pi)
+                    local x1 = wave.x + math.cos(ang) * (r - 10)
+                    local y1 = wave.y + math.sin(ang) * (r - 10)
+                    local x2 = wave.x + math.cos(ang) * (r + 15)
+                    local y2 = wave.y + math.sin(ang) * (r + 15)
+                    vfx.drawLightningSegment(x1, y1, x2, y2, 6, 0.5 * alpha)
+                end
+                
+                love.graphics.setLineWidth(1)
+                love.graphics.setBlendMode('alpha')
+            end
+        end
+    end
+    
+    -- Volt 4 Tesla Node Network: Electric arcs between stunned enemies
+    if state.teslaArcs and #state.teslaArcs > 0 then
+        for _, arc in ipairs(state.teslaArcs) do
+            vfx.drawLightningSegment(arc.x1, arc.y1, arc.x2, arc.y2, 10, arc.alpha or 0.8)
+        end
+    end
+    
+    -- Tesla Node indicators on enemies
+    for _, e in ipairs(state.enemies or {}) do
+        if e and e.teslaNode and e.teslaNode.active then
+            local node = e.teslaNode
+            local pulse = 0.6 + 0.4 * math.sin(love.timer.getTime() * 8)
+            
+            -- Electric aura around Tesla node enemy
+            love.graphics.setBlendMode('add')
+            love.graphics.setColor(0.3, 0.7, 1, 0.3 * pulse)
+            love.graphics.circle('fill', e.x, e.y, (e.size or 20) * 0.8)
+            
+            -- Electric ring
+            love.graphics.setColor(0.5, 0.9, 1, 0.6 * pulse)
+            love.graphics.setLineWidth(2)
+            love.graphics.circle('line', e.x, e.y, (e.size or 20) * 0.9)
+            
+            -- Timer indicator (small arc showing remaining time)
+            if node.timer and node.timer > 0 then
+                local maxTime = 4  -- Approximate max duration
+                local ratio = math.min(1, node.timer / maxTime)
+                love.graphics.setColor(0.7, 0.95, 1, 0.8)
+                love.graphics.arc('line', 'open', e.x, e.y - (e.size or 20) * 0.7, 8, 
+                    -math.pi/2, -math.pi/2 + ratio * 2 * math.pi)
+            end
+            
+            love.graphics.setLineWidth(1)
+            love.graphics.setBlendMode('alpha')
+        end
+    end
+    
+    love.graphics.setColor(1, 1, 1, 1)
+
     -- 状态特效
     if state.hitEffects then
         love.graphics.setBlendMode("add")
