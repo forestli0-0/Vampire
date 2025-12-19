@@ -13,7 +13,8 @@ Button.__index = Button
 
 function Button.new(opts)
     opts = opts or {}
-    opts.focusable = true  -- Buttons are always focusable
+    if opts.focusable == nil then opts.focusable = true end
+
     
     local self = setmetatable(Widget.new(opts), Button)
     

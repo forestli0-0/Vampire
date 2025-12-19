@@ -457,9 +457,11 @@ function core.keypressed(key, scancode, isrepeat)
     
     -- Tab navigation
     if key == 'tab' then
-        core.focusNext(love.keyboard.isDown('lshift', 'rshift'))
-        return true
+        if core.focusNext(love.keyboard.isDown('lshift', 'rshift')) then
+            return true
+        end
     end
+
     
     -- Escape to clear focus
     if key == 'escape' then
@@ -546,7 +548,7 @@ function core.focusNext(reverse)
     local focusable = {}
     collectFocusable(core.root, focusable)
     
-    if #focusable == 0 then return end
+    if #focusable == 0 then return false end
     
     local currentIdx = 0
     for i, w in ipairs(focusable) do
@@ -566,7 +568,9 @@ function core.focusNext(reverse)
     end
     
     core.setFocus(focusable[nextIdx])
+    return true
 end
+
 
 -------------------------------------------
 -- Utility

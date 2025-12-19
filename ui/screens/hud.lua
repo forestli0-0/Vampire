@@ -178,8 +178,10 @@ local function buildCombatFrame(gameState, parent)
             w = slotSize, h = slotSize,
             content = nil,
             sublabel = key,
-            cornerRadius = 4
+            cornerRadius = 4,
+            focusable = false
         })
+
         parent:addChild(slot)
         widgets.abilitySlots[i] = slot -- Keyed by index 1-4
     end

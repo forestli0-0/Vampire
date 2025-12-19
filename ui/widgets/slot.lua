@@ -13,7 +13,8 @@ Slot.__index = Slot
 
 function Slot.new(opts)
     opts = opts or {}
-    opts.focusable = true
+    if opts.focusable == nil then opts.focusable = true end
+
     
     local self = setmetatable(Widget.new(opts), Slot)
     
