@@ -120,7 +120,7 @@ mods.weapon = {
     },
     pressure_point = {
         name = "压力点", desc = "近战伤害",
-        stat = 'meleeDamage', type = 'mult',
+        stat = 'damage', type = 'mult',
         weaponType = 'melee',
         cost = {4,5,6,7,8,9}, value = {0.20,0.40,0.60,0.80,1.00,1.20}
     },
