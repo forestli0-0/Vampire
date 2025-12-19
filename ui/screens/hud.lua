@@ -426,19 +426,25 @@ function hud.update(gameState, dt)
             end
         end
         
-        -- Ability Slots (updated for index 1-4)
+        -- Ability Slots (updated for index 1-4, WF-style no-CD system)
         local abilitiesLib = require('abilities')
         for i, slot in pairs(widgets.abilitySlots) do
             local def = abilitiesLib.getAbilityDef(gameState, i)
             local cd = p.abilityCooldowns and p.abilityCooldowns[i] or 0
-            local maxCd = (def and def.cd) or 5.0
+            local canUse = abilitiesLib.canUse(gameState, i)
             
-            slot.cooldownRatio = math.max(0, math.min(1, cd / maxCd))
-            
-            if cd > 0 then
-                slot.iconColor = {0.5, 0.5, 0.5, 0.5}
+            -- WF-style: most abilities have no CD, check explicit CD only
+            if def and def.cd and def.cd > 0 and cd > 0 then
+                slot.cooldownRatio = math.max(0, math.min(1, cd / def.cd))
             else
+                slot.cooldownRatio = 0  -- No CD overlay for WF-style abilities
+            end
+            
+            -- Color based on canUse (energy-based, not CD-based)
+            if canUse then
                 slot.iconColor = {1, 1, 1, 1}
+            else
+                slot.iconColor = {0.5, 0.5, 0.5, 0.5}
             end
         end
         

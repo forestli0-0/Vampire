@@ -1740,6 +1740,58 @@ function draw.renderUI(state)
         love.graphics.setColor(1, 1, 1, 1)
     end
 
+    -- === CASTING BAR (Ability cast progress) ===
+    if p and p.isCasting and p.castTimer and p.castDef then
+        local castProgress = p.castProgress or 0
+        
+        -- World to screen conversion
+        local px = p.x - state.camera.x
+        local py = p.y - state.camera.y - 50  -- Above player (higher than bow charge)
+        
+        -- Bar dimensions
+        local barW, barH = 80, 10
+        local barX, barY = px - barW / 2, py
+        
+        -- Background
+        love.graphics.setColor(0, 0, 0, 0.85)
+        love.graphics.rectangle('fill', barX - 2, barY - 2, barW + 4, barH + 4, 3, 3)
+        
+        -- Fill color based on class
+        local fillColor = {0.4, 0.7, 1}  -- Default blue
+        if p.class == 'mage' then
+            fillColor = {1, 0.5, 0.2}  -- Orange for mage
+        elseif p.class == 'warrior' then
+            fillColor = {0.8, 0.3, 0.3}  -- Red for warrior
+        elseif p.class == 'beastmaster' then
+            fillColor = {0.5, 0.9, 0.4}  -- Green for beastmaster
+        elseif p.class == 'volt' then
+            fillColor = {0.3, 0.8, 1}  -- Cyan for volt
+        end
+        
+        -- Pulsing effect
+        local pulse = 0.8 + 0.2 * math.sin(love.timer.getTime() * 10)
+        love.graphics.setColor(fillColor[1] * pulse, fillColor[2] * pulse, fillColor[3] * pulse, 0.9)
+        love.graphics.rectangle('fill', barX, barY, barW * castProgress, barH, 2, 2)
+        
+        -- Border (brighter when near completion)
+        local borderAlpha = (castProgress > 0.8) and 1.0 or 0.7
+        love.graphics.setColor(1, 1, 1, borderAlpha)
+        love.graphics.rectangle('line', barX, barY, barW, barH, 2, 2)
+        
+        -- Ability name above bar
+        local abilityName = p.castDef.name or "施法中"
+        love.graphics.setColor(1, 1, 1, 0.95)
+        love.graphics.printf(abilityName, barX - 20, barY - 16, barW + 40, "center")
+        
+        -- Progress percentage
+        if castProgress < 1.0 then
+            love.graphics.setColor(0.9, 0.9, 0.9, 0.8)
+            love.graphics.printf(string.format("%.0f%%", castProgress * 100), barX, barY - 1, barW, "center")
+        end
+        
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+
     -- 屏幕边缘指示道具方向（磁铁/鸡腿/宝箱/宠物芯片）
     do
         local w, h = love.graphics.getWidth(), love.graphics.getHeight()
@@ -2000,10 +2052,10 @@ function draw.renderUI(state)
         local slotSize = 18
         
         for i, key in ipairs(keys) do
-            local abilityKey = abilities.getAbilityForKey(key)
-            local def = abilityKey and abilities.catalog[abilityKey]
-            local cd = abilityCDs[abilityKey] or 0
-            local canUse = abilities.canUse(state, abilityKey)
+            local abilityIndex = i  -- Q=1, E=2, C=3, V=4
+            local def = abilities.getAbilityByIndex(state, abilityIndex)
+            local cd = abilityCDs[abilityIndex] or 0
+            local canUse = abilities.canUse(state, abilityIndex)
             
             local x = abilityX + (i - 1) * (slotSize + 4)
             
@@ -2015,8 +2067,8 @@ function draw.renderUI(state)
             end
             love.graphics.rectangle('fill', x, abilityY, slotSize, slotSize, 2, 2)
             
-            -- Cooldown overlay
-            if cd > 0 and def then
+            -- Cooldown overlay (WF-style: most have no CD, so this rarely shows)
+            if cd > 0 and def and def.cd and def.cd > 0 then
                 local cdRatio = cd / def.cd
                 love.graphics.setColor(0, 0, 0, 0.6)
                 love.graphics.rectangle('fill', x, abilityY, slotSize, slotSize * cdRatio, 2, 2)

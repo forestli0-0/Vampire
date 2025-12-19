@@ -499,58 +499,94 @@ end
 
 function player.keypressed(state, key)
     if not state or state.gameState ~= 'PLAYING' then return false end
+    local p = state.player
+    local input = require('input')
     
-    -- Weapon slot switching (1=ranged, 2=melee for 2-slot system)
-    if key == '1' then return player.switchWeaponSlot(state, 'ranged') end
-    if key == '2' then return player.switchWeaponSlot(state, 'melee') end
+    -- Weapon slot switching (1/2 for 2-slot system, F to cycle)
+    if key == '1' or input.isActionKey(key, 'weapon1') then return player.switchWeaponSlot(state, 'ranged') end
+    if key == '2' or input.isActionKey(key, 'weapon2') then return player.switchWeaponSlot(state, 'melee') end
+    if input.isActionKey(key, 'cycle_weapon') then
+        local weapons = require('weapons')
+        return weapons.cycleSlots(state)
+    end
     
     -- Reload (R key)
-    if key == 'r' then
+    if input.isActionKey(key, 'reload') then
         local weapons = require('weapons')
         return weapons.startReload(state)
     end
     
-    -- Ability keys (Q/E/C/V)
-    local abilities = require('abilities')
-    local abilityKey = abilities.getAbilityForKey(key)
-    if abilityKey then
-        return abilities.tryActivate(state, abilityKey)
+    -- Melee (E key)
+    if input.isActionKey(key, 'melee') then
+        return player.quickMelee(state)
     end
     
-    -- M key: Test MOD system (all categories)
-    if key == 'm' then
+    -- Ability keys (Q/E/C/V or 1/2/3/4)
+    local abilities = require('abilities')
+    local abilityIndex = abilities.getAbilityForKey(key)
+    if not abilityIndex then
+        if input.isActionKey(key, 'ability1') then abilityIndex = 1
+        elseif input.isActionKey(key, 'ability2') then abilityIndex = 2
+        elseif input.isActionKey(key, 'ability3') then abilityIndex = 3
+        elseif input.isActionKey(key, 'ability4') then abilityIndex = 4
+        end
+    end
+    if abilityIndex then
+        return abilities.tryActivate(state, abilityIndex)
+    end
+    
+    -- M key: Test MOD system
+    if input.isActionKey(key, 'debug_mods') then
         local mods = require('mods')
         local inv = state.inventory
         local activeSlot = inv and inv.activeSlot or 'ranged'
         local slotData = inv and inv.weaponSlots and inv.weaponSlots[activeSlot]
         local activeKey = slotData and slotData.key
-        
-        -- Equip test mods for all categories
         mods.equipTestMods(state, 'warframe', nil)
-        if activeKey then
-            mods.equipTestMods(state, 'weapons', activeKey)
-        end
+        if activeKey then mods.equipTestMods(state, 'weapons', activeKey) end
         mods.equipTestMods(state, 'companion', nil)
-        
         table.insert(state.texts, {x=state.player.x, y=state.player.y-50, text="MOD已装备!", color={0.6, 0.9, 0.4}, life=2})
-        table.insert(state.texts, {x=state.player.x, y=state.player.y-70, text="角色+武器+宠物", color={0.8, 0.8, 1}, life=2})
         return true
     end
     
-    -- Escape key: Return to Arsenal (prep screen)
-    if key == 'escape' then
+    -- Escape key: Return to Arsenal
+    if input.isActionKey(key, 'cancel') then
         local arsenal = require('arsenal')
-        if arsenal.reset then
-            arsenal.reset(state)
-        end
+        if arsenal.reset then arsenal.reset(state) end
         state.gameState = 'ARSENAL'
         table.insert(state.texts or {}, {x=state.player.x, y=state.player.y-50, text="返回准备界面", color={0.8, 0.8, 1}, life=1.5})
         return true
     end
     
-    if key == 'space' then
-        return player.tryDash(state)
+    -- Movement: Bullet Jump / Dash (Space)
+    if input.isActionKey(key, 'jump') then
+        local dash = ensureDashState(p)
+        if p.isSliding and dash and (dash.charges or 0) > 0 then
+            -- Bullet Jump: Consumes 1 charge (Tactical Rush + Space)
+            local dx, dy = input.getAxis('move_x'), input.getAxis('move_y')
+            if dx == 0 and dy == 0 then dx = p.facing or 1 end
+            local len = math.sqrt(dx*dx + dy*dy)
+            if len < 0.001 then dx, len = (p.facing or 1), 1 end
+            
+            dash.charges = dash.charges - 1
+            p.bulletJumpTimer = BULLET_JUMP_DURATION
+            p.bjDx, p.bjDy = (dx/len), (dy/len)
+            
+            if state.spawnEffect then state.spawnEffect('shock', p.x, p.y, 1.2) end
+            p.isSliding = false
+            if state.spawnEffect then state.spawnEffect('blast_hit', p.x, p.y, 1.5) end
+            return true
+        else
+            return player.tryDash(state)
+        end
     end
+
+    -- Pet Toggle
+    if input.isActionKey(key, 'toggle_pet') then
+        local pets = require('pets')
+        return pets.toggleMode(state)
+    end
+    
     return false
 end
 
@@ -865,425 +901,10 @@ function player.tickTexts(state, dt)
     end
 end
 
--- Update ability cooldown tick
-function player.updateAbility(state, dt)
-    local p = state.player
-    local ability = p.ability
-    if not ability then
-        p.ability = {cooldown = 0, timer = 0}
-        ability = p.ability
-    end
-    
-    if (ability.timer or 0) > 0 then
-        ability.timer = ability.timer - dt
-        if ability.timer < 0 then ability.timer = 0 end
-    end
-end
 
--- Update Volt-specific ability effects
-function player.updateVoltEffects(state, dt)
-    local p = state.player
-    if not p then return end
-    
-    -- Update lightning chain VFX
-    if state.voltLightningChains then
-        for i = #state.voltLightningChains, 1, -1 do
-            local chain = state.voltLightningChains[i]
-            chain.timer = chain.timer - dt
-            chain.alpha = math.max(0, chain.timer / 0.5)
-            if chain.timer <= 0 then
-                table.remove(state.voltLightningChains, i)
-            end
-        end
-    end
-    
-    -- Update Speed buff (TEMPORARY - restore original speed when expired)
-    if p.speedBuffActive and p.speedBuffTimer then
-        p.speedBuffTimer = p.speedBuffTimer - dt
-        if p.speedBuffTimer <= 0 then
-            -- Restore original speed
-            p.stats.moveSpeed = p.originalMoveSpeed or 170
-            p.stats.attackSpeedMult = p.originalAttackSpeed or 1.0
-            p.speedBuffActive = false
-            p.speedBuffTimer = 0
-            p.speedBuffMult = 1.0
-            p.attackSpeedBuffMult = 1.0
-            p.speedAuraRadius = nil
-            -- Visual notification
-            if state.texts then
-                table.insert(state.texts, {
-                    x = p.x, y = p.y - 30,
-                    text = "极速结束",
-                    color = {0.6, 0.6, 0.8},
-                    life = 1.0
-                })
-            end
-        end
-    end
-    
-    -- Update Electric Shield (follow player aim)
-    if p.electricShield and p.electricShield.active then
-        p.electricShield.timer = p.electricShield.timer - dt
-        
-        if p.electricShield.timer <= 0 then
-            -- Shield expired
-            p.electricShield.active = false
-            p.electricShield = nil
-            if state.texts then
-                table.insert(state.texts, {
-                    x = p.x, y = p.y - 30,
-                    text = "电盾消散",
-                    color = {0.6, 0.6, 0.8},
-                    life = 1.0
-                })
-            end
-        else
-            -- Update shield position (follow player aim)
-            if p.electricShield.followPlayer then
-                local angle = p.aimAngle or 0
-                local dist = p.electricShield.distance or 60
-                p.electricShield.x = p.x + math.cos(angle) * dist
-                p.electricShield.y = p.y + math.sin(angle) * dist
-                p.electricShield.angle = angle
-            end
-        end
-    end
-    
-    -- Update Discharge wave (expanding ring with damage)
-    if p.dischargeWave and p.dischargeWave.active then
-        local wave = p.dischargeWave
-        wave.timer = wave.timer - dt
-        
-        -- Expand the wave
-        local oldRadius = wave.currentRadius
-        wave.currentRadius = wave.currentRadius + wave.expandSpeed * dt
-        
-        -- Cap at maxRadius for damage calculation (but keep checking for all enemies)
-        local effectiveNewRadius = math.min(wave.currentRadius, wave.maxRadius)
-        local effectiveOldRadius = math.min(oldRadius, wave.maxRadius)
-        
-        -- Hit enemies within the expanding ring (NO enemy count limit!)
-        -- Continue checking as long as we haven't hit maxRadius yet
-        if effectiveOldRadius < wave.maxRadius then
-            local ok, calc = pcall(require, 'calculator')
-            for _, e in ipairs(state.enemies or {}) do
-                if e and not e.isDummy and not wave.hitEnemies[e] then
-                    local dx, dy = e.x - wave.x, e.y - wave.y
-                    local dist = math.sqrt(dx * dx + dy * dy)
-                    
-                    -- Check if enemy is within the expanding ring OR within maxRadius
-                    -- Hit if: enemy distance is between old radius and new radius
-                    if dist <= effectiveNewRadius and dist >= effectiveOldRadius then
-                        wave.hitEnemies[e] = true
-                        
-                        -- Apply primary damage
-                        if ok and calc then
-                            local instance = calc.createInstance({
-                                damage = wave.damage,
-                                critChance = 0.20,
-                                critMultiplier = 2.5,
-                                statusChance = 1.0,
-                                elements = {'ELECTRIC'},
-                                damageBreakdown = {ELECTRIC = 1},
-                                weaponTags = {'ability', 'area', 'electric'}
-                            })
-                            calc.applyHit(state, e, instance)
-                        else
-                            e.health = (e.health or 0) - wave.damage
-                        end
-                        
-                        -- Stun the enemy
-                        e.frozenTimer = wave.stunDuration
-                        
-                        -- TESLA NODE: Mark enemy as a node in the electric network
-                        e.teslaNode = {
-                            active = true,
-                            timer = wave.teslaNodeDuration or wave.stunDuration,
-                            dps = wave.teslaNodeDPS or 15,
-                            range = wave.teslaNodeRange or 120,
-                            damageTickTimer = 0  -- For damage tick timing
-                        }
-                        
-                        -- Spawn hit effect
-                        if state.spawnEffect then
-                            state.spawnEffect('shock', e.x, e.y, 1.0)
-                        end
-                        
-                        -- Create secondary chain lightning to nearby enemies
-                        local chainR2 = wave.chainRange * wave.chainRange
-                        for _, e2 in ipairs(state.enemies or {}) do
-                            if e2 and e2 ~= e and not e2.isDummy and not wave.hitEnemies[e2] then
-                                local dx2, dy2 = e2.x - e.x, e2.y - e.y
-                                if dx2 * dx2 + dy2 * dy2 <= chainR2 then
-                                    -- Store chain for VFX
-                                    state.voltLightningChains = state.voltLightningChains or {}
-                                    table.insert(state.voltLightningChains, {
-                                        segments = {{
-                                            x1 = e.x, y1 = e.y,
-                                            x2 = e2.x, y2 = e2.y,
-                                            width = 8
-                                        }},
-                                        timer = 0.3,
-                                        alpha = 0.7
-                                    })
-                                    -- Apply chain damage (but don't mark as hit - main wave will hit them)
-                                    if ok and calc then
-                                        local chainInstance = calc.createInstance({
-                                            damage = wave.chainDamage,
-                                            critChance = 0.10,
-                                            critMultiplier = 2.0,
-                                            statusChance = 0.80,
-                                            elements = {'ELECTRIC'},
-                                            damageBreakdown = {ELECTRIC = 1},
-                                            weaponTags = {'ability', 'electric'}
-                                        })
-                                        calc.applyHit(state, e2, chainInstance)
-                                    else
-                                        e2.health = (e2.health or 0) - wave.chainDamage
-                                    end
-                                    break  -- Only one chain per enemy hit
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        
-        -- Deactivate when timer expires
-        if wave.timer <= 0 then
-            wave.active = false
-            p.dischargeWave = nil
-        end
-    end
-    
-    -- Update Discharge wave VFX (separate from damage logic)
-    if state.voltDischargeWaves then
-        for i = #state.voltDischargeWaves, 1, -1 do
-            local wave = state.voltDischargeWaves[i]
-            wave.timer = wave.timer - dt
-            -- Expand but cap at maxRadius to match damage logic
-            if wave.currentRadius < wave.maxRadius then
-                wave.currentRadius = wave.currentRadius + wave.expandSpeed * dt
-                if wave.currentRadius > wave.maxRadius then
-                    wave.currentRadius = wave.maxRadius
-                end
-            end
-            wave.alpha = math.max(0, wave.timer * 2)  -- Fade out
-            if wave.timer <= 0 then
-                table.remove(state.voltDischargeWaves, i)
-            end
-        end
-    end
-    
-    -- ========== TESLA NODE NETWORK UPDATE ==========
-    -- Collect all active Tesla nodes
-    local teslaNodes = {}
-    for _, e in ipairs(state.enemies or {}) do
-        if e and e.teslaNode and e.teslaNode.active then
-            table.insert(teslaNodes, e)
-        end
-    end
-    
-    -- Process Tesla node network
-    if #teslaNodes > 0 then
-        local ok, calc = pcall(require, 'calculator')
-        
-        -- Clear previous frame's Tesla arcs
-        state.teslaArcs = {}
-        
-        for i, e1 in ipairs(teslaNodes) do
-            local node = e1.teslaNode
-            node.timer = node.timer - dt
-            node.damageTickTimer = (node.damageTickTimer or 0) + dt
-            
-            -- Check if node expired
-            if node.timer <= 0 then
-                node.active = false
-                e1.teslaNode = nil
-            else
-                -- Find nearby Tesla nodes and create arcs
-                local nodeRange2 = node.range * node.range
-                
-                for j = i + 1, #teslaNodes do
-                    local e2 = teslaNodes[j]
-                    if e2 and e2.teslaNode and e2.teslaNode.active then
-                        local dx = e2.x - e1.x
-                        local dy = e2.y - e1.y
-                        local dist2 = dx * dx + dy * dy
-                        
-                        if dist2 <= nodeRange2 then
-                            -- Create arc VFX between nodes
-                            table.insert(state.teslaArcs, {
-                                x1 = e1.x, y1 = e1.y,
-                                x2 = e2.x, y2 = e2.y,
-                                alpha = 0.7 + 0.3 * math.sin(love.timer.getTime() * 10)
-                            })
-                            
-                            -- Apply damage tick every 0.5 seconds
-                            if node.damageTickTimer >= 0.5 then
-                                local tickDamage = math.floor(node.dps * 0.5)
-                                
-                                if ok and calc then
-                                    local instance = calc.createInstance({
-                                        damage = tickDamage,
-                                        critChance = 0.10,
-                                        critMultiplier = 1.5,
-                                        statusChance = 0.5,
-                                        elements = {'ELECTRIC'},
-                                        damageBreakdown = {ELECTRIC = 1},
-                                        weaponTags = {'ability', 'electric', 'tesla'}
-                                    })
-                                    calc.applyHit(state, e1, instance)
-                                    calc.applyHit(state, e2, instance)
-                                else
-                                    e1.health = (e1.health or 0) - tickDamage
-                                    e2.health = (e2.health or 0) - tickDamage
-                                end
-                            end
-                        end
-                    end
-                end
-                
-                -- Reset damage tick timer
-                if node.damageTickTimer >= 0.5 then
-                    node.damageTickTimer = 0
-                end
-                
-                -- Keep enemy stunned while Tesla node is active
-                if e1.frozenTimer and e1.frozenTimer < 0.2 then
-                    e1.frozenTimer = 0.2  -- Keep slightly stunned
-                end
-            end
-        end
-    end
-end
 
--- Use class ability (indexed 1-4)
-function player.useAbility(state, index)
-    local p = state.player
-    index = index or 1
-    
-    local abilities = require('abilities')
-    local def = abilities.getAbilityDef(state, index)
-    if not def then return false end
-    
-    -- Check energy and cooldown
-    p.abilityCooldowns = p.abilityCooldowns or {}
-    local cd = p.abilityCooldowns[index] or 0
-    if cd > 0 then return false end
-    
-    local eff = p.stats and p.stats.abilityEfficiency or 1.0
-    local cost = math.floor(def.cost / eff)
-    if (p.energy or 0) < cost then
-        if state.texts then
-            table.insert(state.texts, {x=p.x, y=p.y-40, text="能量不足!", color={1,0,0}, life=0.5})
-        end
-        return false
-    end
-    
-    -- Execute ability
-    local success = def.effect(state)
-    
-    -- Set cooldown and consume energy if successful
-    if success then
-        p.energy = p.energy - cost
-        p.abilityCooldowns[index] = def.cd or 5.0
-        if state.texts then
-            table.insert(state.texts, {x=p.x, y=p.y-60, text=def.name, color={0.5, 1, 1}, life=1.0})
-        end
-    end
-    
-    return success
-end
+-- Consolidation: player.keypressed and player.useAbility removed to avoid redundancy
 
-function player.keypressed(state, key)
-    local p = state.player
-    
-    
-    -- Movement: Bullet Jump / Dash (Space)
-    if input.isActionKey(key, 'jump') then
-        local dash = ensureDashState(p)
-        if p.isSliding and dash and (dash.charges or 0) > 0 then
-            -- Bullet Jump: Consumes 1 charge (Tactical Rush + Space)
-            local dx, dy = input.getAxis('move_x'), input.getAxis('move_y')
-            if dx == 0 and dy == 0 then dx = p.facing or 1 end
-            local len = math.sqrt(dx*dx + dy*dy)
-            
-            dash.charges = dash.charges - 1
-            p.bulletJumpTimer = BULLET_JUMP_DURATION
-            p.bjDx, p.bjDy = (dx/len), (dy/len)
-            
-            if state.spawnEffect then state.spawnEffect('shock', p.x, p.y, 1.2) end
-            p.isSliding = false
-            if state.spawnEffect then state.spawnEffect('blast_hit', p.x, p.y, 1.5) end
-            return true
-        else
-            -- Standard Dash (Space) or failed Bullet Jump fallback
-            return player.tryDash(state)
-        end
-    end
-    
-    -- Escape key: Return to Arsenal
-    if input.isActionKey(key, 'cancel') then
-        local arsenal = require('arsenal')
-        if arsenal.reset then arsenal.reset(state) end
-        state.gameState = 'ARSENAL'
-        table.insert(state.texts or {}, {x=state.player.x, y=state.player.y-50, text="返回准备界面", color={0.8, 0.8, 1}, life=1.5})
-        return true
-    end
-    
-    -- Abilities: 1, 2, 3, 4
-    if input.isActionKey(key, 'ability1') then player.useAbility(state, 1) return true end
-    if input.isActionKey(key, 'ability2') then player.useAbility(state, 2) return true end
-    if input.isActionKey(key, 'ability3') then player.useAbility(state, 3) return true end
-    if input.isActionKey(key, 'ability4') then player.useAbility(state, 4) return true end
-    
-    -- Weapons: Cycle, Quick Melee, Reload
-    if input.isActionKey(key, 'cycle_weapon') then
-        local weapons = require('weapons')
-        weapons.cycleSlots(state)
-        return true
-    end
-    if input.isActionKey(key, 'melee') then
-        player.quickMelee(state)
-        return true
-    end
-    if input.isActionKey(key, 'reload') then
-        local weapons = require('weapons')
-        weapons.startReload(state)
-        return true
-    end
-
-    -- Pets
-    if input.isActionKey(key, 'toggle_pet') then
-        local pets = require('pets')
-        pets.toggleMode(state)
-        return true
-    end
-    
-    -- Debug: M key to equip test MODs
-    if input.isActionKey(key, 'debug_mods') then
-        local mods = require('mods')
-        local inv = state.inventory
-        local activeSlot = inv and inv.activeSlot or 'ranged'
-        local slotData = inv and inv.weaponSlots and inv.weaponSlots[activeSlot]
-        local activeKey = slotData and slotData.key
-        
-        mods.equipTestMods(state, 'warframe', nil)
-        if activeKey then
-            mods.equipTestMods(state, 'weapons', activeKey)
-        end
-        mods.equipTestMods(state, 'companion', nil)
-        
-        if state.texts then
-            table.insert(state.texts, {x=p.x, y=p.y-50, text="MODs RESTORED (Debug)", color={0.6, 0.9, 0.4}, life=2})
-        end
-        return true
-    end
-    
-    return false
-end
 
 -- =============================================================================
 -- WF-STYLE QUICK MELEE
