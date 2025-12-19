@@ -423,13 +423,21 @@ function ingameMenu.buildStatsPanel(parent)
         local weaponData = state.inventory and state.inventory.weapons and state.inventory.weapons[weaponKey]
         
         if weaponDef then
-            table.insert(statLines, {label = "伤害", value = string.format("%.0f", weaponDef.damage or 10)})
-            table.insert(statLines, {label = "暴击", value = string.format("%.0f%%", (weaponDef.critChance or 0.1) * 100)})
-            table.insert(statLines, {label = "倍率", value = string.format("%.1fx", weaponDef.critMult or 2.0)})
-            table.insert(statLines, {label = "射速", value = string.format("%.1f", weaponDef.fireRate or 1.0)})
+            -- Calculate actual stats with all mods applied
+            local weapons = require('weapons')
+            local calculated = weapons.calculateStats(state, weaponKey)
+            
+            table.insert(statLines, {label = "伤害", value = string.format("%.0f", calculated.damage or 10)})
+            table.insert(statLines, {label = "暴击", value = string.format("%.0f%%", (calculated.critChance or 0.1) * 100)})
+            table.insert(statLines, {label = "倍率", value = string.format("%.1fx", (calculated.critMultiplier or calculated.critMult or 2.0))})
+            
+            -- Display as fire rate (reciprocal of CD)
+            local fireRate = calculated.fireRate or (1 / (calculated.cd or 1))
+            table.insert(statLines, {label = "射速", value = string.format("%.1f", fireRate)})
+            
             if weaponData then
                 local mag = weaponData.magazine or 0
-                local maxMag = (weaponDef.base and weaponDef.base.maxMagazine) or mag
+                local maxMag = (calculated.maxMagazine) or calculated.magazine or mag
                 table.insert(statLines, {label = "弹匣", value = string.format("%d/%d", mag, maxMag)})
                 table.insert(statLines, {label = "储备", value = string.format("%d", weaponData.reserve or 0)})
             end
@@ -542,6 +550,7 @@ function ingameMenu.buildEquippedMods(parent)
                                 break
                             end
                         end
+                        mods.refreshActiveStats(state)
                         if state.playSfx then state.playSfx('gem') end
                     end
                 elseif dragData.slotType == 'equipped' and dragData.slotIndex ~= slotIdx then
@@ -550,6 +559,7 @@ function ingameMenu.buildEquippedMods(parent)
                     local myMod = slotsData[slotIdx]
                     slotsData[slotIdx] = otherMod
                     slotsData[dragData.slotIndex] = myMod
+                    mods.refreshActiveStats(state)
                     if state.playSfx then state.playSfx('gem') end
                 end
                 
@@ -562,6 +572,7 @@ function ingameMenu.buildEquippedMods(parent)
             if currentSlotMod then
                 mods.unequipFromRunSlot(state, category, key, slotIdx)
                 mods.addToRunInventory(state, currentSlotMod.key, category, currentSlotMod.rank, currentSlotMod.rarity)
+                mods.refreshActiveStats(state)
                 if state.playSfx then state.playSfx('gem') end
                 ingameMenu.buildUI()
             end

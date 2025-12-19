@@ -202,7 +202,7 @@ end
 -- Calculate total cost of equipped mods
 function mods.getTotalCost(slots, catalog)
     local total = 0
-    for _, mod in ipairs(slots or {}) do
+    for _, mod in pairs(slots or {}) do
         if mod and mod.key then
             local def = catalog[mod.key]
             if def and def.cost then
@@ -292,7 +292,7 @@ function mods.applyToStats(baseStats, slots, catalog)
     local multBonuses = {}
     local addBonuses = {}
     
-    for _, mod in ipairs(slots or {}) do
+    for _, mod in pairs(slots or {}) do
         if mod and mod.key then
             local def = catalog[mod.key]
             if def and def.value then
@@ -334,19 +334,19 @@ function mods.applyWeaponMods(state, weaponKey, baseStats)
     if stats.fireRate and stats.fireRate > 0 then
         local cdBonus = stats.fireRate  -- e.g., 0.6 means 60% faster
         stats.cd = (stats.cd or 1) / (1 + cdBonus)
-        stats.fireRate = nil  -- Remove intermediate stat
+        -- stats.fireRate = nil  -- Keep for UI
     end
     
     -- multishot (add) maps to amount
     if stats.multishot then
         stats.amount = (stats.amount or 0) + stats.multishot
-        stats.multishot = nil
+        -- stats.multishot = nil -- Keep for UI
     end
     
     -- critMult (add) maps to critMultiplier
     if stats.critMult then
         stats.critMultiplier = (stats.critMultiplier or 1.5) + stats.critMult
-        stats.critMult = nil
+        -- stats.critMult = nil -- Keep for UI
     end
     
     -- magSize (mult) maps to magazine/maxMagazine
@@ -358,20 +358,20 @@ function mods.applyWeaponMods(state, weaponKey, baseStats)
         if stats.maxMagazine then
             stats.maxMagazine = math.floor(stats.maxMagazine * bonus)
         end
-        stats.magSize = nil
+        -- stats.magSize = nil -- Keep for UI
     end
     
     -- reloadSpeed (mult) affects reloadTime inversely
     if stats.reloadSpeed and stats.reloadSpeed > 0 then
         local bonus = stats.reloadSpeed
         stats.reloadTime = (stats.reloadTime or 1.5) / (1 + bonus)
-        stats.reloadSpeed = nil
+        -- stats.reloadSpeed = nil -- Keep for UI
     end
     
     -- meleeDamage (mult) maps to damage
     if stats.meleeDamage then
         stats.damage = (stats.damage or 0) * (1 + stats.meleeDamage)
-        stats.meleeDamage = nil
+        -- stats.meleeDamage = nil -- Keep for UI
     end
     
     return stats
@@ -596,7 +596,7 @@ function mods.canEquipToRun(state, category, key, modKey, modRank)
     
     -- Check slot count
     local usedSlots = 0
-    for _, slot in ipairs(slotData.slots or {}) do
+    for _, slot in pairs(slotData.slots or {}) do
         if slot then usedSlots = usedSlots + 1 end
     end
     if usedSlots >= MAX_SLOTS then return false end
@@ -662,36 +662,36 @@ function mods.applyRunWeaponMods(state, weaponKey, baseStats)
     if stats.fireRate and stats.fireRate > 0 then
         local cdBonus = stats.fireRate
         stats.cd = (stats.cd or 1) / (1 + cdBonus)
-        stats.fireRate = nil
+        -- stats.fireRate = nil
     end
     
     if stats.multishot then
         stats.amount = (stats.amount or 0) + stats.multishot
-        stats.multishot = nil
+        -- stats.multishot = nil
     end
     
     if stats.critMult then
         stats.critMultiplier = (stats.critMultiplier or 1.5) + stats.critMult
-        stats.critMult = nil
+        -- stats.critMult = nil
     end
     
     if stats.magSize and stats.magSize > 0 then
         local bonus = 1 + stats.magSize
         if stats.magazine then stats.magazine = math.floor(stats.magazine * bonus) end
         if stats.maxMagazine then stats.maxMagazine = math.floor(stats.maxMagazine * bonus) end
-        stats.magSize = nil
+        -- stats.magSize = nil
     end
     
     if stats.reloadSpeed and stats.reloadSpeed > 0 then
         local bonus = stats.reloadSpeed
         stats.reloadTime = (stats.reloadTime or 1.5) / (1 + bonus)
-        stats.reloadSpeed = nil
+        -- stats.reloadSpeed = nil
     end
     
     -- meleeDamage (mult) maps to damage
     if stats.meleeDamage then
         stats.damage = (stats.damage or 0) * (1 + stats.meleeDamage)
-        stats.meleeDamage = nil
+        -- stats.meleeDamage = nil
     end
     
     return stats
@@ -737,6 +737,70 @@ function mods.getRunInventoryByCategory(state, category)
         end
     end
     return result
+end
+
+-- =============================================================================
+-- REFRESH ACTIVE STATS
+-- =============================================================================
+
+function mods.refreshActiveStats(state)
+    local p = state.player
+    if not p then return end
+    
+    -- 1. Determine base stats from class
+    local classKey = p.class or 'warrior'
+    local classDef = state.classes and state.classes[classKey]
+    local baseStats = {}
+    
+    if classDef and classDef.baseStats then
+        for k, v in pairs(classDef.baseStats) do
+            baseStats[k] = v
+        end
+    end
+    
+    -- Fill in missing defaults if needed (ensure no nils)
+    baseStats.maxHp = baseStats.maxHp or 100
+    baseStats.maxShield = baseStats.maxShield or 100
+    baseStats.maxEnergy = baseStats.maxEnergy or 100
+    baseStats.moveSpeed = baseStats.moveSpeed or 110
+    baseStats.armor = baseStats.armor or 0
+    baseStats.energyRegen = baseStats.energyRegen or 2.0
+    baseStats.abilityStrength = baseStats.abilityStrength or 1.0
+    baseStats.abilityEfficiency = baseStats.abilityEfficiency or 1.0
+    baseStats.abilityDuration = baseStats.abilityDuration or 1.0
+    baseStats.abilityRange = baseStats.abilityRange or 1.0
+    baseStats.dashCharges = baseStats.dashCharges or 1
+    
+    -- 2. Apply persistent mods (Warframe category)
+    -- [Implementation note: arsenal-persistent mods for character are handled here if implemented]
+    
+    -- 3. Apply run mods
+    local activeStats = mods.applyRunWarframeMods(state, baseStats)
+    
+    -- 4. Update player object
+    p.stats = activeStats
+    
+    -- Sync physical fields for HUD and physics
+    p.maxHp = activeStats.maxHp or 100
+    p.hp = math.min(p.hp or p.maxHp, p.maxHp)
+    
+    p.maxShield = activeStats.maxShield or 100
+    p.shield = math.min(p.shield or p.maxShield, p.maxShield)
+    
+    p.maxEnergy = activeStats.maxEnergy or 100
+    p.energy = math.min(p.energy or p.maxEnergy, p.maxEnergy)
+    
+    -- Sync dash
+    if p.dash then
+        p.dash.maxCharges = activeStats.dashCharges or 1
+        p.dash.charges = math.min(p.dash.charges or p.dash.maxCharges, p.dash.maxCharges)
+    end
+    
+    -- 5. Refresh Pet Stats if active
+    local pets = require('pets')
+    pets.recompute(state)
+    
+    print("[MODS] Active stats refreshed for player and pet")
 end
 
 return mods
