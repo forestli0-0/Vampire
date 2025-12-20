@@ -3,6 +3,7 @@ local pets = require('pets')
 local world = require('world')
 local mission = require('mission')
 local campaign = require('campaign')
+local mods = require('mods')
 
 local arsenal = {}
 
@@ -403,52 +404,11 @@ function arsenal.startRun(state, opts)
         pets.spawnStartingPet(state)
     end
     
-    -- Apply class base stats
-    local classKey = state.player.class or 'warrior'
-    local classDef = state.classes and state.classes[classKey]
-    if classDef and classDef.baseStats then
-        local bs = classDef.baseStats
-        if bs.maxHp then
-            state.player.maxHp = bs.maxHp
-            state.player.hp = bs.maxHp
-            state.player.stats.maxHp = bs.maxHp  -- Sync to stats for HUD
-        end
-        if bs.maxShield then
-            state.player.maxShield = bs.maxShield
-            state.player.shield = bs.maxShield
-            state.player.stats.maxShield = bs.maxShield  -- Sync to stats for HUD
-        end
-        if bs.maxEnergy then
-            state.player.maxEnergy = bs.maxEnergy
-            state.player.energy = bs.maxEnergy
-            state.player.stats.maxEnergy = bs.maxEnergy  -- Sync to stats for HUD
-        end
-        if bs.armor then state.player.stats.armor = bs.armor end
-        if bs.moveSpeed then state.player.stats.moveSpeed = bs.moveSpeed end
-        if bs.might then state.player.stats.might = bs.might end
-        if bs.cooldown then state.player.stats.cooldown = bs.cooldown end
-        
-        -- Advanced class stats
-        if bs.dashCharges then
-            state.player.stats.dashCharges = bs.dashCharges
-            state.player.dash.maxCharges = bs.dashCharges
-            state.player.dash.charges = bs.dashCharges
-        end
-        if bs.critChance then
-            state.player.stats.critChance = (state.player.stats.critChance or 0) + bs.critChance
-        end
-        if bs.statusChance then
-            state.player.stats.statusChance = (state.player.stats.statusChance or 0) + bs.statusChance
-        end
-        if bs.petHpBonus then
-            state.player.stats.petHpBonus = bs.petHpBonus
-        end
-    end
-    
-    -- Ensure stats are synced with player fields (for HUD compatibility)
-    state.player.stats.maxHp = state.player.stats.maxHp or state.player.maxHp or 100
-    state.player.stats.maxShield = state.player.stats.maxShield or state.player.maxShield or 100
-    state.player.stats.maxEnergy = state.player.stats.maxEnergy or state.player.maxEnergy or 100
+    -- Refresh from class + progression + run mods, then start at full resources
+    mods.refreshActiveStats(state)
+    state.player.hp = state.player.maxHp or state.player.hp
+    state.player.shield = state.player.maxShield or state.player.shield
+    state.player.energy = state.player.maxEnergy or state.player.energy
     
     -- Initialize ability cooldown
     state.player.ability = state.player.ability or {cooldown = 0, timer = 0}
@@ -522,6 +482,10 @@ function arsenal.keypressed(state, key)
             local classDef = state.classes and state.classes[classKey]
             local className = (classDef and classDef.name) or classKey
             setMessage(state, "Class: " .. tostring(className))
+            mods.refreshActiveStats(state)
+            state.player.hp = state.player.maxHp or state.player.hp
+            state.player.shield = state.player.maxShield or state.player.shield
+            state.player.energy = state.player.maxEnergy or state.player.energy
             -- Rebuild UI to reflect change
             if arsenal.useNewUI then
                 local screen = getArsenalScreen()
