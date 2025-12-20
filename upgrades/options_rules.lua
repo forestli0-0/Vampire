@@ -1,6 +1,7 @@
 local helpers = require('upgrades.options_helpers')
 
 local function applyStartingGuarantee(state, pools)
+    if pools and pools.mode == 'mod' then return end
     -- Starting guarantee: first 2 upgrades prioritize class-preferred items
     local upgradeCount = state.upgradeCount or 0
     if upgradeCount < 2 then
@@ -53,6 +54,7 @@ local function computeRunState(state, upgrades)
 end
 
 local function applyEarlyRoute(state, pools, runLevel, maxWeapons, weaponsOwned)
+    if pools and pools.mode == 'mod' then return end
     -- Early feel: ensure at least one "new route" option (weapon/augment) when possible.
     if #state.upgradeOptions < 3 then
         if pools.typeAllowed('weapon') and weaponsOwned < math.min(2, math.max(1, maxWeapons)) and not helpers.hasType(state.upgradeOptions, 'weapon') then
@@ -73,6 +75,7 @@ local function applyEarlyRoute(state, pools, runLevel, maxWeapons, weaponsOwned)
 end
 
 local function applyLowLevelForce(state, pools, runLevel)
+    if pools and pools.mode == 'mod' then return end
     if runLevel <= 6
         and (pools.typeAllowed('weapon') or pools.typeAllowed('augment'))
         and not (helpers.hasType(state.upgradeOptions, 'weapon') or helpers.hasType(state.upgradeOptions, 'augment')) then

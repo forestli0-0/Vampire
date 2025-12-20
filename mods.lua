@@ -21,6 +21,12 @@ mods.companion = defs.companion
 local MAX_SLOTS = 8
 local DEFAULT_CAPACITY = 30
 
+local function getRunBaseCapacity(state)
+    local cap = state and state.progression and state.progression.modCapacity
+    if cap ~= nil then return cap end
+    return DEFAULT_CAPACITY
+end
+
 local function getWeaponClass(state, weaponKey)
     local def = state and state.catalog and state.catalog[weaponKey]
     if not def then return nil end
@@ -338,6 +344,59 @@ local function getModRarity(modKey)
     return rarities[modKey] or 'COMMON'
 end
 
+mods.REWARD_GROUP = {
+    vitality = 'base',
+    steel_fiber = 'base',
+    redirection = 'base',
+    flow = 'base',
+    intensify = 'base',
+    serration = 'base',
+    heavy_caliber = 'base',
+    pressure_point = 'base',
+    maul = 'base',
+    point_strike = 'base',
+    vital_sense = 'base',
+    link_health = 'base',
+    link_armor = 'base',
+    bite = 'base',
+
+    rush = 'utility',
+    streamline = 'utility',
+    continuity = 'utility',
+    stretch = 'utility',
+    speed_trigger = 'utility',
+    magazine_warp = 'utility',
+    fast_hands = 'utility',
+    status_matrix = 'utility',
+    stabilizer = 'utility',
+
+    quick_thinking = 'augment',
+    split_chamber = 'augment',
+    metal_auger = 'augment',
+    guided_ordnance = 'augment',
+    pack_leader = 'augment'
+}
+
+function mods.getRewardGroup(modKey, def)
+    return mods.REWARD_GROUP[modKey] or 'utility'
+end
+
+function mods.buildRewardPools()
+    local pools = {base = {}, utility = {}, augment = {}}
+    local categories = {'warframe', 'weapons', 'companion'}
+    for _, category in ipairs(categories) do
+        local pool = mods.buildDropPool(category)
+        for _, entry in ipairs(pool or {}) do
+            entry.category = category
+            entry.group = mods.getRewardGroup(entry.key, entry.def)
+            if pools[entry.group] then
+                table.insert(pools[entry.group], entry)
+            end
+        end
+    end
+    return pools
+end
+
 -- Build drop pool for a category
 function mods.buildDropPool(category)
     local catalog = mods.getCatalog(category)
@@ -395,14 +454,15 @@ end
 
 -- Initialize run mods state (call at run start)
 function mods.initRunMods(state)
+    local baseCap = getRunBaseCapacity(state)
     state.runMods = {
         -- Inventory of collected mods: { {key, category, rank, rarity}, ... }
         inventory = {},
         
         -- Equipped slots per category
-        warframe = { slots = {}, capacity = 30 },
-        weapons = {},  -- weapons[weaponKey] = { slots = {}, capacity = 30 }
-        companion = { slots = {}, capacity = 30 },
+        warframe = { slots = {}, capacity = baseCap },
+        weapons = {},  -- weapons[weaponKey] = { slots = {}, capacity = baseCap }
+        companion = { slots = {}, capacity = baseCap },
         
         -- Stats
         totalCollected = 0,
@@ -410,11 +470,13 @@ function mods.initRunMods(state)
     }
 
     -- Dev convenience: prefill run inventory with all mods by category.
-    local categories = {'warframe', 'weapons', 'companion'}
-    for _, category in ipairs(categories) do
-        local catalog = mods.getCatalog(category)
-        for key, _ in pairs(catalog or {}) do
-            mods.addToRunInventory(state, key, category, 0, nil)
+    if state and state.prefillRunMods then
+        local categories = {'warframe', 'weapons', 'companion'}
+        for _, category in ipairs(categories) do
+            local catalog = mods.getCatalog(category)
+            for key, _ in pairs(catalog or {}) do
+                mods.addToRunInventory(state, key, category, 0, nil)
+            end
         end
     end
 end
@@ -422,15 +484,16 @@ end
 -- Get run mod slots for category
 function mods.getRunSlots(state, category, key)
     if not state.runMods then return {} end
+    local baseCap = getRunBaseCapacity(state)
     
     if category == 'weapons' then
         if not state.runMods.weapons[key] then
-            state.runMods.weapons[key] = { slots = {}, capacity = 30 }
+            state.runMods.weapons[key] = { slots = {}, capacity = baseCap }
         end
         return state.runMods.weapons[key].slots
     else
         if not state.runMods[category] then
-            state.runMods[category] = { slots = {}, capacity = 30 }
+            state.runMods[category] = { slots = {}, capacity = baseCap }
         end
         return state.runMods[category].slots
     end
@@ -439,15 +502,16 @@ end
 -- Get run mod slot data for capacity
 function mods.getRunSlotData(state, category, key)
     if not state.runMods then return nil end
+    local baseCap = getRunBaseCapacity(state)
     
     if category == 'weapons' then
         if not state.runMods.weapons[key] then
-            state.runMods.weapons[key] = { slots = {}, capacity = 30 }
+            state.runMods.weapons[key] = { slots = {}, capacity = baseCap }
         end
         return state.runMods.weapons[key]
     else
         if not state.runMods[category] then
-            state.runMods[category] = { slots = {}, capacity = 30 }
+            state.runMods[category] = { slots = {}, capacity = baseCap }
         end
         return state.runMods[category]
     end
@@ -665,6 +729,11 @@ function mods.refreshActiveStats(state)
     baseStats.dashDuration = baseStats.dashDuration or (p.stats and p.stats.dashDuration) or 0.14
     baseStats.dashDistance = baseStats.dashDistance or (p.stats and p.stats.dashDistance) or 56
     baseStats.dashInvincible = baseStats.dashInvincible or (p.stats and p.stats.dashInvincible) or 0.14
+
+    local bonuses = state.progression and state.progression.rankBonuses or {}
+    baseStats.maxHp = (baseStats.maxHp or 0) + (bonuses.maxHp or 0)
+    baseStats.maxShield = (baseStats.maxShield or 0) + (bonuses.maxShield or 0)
+    baseStats.maxEnergy = (baseStats.maxEnergy or 0) + (bonuses.maxEnergy or 0)
     
     -- 2. Apply persistent mods (Warframe category)
     -- [Implementation note: arsenal-persistent mods for character are handled here if implemented]

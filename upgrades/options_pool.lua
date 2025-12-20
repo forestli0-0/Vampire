@@ -1,7 +1,64 @@
 local pets = require('pets')
 local helpers = require('upgrades.options_helpers')
+local mods = require('mods')
+local rewardDefs = require('data.defs.mod_rewards')
+
+local function hasAllowedType(allowed, want)
+    if type(allowed) ~= 'table' then return false end
+    if allowed[want] then return true end
+    for _, v in ipairs(allowed) do
+        if v == want then return true end
+    end
+    return false
+end
+
+local function isModReward(request)
+    if not request then return false end
+    if request.reason == 'mod_drop' then return true end
+    return hasAllowedType(request.allowedTypes, 'mod') or hasAllowedType(request.allowedTypes, 'augment')
+end
 
 local function buildPools(state, request)
+    if isModReward(request) then
+        local poolNew = {}
+        local added = {}
+        local pools = mods.buildRewardPools()
+        local weights = rewardDefs.weights or {}
+
+        for group, entries in pairs(pools or {}) do
+            local groupWeight = weights[group] or 0
+            for _, entry in ipairs(entries or {}) do
+                local key = entry.key
+                if key and not added[key] then
+                    local weight = (entry.weight or 1) * groupWeight
+                    if weight > 0 then
+                        local def = entry.def or {}
+                        table.insert(poolNew, {
+                            key = key,
+                            type = 'mod',
+                            name = def.name or key,
+                            desc = def.desc or '',
+                            def = def,
+                            category = entry.category,
+                            rarity = entry.rarity,
+                            group = group,
+                            weight = weight
+                        })
+                        added[key] = true
+                    end
+                end
+            end
+        end
+
+        return {
+            mode = 'mod',
+            poolExisting = {},
+            poolNew = poolNew,
+            allowedTypes = request and request.allowedTypes or {},
+            typeAllowed = function() return false end
+        }
+    end
+
     local poolExisting = {}
     local poolNew = {}
     local added = {}

@@ -1,4 +1,5 @@
 local logger = require('logger')
+local progression = require('progression')
 
 return function(pickups)
     function pickups.addXp(state, amount)
@@ -26,11 +27,14 @@ return function(pickups)
             if state and state.augments and state.augments.dispatch then
                 state.augments.dispatch(state, 'onLevelUp', {level = p.level, player = p})
             end
+
+            progression.applyRankUp(state)
     
             -- WF Style: Leveling up just restores stats and shows a notification
             -- No pause, no selection screen
-            p.hp = p.maxHp
-            p.energy = p.maxEnergy or 100
+            p.hp = p.maxHp or (p.stats and p.stats.maxHp) or 100
+            p.shield = p.maxShield or (p.stats and p.stats.maxShield) or 100
+            p.energy = p.maxEnergy or (p.stats and p.stats.maxEnergy) or 100
             
             if state.texts then
                 table.insert(state.texts, {

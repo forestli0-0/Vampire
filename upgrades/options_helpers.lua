@@ -74,13 +74,13 @@ local function takeWeighted(state, list)
     if #list == 0 then return nil end
     local total = 0
     for _, opt in ipairs(list) do
-        local w = getClassWeight(state, opt.def)
+        local w = opt.weight or getClassWeight(state, opt.def)
         total = total + w
     end
     if total <= 0 then return takeRandom(list) end
     local r = math.random() * total
     for i, opt in ipairs(list) do
-        local w = getClassWeight(state, opt.def)
+        local w = opt.weight or getClassWeight(state, opt.def)
         r = r - w
         if r <= 0 then
             table.remove(list, i)

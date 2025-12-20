@@ -74,19 +74,22 @@ function UpgradeCard:buildContent()
     self:addChild(desc)
     
     -- Current Level Info
-    local curLv = 0
-    if opt.type == 'weapon' and state.inventory.weapons[opt.key] then curLv = state.inventory.weapons[opt.key].level end
-    -- Passive type removed
-    if opt.type == 'mod' then
-        local profile = state.profile
-        local r = profile and profile.modRanks and profile.modRanks[opt.key]
-        if r ~= nil then curLv = r
-        elseif profile and profile.ownedMods and profile.ownedMods[opt.key] then curLv = 1 end
+    local levelText = "New!"
+    if opt.type == 'weapon' and state.inventory.weapons[opt.key] then
+        levelText = "Current Lv: " .. tostring(state.inventory.weapons[opt.key].level or 1)
+    elseif opt.type == 'mod' then
+        local count = 0
+        for _, m in ipairs((state.runMods and state.runMods.inventory) or {}) do
+            if m.key == opt.key then count = count + 1 end
+        end
+        if count > 0 then
+            levelText = "Owned x" .. tostring(count)
+        end
     end
     
     local levelInfo = ui.Text.new({
         x = pad, y = h - 30, w = w - pad*2,
-        text = (curLv > 0) and ("Current Lv: " .. curLv) or "New!",
+        text = levelText,
         color = theme.colors.text_dim,
         align = 'center'
     })

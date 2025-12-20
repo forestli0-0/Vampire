@@ -2,6 +2,7 @@ local state = {}
 
 local assets = require('assets')
 local effects = require('effects')
+local progression = require('progression')
 
 local PROFILE_PATH = "profile.lua"
 
@@ -590,6 +591,7 @@ function state.init()
     }
 
     state.catalog = require('data.defs.catalog')
+    progression.recompute(state)
 
     -- WF-style: 2-slot system (ranged + melee) with extra slot reserved for character passive
     state.inventory = {
