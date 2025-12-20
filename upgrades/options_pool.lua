@@ -80,6 +80,7 @@ end
 
 local function isModReward(request)
     if not request then return false end
+    if request.mode == 'mod' then return true end
     if request.reason == 'mod_drop' then return true end
     return hasAllowedType(request.allowedTypes, 'mod') or hasAllowedType(request.allowedTypes, 'augment')
 end

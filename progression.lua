@@ -7,8 +7,8 @@ progression.defs = defs
 local function computeBonuses(level)
     local per = defs.rankUp or {}
     local base = defs.modCapacityBase or 1
-    local lvl = math.max(1, math.floor(level or 1))
-    local steps = math.max(0, lvl - 1)
+    local lvl = math.max(0, math.floor(level or 0))
+    local steps = lvl
     return {
         maxHp = steps * (per.maxHp or 0),
         maxShield = steps * (per.maxShield or 0),

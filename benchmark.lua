@@ -93,7 +93,7 @@ function benchmark.toggle(state)
         state.activeUpgradeRequest = nil
         state.pendingWeaponSwap = nil
         state.doors = {}
-        state.player.level = 1
+        state.player.level = 0
         state.player.xp = 0
         state.player.xpToNextLevel = defs.xpBase or 10
         state.gameState = 'PLAYING'
@@ -109,7 +109,7 @@ function benchmark.toggle(state)
         state.pendingWeaponSwap = nil
         state.doors = {}
         state.upgradeOptions = {}
-        state.player.level = 1
+        state.player.level = 0
         state.player.xp = 0
         state.player.xpToNextLevel = math.huge
         benchmark.startTime = love.timer.getTime()
@@ -247,7 +247,7 @@ function benchmark.update(state, dt)
         state.pendingLevelUps = 0
         state.pendingUpgradeRequests = {}
         state.activeUpgradeRequest = nil
-        state.player.level = 1
+        state.player.level = 0
         state.player.xp = 0
         state.player.xpToNextLevel = defs.xpBase or 10
         state.gameState = 'PLAYING'
