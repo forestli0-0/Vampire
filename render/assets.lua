@@ -51,6 +51,38 @@ local function buildSheetFromFrames(paths)
     return sheet, fw, fh
 end
 
+local function buildGenericBulletSprite()
+    if not love or not love.image or not love.graphics then return nil end
+    local w, h = 8, 8
+    local data = love.image.newImageData(w, h)
+    local cx, cy = (w - 1) / 2, (h - 1) / 2
+    for x = 0, w - 1 do
+        for y = 0, h - 1 do
+            local dx = (x - cx) / cx
+            local dy = (y - cy) / cy
+            local d = math.sqrt(dx * dx + dy * dy)
+            local a = 1 - math.min(1, d)
+            local alpha = 0.2 + 0.8 * a
+            local r = 0.95
+            local g = 0.9
+            local b = 0.6
+            data:setPixel(x, y, r, g, b, alpha)
+        end
+    end
+    local img = love.graphics.newImage(data)
+    img:setFilter('nearest', 'nearest')
+    return img
+end
+
+local function loadCommonBulletSprite()
+    local bullet = loadImage('assets/weapons/bullet.png')
+    if bullet then
+        bullet:setFilter('nearest', 'nearest')
+        return bullet
+    end
+    return buildGenericBulletSprite()
+end
+
 local function loadMoveAnimationFromFolder(name, frameCount, fps)
     frameCount = frameCount or 4
     local paths = {}
@@ -213,6 +245,29 @@ function assets.init(state)
             state.weaponSprites[key] = img
             local tune = (state.projectileTuning and state.projectileTuning[key]) or (state.projectileTuning and state.projectileTuning.default)
             state.weaponSpriteScale[key] = (tune and tune.spriteScale) or 5
+        end
+    end
+
+    state.genericBulletSprite = loadCommonBulletSprite()
+    state.genericBulletSpriteScale = 2
+    if state.genericBulletSprite and state.catalog then
+        for key, def in pairs(state.catalog) do
+            if def and def.type == 'weapon' then
+                local tags = def.tags
+                local isProjectile = false
+                if type(tags) == 'table' then
+                    for _, tag in ipairs(tags) do
+                        if tag == 'projectile' then
+                            isProjectile = true
+                            break
+                        end
+                    end
+                end
+                if isProjectile and not state.weaponSprites[key] then
+                    state.weaponSprites[key] = state.genericBulletSprite
+                    state.weaponSpriteScale[key] = state.genericBulletSpriteScale or 1
+                end
+            end
         end
     end
 
