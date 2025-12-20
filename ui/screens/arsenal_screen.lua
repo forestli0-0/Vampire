@@ -5,6 +5,7 @@
 local ui = require('ui')
 local theme = ui.theme
 local mods = require('systems.mods')
+local modsModel = require('ui.mods_model')
 
 local arsenalScreen = {}
 
@@ -511,13 +512,17 @@ local function buildRightColumn(gameState, parent)
             local modKey = equippedOrder[idx]
             local modDef = modKey and getModDef(gameState, category, modKey)
             
+            local slotTooltip = nil
+            if modKey then
+                slotTooltip = modsModel.buildModTooltip(category, modKey, getModRank(gameState, modKey))
+            end
             local slot = ui.Slot.new({
                 x = slotX, y = slotY,
                 w = LAYOUT.modSlotSize, h = LAYOUT.modSlotSize,
                 content = modKey,
                 iconColor = modDef and {0.3, 0.5, 0.7, 1} or nil,
                 sublabel = modKey and ("R" .. getModRank(gameState, modKey)) or nil,
-                tooltip = modDef and modDef.name or nil,
+                tooltip = slotTooltip,
                 acceptDrop = true,
                 draggable = modKey ~= nil
             })
@@ -575,6 +580,7 @@ local function buildRightColumn(gameState, parent)
         local equipped = isModEquipped(gameState, category, currentWeapon, modKey)
         local rank = getModRank(gameState, modKey)
         
+        local cardTooltip = modsModel.buildModTooltip(category, modKey, rank)
         local card = ModCard.new({
             x = cardX, y = cardY,
             w = LAYOUT.libraryCardW, h = LAYOUT.libraryCardH,
@@ -582,7 +588,8 @@ local function buildRightColumn(gameState, parent)
             modDef = modDef,
             owned = owned,
             equipped = equipped,
-            rank = rank
+            rank = rank,
+            tooltip = cardTooltip
         })
         
         card.cardIndex = i

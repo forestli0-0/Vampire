@@ -8,6 +8,7 @@ local ingameMenu = {}
 
 local mods = require('systems.mods')
 local menuModel = require('ui.ingame_menu_model')
+local modsModel = require('ui.mods_model')
 local ui = require('ui')
 local core = require('ui.core')
 local theme = require('ui.theme')
@@ -417,6 +418,7 @@ function ingameMenu.buildEquippedMods(parent)
         local slotIdx = i
         local currentSlotMod = slotMod
         
+        local tooltip = hasContent and modsModel.buildModTooltip(category, slotMod.key, slotMod.rank) or nil
         local slot = ModSlot.new({
             x = slotX, y = slotYPos,
             w = slotSize, h = slotSize,
@@ -430,7 +432,7 @@ function ingameMenu.buildEquippedMods(parent)
             filledColor = hasContent and {modColor[1] * 0.3, modColor[2] * 0.3, modColor[3] * 0.3, 0.95} or {0.1, 0.1, 0.14, 0.9},
             borderColor = hasContent and {modColor[1], modColor[2], modColor[3], 1} or {0.2, 0.2, 0.25, 1},
             borderWidth = hasContent and 2 or 1,
-            tooltip = hasContent and (menuModel.getModName(category, slotMod.key) .. ": " .. menuModel.getModDesc(category, slotMod.key)) or nil
+            tooltip = tooltip
         })
         
         -- Drop handler
@@ -526,6 +528,7 @@ function ingameMenu.buildInventory(parent)
         local capturedModData = modData
         local capturedIdx = entry.index
         
+        local tooltip = modsModel.buildModTooltip(modData.category, modData.key, modData.rank)
         local slot = ModSlot.new({
             x = slotX, y = slotYPos,
             w = slotSize, h = slotSize,
@@ -538,7 +541,7 @@ function ingameMenu.buildInventory(parent)
             emptyColor = {modColor[1] * 0.15, modColor[2] * 0.15, modColor[3] * 0.15, 0.9},
             filledColor = {modColor[1] * 0.25, modColor[2] * 0.25, modColor[3] * 0.25, 0.9},
             borderColor = {modColor[1], modColor[2], modColor[3], 1},
-            tooltip = menuModel.getModName(modData.category, modData.key) .. ": " .. menuModel.getModDesc(modData.category, modData.key)
+            tooltip = tooltip
         })
         
         -- Right click - quick equip to first empty slot
