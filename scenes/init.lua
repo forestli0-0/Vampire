@@ -11,7 +11,6 @@ local hud = require('ui.screens.hud')
 local ingameMenu = require('ui.screens.ingame_menu')
 local levelupScreen = require('ui.screens.levelup')
 local mission = require('mission')
-local orbiterScreen = require('ui.screens.orbiter')
 local pets = require('pets')
 local pickups = require('pickups')
 local player = require('player')
@@ -121,14 +120,6 @@ local function updateShop(state, dt)
     end
 end
 
-local function updateOrbiter(state, dt)
-    ui.update(dt)
-    orbiterScreen.update(dt)
-    if state.runMode == 'rooms' then
-        rooms.update(state, dt)
-    end
-end
-
 local function updateGameOver(state, dt)
     ui.update(dt)
     if not gameoverScreen.isActive() then
@@ -153,15 +144,10 @@ local function drawArsenal(state)
     testmode.draw(state)
 end
 
-local function drawOrbiter()
-    orbiterScreen.draw()
-end
-
 handlers.PLAYING = {update = updatePlaying, draw = drawWorld}
 handlers.ARSENAL = {update = updateArsenal, draw = drawArsenal}
 handlers.LEVEL_UP = {update = updateLevelUp, draw = drawWorld}
 handlers.SHOP = {update = updateShop, draw = drawWorld}
-handlers.ORBITER = {update = updateOrbiter, draw = drawOrbiter}
 handlers.GAME_OVER = {update = updateGameOver, draw = drawWorld}
 handlers.GAME_CLEAR = handlers.GAME_OVER
 
@@ -213,10 +199,6 @@ function scenes.mousemoved(state, x, y, dx, dy)
         ingameMenu.mousemoved(x, y, dx, dy)
         return
     end
-    if state.gameState == 'ORBITER' then
-        orbiterScreen.mousemoved(x, y, dx, dy)
-        return
-    end
     ui.mousemoved(x, y, dx, dy)
 end
 
@@ -225,20 +207,12 @@ function scenes.mousepressed(state, x, y, button)
         ingameMenu.mousepressed(x, y, button)
         return
     end
-    if state.gameState == 'ORBITER' then
-        orbiterScreen.mousepressed(x, y, button)
-        return
-    end
     if ui.mousepressed(x, y, button) then return end
 end
 
 function scenes.mousereleased(state, x, y, button)
     if state.gameState == 'PLAYING' and ingameMenu.isActive() then
         ingameMenu.mousereleased(x, y, button)
-        return
-    end
-    if state.gameState == 'ORBITER' then
-        orbiterScreen.mousereleased(x, y, button)
         return
     end
     ui.mousereleased(x, y, button)
@@ -276,10 +250,6 @@ function scenes.keypressed(state, key, scancode, isrepeat)
     end
     if state.gameState == 'SHOP' then
         if shopScreen.keypressed(key) then return true end
-        return true
-    end
-    if state.gameState == 'ORBITER' then
-        if orbiterScreen.keypressed(key) then return true end
         return true
     end
     if state.gameState == 'GAME_OVER' or state.gameState == 'GAME_CLEAR' then

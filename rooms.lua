@@ -687,20 +687,8 @@ function rooms.update(state, dt)
             return
         end
 
-        -- Skip orbiter, go directly to doors phase
         r.phase = 'doors'
         spawnDoors(state, r)
-        return
-    end
-
-    if r.phase == 'orbiter' then
-        -- Orbiter phase: waiting for player to finish configuration
-        -- This is handled by the orbiter.lua UI
-        -- When player exits orbiter, gameState becomes 'PLAYING' and we transition to doors
-        if state.gameState == 'PLAYING' then
-            r.phase = 'doors'
-            spawnDoors(state, r)
-        end
         return
     end
 
