@@ -2,6 +2,7 @@ local defs = require('data.defs.progression')
 local mods = require('mods')
 
 local progression = {}
+progression.defs = defs
 
 local function computeBonuses(level)
     local per = defs.rankUp or {}

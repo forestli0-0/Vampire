@@ -2,6 +2,7 @@ local upgrades = require('upgrades')
 local weapons = require('weapons')
 local enemies = require('enemies')
 local enemyDefs = require('data.defs.enemies')
+local progression = require('progression')
 
 local debugmenu = {}
 
@@ -155,16 +156,31 @@ end
 
 local function grantXp(state, amount)
     local p = state.player
+    local defs = progression.defs or {}
+    local rankCap = defs.rankCap or 30
+    local xpGrowth = defs.xpGrowth or 1.5
+    local xpCapValue = defs.xpCapValue or 999999999
+
     p.xp = p.xp + amount
     if state.noLevelUps or state.benchmarkMode then return end
+    if p.level >= rankCap then
+        p.xp = 0
+        p.xpToNextLevel = xpCapValue
+        return
+    end
     while p.xp >= p.xpToNextLevel do
         p.level = p.level + 1
         p.xp = p.xp - p.xpToNextLevel
-        p.xpToNextLevel = math.floor(p.xpToNextLevel * 1.5)
+        p.xpToNextLevel = math.floor(p.xpToNextLevel * xpGrowth)
         if state and state.augments and state.augments.dispatch then
             state.augments.dispatch(state, 'onLevelUp', {level = p.level, player = p})
         end
         upgrades.queueLevelUp(state, 'debug')
+        if p.level >= rankCap then
+            p.xp = 0
+            p.xpToNextLevel = xpCapValue
+            break
+        end
     end
 end
 

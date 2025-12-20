@@ -5,7 +5,11 @@ local defs = {
         maxEnergy = 5,
         modCapacity = 1
     },
-    modCapacityBase = 1
+    modCapacityBase = 1,
+    rankCap = 30,
+    xpBase = 10,
+    xpGrowth = 1.5,
+    xpCapValue = 999999999
 }
 
 return defs

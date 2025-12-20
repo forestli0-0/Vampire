@@ -1,4 +1,6 @@
 local benchmark = {}
+local progression = require('progression')
+local defs = progression.defs or {}
 
 benchmark.active = false
 benchmark.startTime = 0
@@ -93,7 +95,7 @@ function benchmark.toggle(state)
         state.doors = {}
         state.player.level = 1
         state.player.xp = 0
-        state.player.xpToNextLevel = 10
+        state.player.xpToNextLevel = defs.xpBase or 10
         state.gameState = 'PLAYING'
         print("Benchmark stopped manually.")
     else
@@ -247,7 +249,7 @@ function benchmark.update(state, dt)
         state.activeUpgradeRequest = nil
         state.player.level = 1
         state.player.xp = 0
-        state.player.xpToNextLevel = 10
+        state.player.xpToNextLevel = defs.xpBase or 10
         state.gameState = 'PLAYING'
     end
 end

@@ -4,16 +4,21 @@ local progression = require('progression')
 return function(pickups)
     function pickups.addXp(state, amount)
         local p = state.player
+        local defs = progression.defs or {}
+        local rankCap = defs.rankCap or 30
+        local xpGrowth = defs.xpGrowth or 1.5
+        local xpCapValue = defs.xpCapValue or 999999999
+
         p.xp = p.xp + amount
         logger.gainXp(state, amount)
         if state.noLevelUps or state.benchmarkMode then
             return
         end
     
-        -- Warframe-style Rank Cap: 30
-        if p.level >= 30 then
+        -- Warframe-style Rank Cap
+        if p.level >= rankCap then
             p.xp = 0
-            p.xpToNextLevel = 999999999
+            p.xpToNextLevel = xpCapValue
             return
         end
     
@@ -22,7 +27,7 @@ return function(pickups)
             p.xp = p.xp - p.xpToNextLevel
             
             -- Warframe curve approximation (simplified)
-            p.xpToNextLevel = math.floor(p.xpToNextLevel * 1.5)
+            p.xpToNextLevel = math.floor(p.xpToNextLevel * xpGrowth)
             
             if state and state.augments and state.augments.dispatch then
                 state.augments.dispatch(state, 'onLevelUp', {level = p.level, player = p})
@@ -50,9 +55,9 @@ return function(pickups)
             state.playSfx('levelup')
             logger.levelUp(state, p.level)
             
-            if p.level >= 30 then
+            if p.level >= rankCap then
                 p.xp = 0
-                p.xpToNextLevel = 999999999
+                p.xpToNextLevel = xpCapValue
                 break
             end
         end

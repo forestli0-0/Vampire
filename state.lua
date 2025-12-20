@@ -252,6 +252,8 @@ function state.init()
         state.titleFont = love.graphics.newFont(24)
     end
 
+    local xpBase = (progression.defs and progression.defs.xpBase) or 10
+
     state.player = {
         x = 400, y = 300,
         size = 28,
@@ -260,7 +262,7 @@ function state.init()
         hp = 100, maxHp = 100,
         shield = 100, maxShield = 100,
         energy = 100, maxEnergy = 100,
-        level = 1, xp = 0, xpToNextLevel = 10,
+        level = 1, xp = 0, xpToNextLevel = xpBase,
         invincibleTimer = 0,
         shieldDelayTimer = 0,
         dash = {charges = 2, maxCharges = 2, rechargeTimer = 0, timer = 0, dx = 1, dy = 0},
