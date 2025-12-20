@@ -208,13 +208,13 @@ function player.updateMelee(state, dt)
                     else
                         melee.attackType = 'heavy'
                     end
-                    local speedMult = (p.attackSpeedBuffMult or 1) * ((p.stats and p.stats.meleeSpeed) or 1)
+                    local speedMult = (p.attackSpeedBuffMult or 1) * ((p.stats and p.stats.meleeSpeed) or 1) * (p.exaltedBladeSpeedMult or 1)
                     melee.swingTimer = HEAVY_SWING_TIME / math.max(0.01, speedMult)
                 else
                     -- Light attack
                     melee.attackType = 'light'
                     melee.comboCount = melee.comboCount + 1
-                    local speedMult = (p.attackSpeedBuffMult or 1) * ((p.stats and p.stats.meleeSpeed) or 1)
+                    local speedMult = (p.attackSpeedBuffMult or 1) * ((p.stats and p.stats.meleeSpeed) or 1) * (p.exaltedBladeSpeedMult or 1)
                     melee.swingTimer = LIGHT_SWING_TIME / math.max(0.01, speedMult)
                 end
                 
@@ -232,7 +232,7 @@ function player.updateMelee(state, dt)
         melee.swingTimer = melee.swingTimer - dt
         if melee.swingTimer <= 0 then
             melee.phase = 'recovery'
-            local speedMult = (p.attackSpeedBuffMult or 1) * ((p.stats and p.stats.meleeSpeed) or 1)
+            local speedMult = (p.attackSpeedBuffMult or 1) * ((p.stats and p.stats.meleeSpeed) or 1) * (p.exaltedBladeSpeedMult or 1)
             melee.recoveryTimer = RECOVERY_TIME / math.max(0.01, speedMult)
         end
         
@@ -616,6 +616,114 @@ function player.updateMovement(state, dt)
 
         if dash.timer <= 0 and state.augments and state.augments.dispatch then
             state.augments.dispatch(state, 'postDash', {player = p})
+        end
+    elseif p.slashDashChain and p.slashDashChain.active then
+        local chain = p.slashDashChain
+        moving = true
+        p.isSliding = false
+        if p.grappled then
+            p.grappled = false
+            p.grappleEnemy = nil
+            p.grappleSlowMult = nil
+        end
+
+        if chain.instance and not chain._calc then
+            local ok, calc = pcall(require, 'gameplay.calculator')
+            if ok and calc then chain._calc = calc end
+        end
+
+        if chain.pauseTimer and chain.pauseTimer > 0 then
+            chain.pauseTimer = chain.pauseTimer - dt
+            dx, dy = chain.lastDx or 0, chain.lastDy or 0
+        else
+            local target = chain.targets and chain.targets[chain.index]
+            if not target then
+                p.slashDashChain = nil
+            else
+                if (target.health or 0) <= 0 then
+                    chain.currentTarget = nil
+                    chain.stepTargetX = nil
+                    chain.stepTargetY = nil
+                    chain.index = chain.index + 1
+                    chain.pauseTimer = chain.pause or 0
+                    chain.stepTimer = 0
+                else
+                    if chain.currentTarget ~= target then
+                        chain.currentTarget = target
+                        chain.stepTargetX = target.x
+                        chain.stepTargetY = target.y
+                    end
+                    local tx = chain.stepTargetX or target.x
+                    local ty = chain.stepTargetY or target.y
+                    local ddx, ddy = tx - p.x, ty - p.y
+                    local dist = math.sqrt(ddx * ddx + ddy * ddy)
+                    chain.stepTimer = (chain.stepTimer or 0) + dt
+                    local hitRadius = chain.hitRadius or 18
+                    if dist <= hitRadius or chain.stepTimer >= (chain.maxStepTime or 0.55) then
+                        if world and world.enabled and world.moveCircle then
+                            p.x, p.y = world:moveCircle(p.x, p.y, (p.size or 20) / 2, ddx, ddy)
+                        else
+                            p.x, p.y = tx, ty
+                        end
+                        if ddx ~= 0 then p.facing = (ddx >= 0) and 1 or -1 end
+                        if state.spawnDashAfterimage then
+                            local face = p.facing or 1
+                            state.spawnDashAfterimage(p.x, p.y, face, {alpha = 0.25, duration = 0.22, dirX = ddx, dirY = ddy})
+                        end
+                        if chain._calc and chain.instance then
+                            chain._calc.applyHit(state, target, chain.instance)
+                        else
+                            target.health = (target.health or 0) - (chain.damage or 0)
+                        end
+                        if state.spawnEffect then state.spawnEffect('blast_hit', tx, ty, 0.6) end
+                        chain.currentTarget = nil
+                        chain.stepTargetX = nil
+                        chain.stepTargetY = nil
+                        chain.index = chain.index + 1
+                        chain.pauseTimer = chain.pause or 0
+                        chain.stepTimer = 0
+                    else
+                        local dirX, dirY = ddx / dist, ddy / dist
+                        chain.lastDx, chain.lastDy = dirX, dirY
+                        dx, dy = dirX, dirY
+                        local speed = chain.speed or 700
+                        local mx = dirX * speed * dt
+                        local my = dirY * speed * dt
+                        if world and world.enabled and world.moveCircle then
+                            p.x, p.y = world:moveCircle(p.x, p.y, (p.size or 20) / 2, mx, my)
+                        else
+                            p.x = p.x + mx
+                            p.y = p.y + my
+                        end
+
+                        if state.spawnDashAfterimage then
+                            local spacing = 22
+                            chain.trailX = chain.trailX or ox
+                            chain.trailY = chain.trailY or oy
+                            local ax, ay = chain.trailX, chain.trailY
+                            local adx, ady = p.x - ax, p.y - ay
+                            local adist = math.sqrt(adx * adx + ady * ady)
+                            local guard = 0
+                            local face = p.facing or 1
+                            if dirX > 0 then face = 1 elseif dirX < 0 then face = -1 end
+                            while adist >= spacing and guard < 24 do
+                                ax = ax + dirX * spacing
+                                ay = ay + dirY * spacing
+                                state.spawnDashAfterimage(ax, ay, face, {alpha = 0.18, duration = 0.18, dirX = dirX, dirY = dirY})
+                                adx = p.x - ax
+                                ady = p.y - ay
+                                adist = math.sqrt(adx * adx + ady * ady)
+                                guard = guard + 1
+                            end
+                            chain.trailX, chain.trailY = ax, ay
+                        end
+                    end
+                end
+            end
+        end
+
+        if chain and chain.targets and chain.index > #chain.targets then
+            p.slashDashChain = nil
         end
     elseif moving then
         local SLIDE_ENERGY_DRAIN = 5.0 -- Energy per second

@@ -459,7 +459,8 @@ function Behaviors.MELEE_SWING(state, weaponKey, w, stats, params, sx, sy)
     
     local baseDamage = (stats.damage or 40) * mult
     local might = p.stats and p.stats.might or 1
-    local finalDamage = math.floor(baseDamage * might)
+    local meleeMult = ((p.stats and p.stats.meleeDamageMult) or 1) * (p.exaltedBladeDamageMult or 1)
+    local finalDamage = math.floor(baseDamage * might * meleeMult)
     
     -- Melee Combo Multiplier
     local combo = p.meleeCombo or 0
@@ -540,6 +541,43 @@ function Behaviors.MELEE_SWING(state, weaponKey, w, stats, params, sx, sy)
     end
     
     melee.damageDealt = true
+
+    if p.exaltedBladeActive then
+        local waveMult = 0.6
+        if melee.attackType == 'heavy' then
+            waveMult = 0.9
+        elseif melee.attackType == 'finisher' then
+            waveMult = 1.2
+        end
+        local waveDamage = math.max(1, math.floor(finalDamage * waveMult))
+        local areaScale = (p.stats and p.stats.area) or 1
+        local waveSize = 16 * math.max(0.6, math.sqrt(areaScale))
+        local waveSpeed = 900 * ((p.stats and p.stats.speed) or 1)
+        local waveLife = 0.6 + 0.1 * math.sqrt(areaScale)
+        local ang = aimAngle or 0
+        local wave = {
+            type = 'thousand_edge',
+            x = sx + math.cos(ang) * 10,
+            y = sy + math.sin(ang) * 10,
+            spawnX = sx,
+            spawnY = sy,
+            vx = math.cos(ang) * waveSpeed,
+            vy = math.sin(ang) * waveSpeed,
+            life = waveLife,
+            size = waveSize,
+            damage = waveDamage,
+            effectType = 'SLASH',
+            weaponTags = {'ability', 'melee', 'exalted'},
+            elements = {'SLASH'},
+            damageBreakdown = {SLASH = 1},
+            critChance = stats.critChance or 0,
+            critMultiplier = stats.critMultiplier or 1.5,
+            statusChance = stats.statusChance or 0,
+            pierce = 4,
+            rotation = ang
+        }
+        table.insert(state.bullets, wave)
+    end
     
     -- Screen shake for heavy/finisher
     if melee.attackType == 'heavy' or melee.attackType == 'finisher' then

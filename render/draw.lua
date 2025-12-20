@@ -1153,6 +1153,18 @@ function draw.renderWorld(state)
         love.graphics.circle('line', p.x, p.y, r * 1.2)
         love.graphics.setLineWidth(1)
     end
+
+    -- Mag 2: Magnetize VFX
+    if state.magMagnetizeFields then
+        for _, f in ipairs(state.magMagnetizeFields) do
+            local pulse = 0.8 + 0.2 * math.sin(love.timer.getTime() * 6)
+            love.graphics.setColor(0.7, 0.4, 1, 0.35)
+            love.graphics.setLineWidth(2)
+            love.graphics.circle('line', f.x, f.y, (f.r or 0) * pulse)
+            love.graphics.setLineWidth(1)
+        end
+        love.graphics.setColor(1, 1, 1, 1)
+    end
     
     -- Volt 3: Electric Shield (arc barrier in front of player)
     if p and p.electricShield and p.electricShield.active then
@@ -1509,12 +1521,25 @@ function draw.renderWorld(state)
                 love.graphics.draw(sprite, 0, 0, 0, sx, sy, sw/2, sh/2)
                 love.graphics.pop()
             else
-                if b.type == 'axe' then love.graphics.setColor(0,1,1) else love.graphics.setColor(1,1,0) end
-                love.graphics.push()
-                love.graphics.translate(b.x, b.y)
-                if b.rotation then love.graphics.rotate(b.rotation) end
-                love.graphics.rectangle('fill', -b.size/2, -b.size/2, b.size, b.size)
-                love.graphics.pop()
+                if b.type == 'thousand_edge' then
+                    love.graphics.setColor(0.7, 0.85, 1, 0.9)
+                    love.graphics.push()
+                    love.graphics.translate(b.x, b.y)
+                    if b.rotation then love.graphics.rotate(b.rotation) end
+                    local len = (b.size or 10) * 3
+                    local thick = (b.size or 10) * 0.6
+                    love.graphics.rectangle('fill', -len * 0.2, -thick / 2, len, thick, 6, 6)
+                    love.graphics.setColor(0.4, 0.75, 1, 0.6)
+                    love.graphics.rectangle('line', -len * 0.2, -thick / 2, len, thick, 6, 6)
+                    love.graphics.pop()
+                else
+                    if b.type == 'axe' then love.graphics.setColor(0,1,1) else love.graphics.setColor(1,1,0) end
+                    love.graphics.push()
+                    love.graphics.translate(b.x, b.y)
+                    if b.rotation then love.graphics.rotate(b.rotation) end
+                    love.graphics.rectangle('fill', -b.size/2, -b.size/2, b.size, b.size)
+                    love.graphics.pop()
+                end
             end
         end
 
@@ -1701,14 +1726,12 @@ function draw.renderUI(state)
         
         -- Fill color based on class
         local fillColor = {0.4, 0.7, 1}  -- Default blue
-        if p.class == 'mage' then
-            fillColor = {1, 0.5, 0.2}  -- Orange for mage
-        elseif p.class == 'warrior' then
-            fillColor = {0.8, 0.3, 0.3}  -- Red for warrior
-        elseif p.class == 'beastmaster' then
-            fillColor = {0.5, 0.9, 0.4}  -- Green for beastmaster
+        if p.class == 'excalibur' then
+            fillColor = {0.9, 0.8, 0.4}  -- Gold for Excalibur
+        elseif p.class == 'mag' then
+            fillColor = {0.7, 0.4, 1}  -- Violet for Mag
         elseif p.class == 'volt' then
-            fillColor = {0.3, 0.8, 1}  -- Cyan for volt
+            fillColor = {0.3, 0.8, 1}  -- Cyan for Volt
         end
         
         -- Pulsing effect
@@ -1848,7 +1871,7 @@ function draw.renderUI(state)
     do
         local p = state.player or {}
         local ability = p.ability or {}
-        local classKey = p.class or 'warrior'
+        local classKey = p.class or 'volt'
         local classDef = state.classes and state.classes[classKey]
         local abilityName = (classDef and classDef.ability and classDef.ability.name) or "技能"
         local cd = ability.cooldown or 5.0

@@ -58,7 +58,7 @@ end
 
 local function getClassWeight(state, def)
     if not def or not def.classWeight then return 1.0 end
-    local classKey = state.player and state.player.class or 'warrior'
+    local classKey = state.player and state.player.class or 'volt'
     return def.classWeight[classKey] or 1.0
 end
 

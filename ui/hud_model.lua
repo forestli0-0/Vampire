@@ -13,9 +13,13 @@ function hudModel.build(state)
     local p = state.player or {}
     local stats = p.stats or {}
 
+    local classKey = p.class or "Tenno"
+    local classDef = state.classes and state.classes[classKey]
+    local className = (classDef and classDef.name) or classKey
+
     local data = {
         player = {
-            class = p.class or "Tenno",
+            class = className,
             level = (p.level ~= nil) and p.level or 0,
             hp = p.hp or 0,
             maxHp = stats.maxHp or p.maxHp or 100,

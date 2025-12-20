@@ -365,7 +365,7 @@ function state.init()
         invincibleTimer = 0,
         shieldDelayTimer = 0,
         dash = {charges = 2, maxCharges = 2, rechargeTimer = 0, timer = 0, dx = 1, dy = 0},
-        class = 'volt', -- Current class: warrior / mage / beastmaster / volt
+        class = 'volt', -- Current class: excalibur / mag / volt
         ability = {cooldown = 0, timer = 0}, -- Q skill state
         quickAbilityIndex = 1, -- Quick cast selection (1-4)
         -- Weapon slots (2-slot system: ranged + melee, with reserved slot for future class passive)
@@ -411,186 +411,47 @@ function state.init()
 
     -- Class definitions: base stats, starting weapon, Q ability
     state.classes = {
-        warrior = {
-            name = "Warrior",
-            desc = "Melee focused, high armor. Q: War Cry (AoE knockback + stun)",
+        excalibur = {
+            name = "咖喱",
+            desc = "均衡近战战甲。Q: Slash Dash (斩击突进)",
             baseStats = {
-                maxHp = 120,
-                armor = 120,
-                moveSpeed = 125,
-                might = 1.1,
-                maxShield = 80,   -- Warriors rely more on Armor/HP
-                maxEnergy = 100,
-                dashCharges = 1  -- Standardized to 1 for balance
+                maxHp = 110,
+                armor = 90,
+                moveSpeed = 135,
+                might = 1.05,
+                maxShield = 100,
+                maxEnergy = 120,
+                dashCharges = 1,
+                abilityStrength = 1.05
             },
-            startMelee = 'heavy_hammer',  -- Fragor melee
-            startRanged = 'lato',       -- Sidearm
-            preferredUpgrades = {'hek', 'boltor', 'dual_zoren'},
+            startMelee = 'skana',
+            startRanged = 'lato',
+            preferredUpgrades = {'skana', 'dual_zoren', 'braton', 'lato'},
             ability = {
-                name = "War Cry",
-                cooldown = 8.0,
-                execute = function(state)
-                    local p = state.player
-                    local str = p.stats.abilityStrength or 1.0
-                    local rng = p.stats.abilityRange or 1.0
-                    local dur = p.stats.abilityDuration or 1.0
-                    
-                    local radius = 180 * rng
-                    local r2 = radius * radius
-                    local knockForce = 200
-                    local stunDuration = 0.8 * dur
-                    
-                    -- Visual/audio feedback
-                    if state.playSfx then state.playSfx('hit') end
-                    state.shakeAmount = math.max(state.shakeAmount or 0, 4)
-                    
-                    -- Hit all enemies in range
-                    local ok, calc = pcall(require, 'gameplay.calculator')
-                    if ok and calc then
-                        local instance = calc.createInstance({
-                            damage = math.floor(25 * str * (p.stats.might or 1)),
-                            critChance = 0.1,
-                            critMultiplier = 1.5,
-                            statusChance = 0.8,
-                            effectType = 'HEAVY',
-                            effectData = {duration = stunDuration},
-                            elements = {'IMPACT'},
-                            damageBreakdown = {IMPACT = 1},
-                            weaponTags = {'ability', 'area', 'physical'},
-                            knock = true,
-                            knockForce = knockForce
-                        })
-                        for _, e in ipairs(state.enemies or {}) do
-                            if e and not e.isDummy then
-                                local dx = e.x - p.x
-                                local dy = e.y - p.y
-                                if dx * dx + dy * dy <= r2 then
-                                    calc.applyHit(state, e, instance)
-                                end
-                            end
-                        end
-                    end
-                    
-                    -- Spawn visual effect
-                    if state.spawnEffect then state.spawnEffect('hit', p.x, p.y) end
-                    return true
-                end
+                name = "Slash Dash",
+                cooldown = 6.0
             }
         },
-        mage = {
-            name = "Mage",
-            desc = "Magic focused, low HP. Q: Blink (teleport + i-frames)",
+        mag = {
+            name = "磁妹",
+            desc = "磁力控制战甲。Q: Pull (牵引)",
             baseStats = {
                 maxHp = 80,
-                armor = 25,
-                moveSpeed = 145,
+                armor = 30,
+                moveSpeed = 140,
                 might = 1.0,
-                maxShield = 150, -- Mages rely on Shields
-                maxEnergy = 200, -- Mages have more Energy
-                cooldown = 0.9, -- 10% faster cooldowns
-                critChance = 0.1 -- +10% crit chance
+                maxShield = 200,
+                maxEnergy = 200,
+                dashCharges = 1,
+                abilityStrength = 1.10,
+                abilityRange = 1.05
             },
-            startRanged = 'wand',          -- Magic Wand
-            startMelee = 'karyst',     -- Dagger
-            preferredUpgrades = {'fire_wand', 'static_orb', 'lanka', 'thunder_loop'},
+            startMelee = 'karyst',
+            startRanged = 'braton',
+            preferredUpgrades = {'braton', 'lanka', 'atomos', 'static_orb'},
             ability = {
-                name = "Blink",
-                cooldown = 5.0,
-                execute = function(state)
-                    local p = state.player
-                    local str = p.stats.abilityStrength or 1.0
-                    local rng = p.stats.abilityRange or 1.0
-                    
-                    local distance = 120 * rng
-                    
-                    -- Get aim direction (movement or facing)
-                    local dx, dy = 0, 0
-                    if love.keyboard.isDown('w') then dy = dy - 1 end
-                    if love.keyboard.isDown('s') then dy = dy + 1 end
-                    if love.keyboard.isDown('a') then dx = dx - 1 end
-                    if love.keyboard.isDown('d') then dx = dx + 1 end
-                    
-                    if dx == 0 and dy == 0 then
-                        dx = p.facing or 1
-                    end
-                    
-                    -- Normalize
-                    local len = math.sqrt(dx * dx + dy * dy)
-                    if len > 0 then
-                        dx, dy = dx / len, dy / len
-                    end
-                    
-                    -- Teleport
-                    local world = state.world
-                    local newX = p.x + dx * distance
-                    local newY = p.y + dy * distance
-                    if world and world.enabled and world.moveCircle then
-                        p.x, p.y = world:moveCircle(p.x, p.y, (p.size or 20) / 2, dx * distance, dy * distance)
-                    else
-                        p.x, p.y = newX, newY
-                    end
-                    
-                    -- Brief invincibility (scales with strength)
-                    p.invincibleTimer = math.max(p.invincibleTimer or 0, 0.3 * str)
-                    
-                    -- Visual effect
-                    if state.playSfx then state.playSfx('shoot') end
-                    if state.spawnEffect then state.spawnEffect('static', p.x, p.y) end
-                    return true
-                end
-            }
-        },
-        beastmaster = {
-            name = "Beastmaster",
-            desc = "Pet focused, balanced. Q: Summon Aid (heal/buff pet)",
-            baseStats = {
-                maxHp = 100,
-                armor = 60,
-                moveSpeed = 135,
-                might = 1.0,
-                statusChance = 0.15, -- +15% status proc chance
-                petHpBonus = 0.25  -- +25% pet HP
-            },
-            startWeapon = 'paris',         -- Bow (silent)
-            startSecondary = 'lex',        -- High-damage pistol
-            preferredUpgrades = {'dread', 'vectis', 'braton'},
-            ability = {
-                name = "Summon Aid",
-                cooldown = 12.0,
-                execute = function(state)
-                    local p = state.player
-                    local str = p.stats.abilityStrength or 1.0
-                    local dur = p.stats.abilityDuration or 1.0
-                    
-                    local pets = state.pets
-                    local pet = pets and pets.list and pets.list[1]
-                    
-                    if pet and not pet.dead and not pet.downed then
-                        -- Heal pet
-                        pet.hp = pet.maxHp or 100
-                        
-                        -- Temporary buff (stored on pet, scales with strength/duration)
-                        pet.buffTimer = (pet.buffTimer or 0) + 6.0 * dur
-                        pet.buffDamage = 1.0 + 1.0 * str  -- 2x damage at 100% str
-                        pet.buffCooldown = 0.5  -- 50% faster ability
-                        
-                        if state.playSfx then state.playSfx('shoot') end
-                        if state.spawnEffect then state.spawnEffect('heal', pet.x, pet.y) end
-                    elseif pet and pet.downed then
-                        -- Instant revive
-                        pet.downed = false
-                        pet.hp = (pet.maxHp or 100) * 0.5
-                        pet.reviveProgress = 0
-                        
-                        if state.playSfx then state.playSfx('shoot') end
-                        if state.spawnEffect then state.spawnEffect('heal', pet.x, pet.y) end
-                    else
-                        -- No pet, spawn temporary effect around player
-                        if state.playSfx then state.playSfx('shoot') end
-                        return false -- Don't consume cooldown
-                    end
-                    return true
-                end
+                name = "Pull",
+                cooldown = 5.0
             }
         },
         volt = {
@@ -612,76 +473,7 @@ function state.init()
             preferredUpgrades = {'lanka', 'thunder_loop', 'atomos', 'braton'},
             ability = {
                 name = "Shock",
-                cooldown = 4.0,
-                execute = function(state)
-                    local p = state.player
-                    local str = p.stats.abilityStrength or 1.0
-                    local rng = p.stats.abilityRange or 1.0
-                    
-                    -- Find nearest enemy
-                    local nearestEnemy, nearestDist = nil, math.huge
-                    for _, e in ipairs(state.enemies or {}) do
-                        if e and not e.isDummy and e.health and e.health > 0 then
-                            local dx, dy = e.x - p.x, e.y - p.y
-                            local dist = dx * dx + dy * dy
-                            if dist < nearestDist then
-                                nearestDist = dist
-                                nearestEnemy = e
-                            end
-                        end
-                    end
-                    
-                    if not nearestEnemy then return false end
-                    
-                    local ok, calc = pcall(require, 'gameplay.calculator')
-                    if ok and calc then
-                        local damage = math.floor(35 * str)
-                        local chainRange = 150 * rng
-                        local chainR2 = chainRange * chainRange
-                        local maxChains = 4
-                        
-                        local instance = calc.createInstance({
-                            damage = damage,
-                            critChance = 0.15,
-                            critMultiplier = 2.0,
-                            statusChance = 0.80,
-                            elements = {'ELECTRIC'},
-                            damageBreakdown = {ELECTRIC = 1},
-                            weaponTags = {'ability', 'electric'}
-                        })
-                        
-                        -- Chain lightning
-                        local hit = {[nearestEnemy] = true}
-                        local current = nearestEnemy
-                        calc.applyHit(state, current, instance)
-                        if state.spawnEffect then state.spawnEffect('static', current.x, current.y, 0.8) end
-                        
-                        for i = 1, maxChains do
-                            local nextEnemy, nextDist = nil, math.huge
-                            for _, e in ipairs(state.enemies or {}) do
-                                if e and not e.isDummy and not hit[e] and e.health and e.health > 0 then
-                                    local dx, dy = e.x - current.x, e.y - current.y
-                                    local dist = dx * dx + dy * dy
-                                    if dist < chainR2 and dist < nextDist then
-                                        nextDist = dist
-                                        nextEnemy = e
-                                    end
-                                end
-                            end
-                            if nextEnemy then
-                                hit[nextEnemy] = true
-                                current = nextEnemy
-                                calc.applyHit(state, current, instance)
-                                if state.spawnEffect then state.spawnEffect('static', current.x, current.y, 0.6) end
-                            else
-                                break
-                            end
-                        end
-                    end
-                    
-                    if state.playSfx then state.playSfx('shoot') end
-                    return true
-                end
+                cooldown = 4.0
             }
         }
     }

@@ -5,7 +5,7 @@ local function applyStartingGuarantee(state, pools)
     -- Starting guarantee: first 2 upgrades prioritize class-preferred items
     local upgradeCount = state.upgradeCount or 0
     if upgradeCount < 2 then
-        local classKey = state.player and state.player.class or 'warrior'
+        local classKey = state.player and state.player.class or 'volt'
         local classDef = state.classes and state.classes[classKey]
         local preferred = classDef and classDef.preferredUpgrades
         if preferred then

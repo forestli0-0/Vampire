@@ -420,7 +420,7 @@ local function buildLeftColumn(gameState, parent)
     y = y + 92
     
     -- Class button
-    local classKey = gameState.player and gameState.player.class or 'warrior'
+    local classKey = gameState.player and gameState.player.class or 'volt'
     local classDef = gameState.classes and gameState.classes[classKey]
     local className = (classDef and classDef.name) or classKey
     if #className > 6 then className = string.sub(className, 1, 5) .. ".." end

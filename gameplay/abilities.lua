@@ -11,6 +11,14 @@ local defData = defs.build({
 abilities.catalog = defData.catalog
 abilities.passives = defData.passives
 
+local function hasBuff(p, id)
+    if not p or not p.buffs or not id then return false end
+    for _, b in ipairs(p.buffs) do
+        if b.id == id then return true end
+    end
+    return false
+end
+
 local function restoreCastMoveSpeed(p)
     if not p then return end
     local mult = p.castSlowMult
@@ -23,12 +31,63 @@ local function restoreCastMoveSpeed(p)
     p.castSlowMult = nil
 end
 
+function abilities.detonateMagnetize(state, enemy, reason)
+    local e = enemy
+    if not e then return false end
+    local m = e.magnetize
+    if not m or m.detonated then return false end
+    m.detonated = true
+
+    local stored = m.storedDamage or 0
+    local radius = m.radius or 0
+    local explosionDmg = 0
+    if stored > 0 and radius > 0 then
+        explosionDmg = math.floor(stored * (m.explosionMult or 1))
+    end
+
+    if explosionDmg > 0 and radius > 0 then
+        local ok, calc = pcall(require, 'gameplay.calculator')
+        local inst = nil
+        if ok and calc then
+            inst = calc.createInstance({
+                damage = explosionDmg,
+                statusChance = 0.6,
+                elements = {'MAGNETIC'},
+                damageBreakdown = {MAGNETIC = 1},
+                weaponTags = {'ability', 'magnetic', 'area'}
+            })
+        end
+        local r2 = radius * radius
+        for _, o in ipairs(state.enemies or {}) do
+            if o and not o.isDummy then
+                local dx = o.x - e.x
+                local dy = o.y - e.y
+                if dx * dx + dy * dy < r2 then
+                    if inst and ok and calc then
+                        calc.applyHit(state, o, inst)
+                    else
+                        o.health = (o.health or 0) - explosionDmg
+                    end
+                end
+            end
+        end
+    end
+
+    if state.spawnEffect then state.spawnEffect('blast_hit', e.x, e.y, 1.4) end
+    if state.texts then
+        local text = (reason == 'recast' and "磁化引爆!") or "磁化爆发!"
+        table.insert(state.texts, {x = e.x, y = e.y - 40, text = text, color = {0.8, 0.6, 1}, life = 1.2})
+    end
+
+    e.magnetize = nil
+    return true
+end
 
 
 -- Simple helper to get ability definition
 function abilities.getAbilityDef(state, index)
     local p = state.player
-    local className = p.class or 'warrior'
+    local className = p.class or 'volt'
     local set = abilities.catalog[className]
     if set and set[index] then
         return set[index]
@@ -43,7 +102,7 @@ function abilities.applyPassive(state)
     local p = state.player
     if not p then return end
     
-    local className = p.class or 'warrior'
+    local className = p.class or 'volt'
     local passive = abilities.passives[className]
     
     if passive and passive.apply then
@@ -68,7 +127,7 @@ function abilities.getPassiveInfo(state)
     local p = state.player
     if not p then return nil end
     
-    local className = p.class or 'warrior'
+    local className = p.class or 'volt'
     return abilities.passives[className]
 end
 
@@ -126,7 +185,7 @@ function abilities.getAbilityByIndex(state, index)
     local p = state.player
     if not p then return nil end
     
-    local className = p.class or 'warrior'
+    local className = p.class or 'volt'
     local classAbilities = abilities.catalog[className]
     if not classAbilities then return nil end
     
@@ -143,6 +202,11 @@ function abilities.canUse(state, abilityIndex)
     
     -- Cannot use during casting animation
     if p.isCasting then return false end
+
+    local togglingOff = def.toggleId and hasBuff(p, def.toggleId)
+    if togglingOff then
+        return true
+    end
     
     -- Cannot use abilities inside Nullifier bubble
     local enemiesMod = require('gameplay.enemies')
@@ -152,6 +216,13 @@ function abilities.canUse(state, abilityIndex)
             p._nullBubbleWarningCd = 0.8  -- Cooldown to prevent spam
         end
         return false
+    end
+
+    if def.recastCheck and def.recastNoCost then
+        local target = def.recastCheck(state)
+        if target then
+            return true
+        end
     end
     
     -- Check energy (with efficiency preview)
@@ -191,6 +262,19 @@ function abilities.tryActivate(state, abilityIndex)
     local def = abilities.getAbilityByIndex(state, abilityIndex)
     if not def then return false end
     
+    local togglingOff = def.toggleId and hasBuff(p, def.toggleId)
+    if togglingOff then
+        abilities.removeBuff(state, def.toggleId)
+        return true
+    end
+
+    if def.recastCheck and def.recastNoCost then
+        local target = def.recastCheck(state)
+        if target and def.recastAction then
+            return def.recastAction(state, target)
+        end
+    end
+
     -- Consume energy (Efficiency reduces cost)
     local eff = p.stats and p.stats.abilityEfficiency or 1.0
     local cost = math.floor(def.cost / eff)
@@ -392,41 +476,11 @@ function abilities.updateActiveEffects(state, dt)
         end
     end
     
-    -- 2. Mage: World on Fire (Channeling/Timer)
-    if p.wofRunning then
-        p.energy = (p.energy or 0) - 2.5 * dt
-        if p.energy <= 0 then
-            p.energy = 0
-            abilities.removeBuff(state, "mage_world_on_fire")
-        else
-            p.wofPulseTimer = (p.wofPulseTimer or 0) + dt
-            if p.wofPulseTimer >= 0.4 then
-                p.wofPulseTimer = 0
-                local str = p.stats.abilityStrength or 1.0
-                local rng = p.stats.abilityRange or 1.0
-                local radius = 250 * rng
-                local ok, calc = pcall(require, 'gameplay.calculator')
-                if ok and calc then
-                    local inst = calc.createInstance({damage=math.floor(30*str), elements={'HEAT'}, weaponTags={'ability','fire'}})
-                    for _, e in ipairs(state.enemies or {}) do
-                        if e and not e.isDummy then
-                            local d2 = (e.x-p.x)^2 + (e.y-p.y)^2
-                            if d2 < radius*radius then
-                                calc.applyHit(state, e, inst)
-                                if state.spawnEffect then state.spawnEffect('blast_hit', e.x, e.y, 0.6) end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
     if p.exaltedBladeActive then
         p.energy = (p.energy or 0) - 2.5 * dt -- Energy drain
         if p.energy <= 0 then
             p.energy = 0
-            abilities.removeBuff(state, "warrior_exalted_blade")
+            abilities.removeBuff(state, "excalibur_exalted_blade")
             if state.texts then table.insert(state.texts, {x=p.x, y=p.y-30, text="能量竭尽", color={1,0,0}, life=1}) end
         end
     end
@@ -443,6 +497,85 @@ function abilities.updateActiveEffects(state, dt)
             local ang = p.aimAngle or 0
             local dst = p.electricShield.distance or 60
             p.electricShield.x, p.electricShield.y, p.electricShield.angle = p.x + math.cos(ang)*dst, p.y + math.sin(ang)*dst, ang
+        end
+    end
+
+    -- 4. Mag: Magnetize fields
+    if state.enemies then
+        state.magMagnetizeFields = nil
+        for _, e in ipairs(state.enemies) do
+            local m = e and e.magnetize
+            if m and m.timer and m.timer > 0 then
+                m.timer = m.timer - dt
+                m.tick = (m.tick or 0) + dt
+
+                state.magMagnetizeFields = state.magMagnetizeFields or {}
+                table.insert(state.magMagnetizeFields, {x = e.x, y = e.y, r = m.radius or 0, t = m.timer})
+
+                local pullStrength = m.pullStrength or 160
+                if m.radius and m.radius > 0 then
+                    local r2 = m.radius * m.radius
+                    for _, o in ipairs(state.enemies or {}) do
+                        if o and o ~= e and not o.isDummy then
+                            local dx = e.x - o.x
+                            local dy = e.y - o.y
+                            local d2 = dx*dx + dy*dy
+                            if d2 < r2 and d2 > 1 then
+                                local len = math.sqrt(d2)
+                                local step = pullStrength * dt
+                                local mx = dx / len * step
+                                local my = dy / len * step
+                                if state.world and state.world.moveCircle then
+                                    o.x, o.y = state.world:moveCircle(o.x, o.y, (o.size or 16) / 2, mx, my)
+                                else
+                                    o.x = o.x + mx
+                                    o.y = o.y + my
+                                end
+                            end
+                        end
+                    end
+                end
+
+                if m.tick >= 0.5 then
+                    local tickTime = m.tick
+                    m.tick = 0
+                    local tickDmg = math.floor((m.dps or 0) * tickTime)
+                    if tickDmg > 0 then
+                        local ok, calc = pcall(require, 'gameplay.calculator')
+                        local inst = nil
+                        if ok and calc then
+                            inst = calc.createInstance({
+                                damage = tickDmg,
+                                statusChance = 0.3,
+                                elements = {'MAGNETIC'},
+                                damageBreakdown = {MAGNETIC = 1},
+                                weaponTags = {'ability', 'magnetic', 'area'}
+                            })
+                        end
+                        local r2 = (m.radius or 0) * (m.radius or 0)
+                        for _, o in ipairs(state.enemies or {}) do
+                            if o and not o.isDummy then
+                                local dx = o.x - e.x
+                                local dy = o.y - e.y
+                                if dx*dx + dy*dy < r2 then
+                                    if inst and ok and calc then
+                                        calc.applyHit(state, o, inst)
+                                    else
+                                        o.health = (o.health or 0) - tickDmg
+                                    end
+                                end
+                            end
+                        end
+                        if state.spawnEffect then state.spawnEffect('static', e.x, e.y, 0.6) end
+                    end
+                end
+
+                if m.timer <= 0 then
+                    abilities.detonateMagnetize(state, e, 'timeout')
+                end
+            elseif m then
+                e.magnetize = nil
+            end
         end
     end
 

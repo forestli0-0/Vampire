@@ -2133,6 +2133,10 @@ function enemies.update(state, dt)
                 if state and state.augments and state.augments.dispatch then
                     state.augments.dispatch(state, 'onKill', {enemy = e, player = state.player, lastDamage = e.lastDamage})
                 end
+                if e.magnetize then
+                    local abilities = require('gameplay.abilities')
+                    abilities.detonateMagnetize(state, e, 'death')
+                end
 
                 -- Check for onDeath explosion (Volatile Runner)
                 local def = enemyDefs[e.kind] or {}

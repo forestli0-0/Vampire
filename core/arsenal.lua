@@ -333,7 +333,7 @@ function arsenal.init(state)
     
     -- Initialize class selection
     local classList = state.arsenal.classList or {}
-    local playerClass = state.player.class or 'warrior'
+    local playerClass = state.player.class or 'volt'
     for i, k in ipairs(classList) do
         if k == playerClass then
             state.arsenal.classIdx = i
@@ -799,7 +799,7 @@ function arsenal.draw(state)
     love.graphics.print("Pet: " .. tostring(petName) .. "  (P/O)", leftX, topY - 42)
     
     -- Class display
-    local classKey = state.player.class or 'warrior'
+    local classKey = state.player.class or 'volt'
     local classDef = state.classes and state.classes[classKey]
     local className = (classDef and classDef.name) or classKey
     love.graphics.setColor(0.95, 0.85, 0.75)

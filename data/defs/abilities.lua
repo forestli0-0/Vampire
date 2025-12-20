@@ -1,8 +1,25 @@
 local function build(helpers)
     local addBuff = helpers.addBuff
 
+    local function findMagnetizeDetonateTarget(state, maxR2)
+        local p = state.player
+        if not p or not state.enemies then return nil end
+        local best, bestD2 = nil, math.huge
+        for _, e in ipairs(state.enemies) do
+            if e and e.magnetize and e.magnetize.timer and e.magnetize.timer > 0 then
+                local dx, dy = e.x - p.x, e.y - p.y
+                local d2 = dx * dx + dy * dy
+                if d2 < bestD2 and d2 < (maxR2 or math.huge) then
+                    bestD2 = d2
+                    best = e
+                end
+            end
+        end
+        return best
+    end
+
     local catalog = {
-        warrior = {
+        excalibur = {
             {
                 name = "斩击突进", -- Slash Dash
                 cost = 25,
@@ -12,84 +29,155 @@ local function build(helpers)
                     local playerMod = require('gameplay.player')
                     local str = p.stats.abilityStrength or 1.0
                     local rng = p.stats.abilityRange or 1.0
-                
-                    p.invincibleTimer = math.max(p.invincibleTimer or 0, 0.5)
-                    local ang = p.aimAngle or 0
-                    playerMod.tryDash(state, math.cos(ang), math.sin(ang))
-                
-                    -- Damage enemies in a line
-                    local radius = 80 * rng
+                    local baseDamage = math.floor(50 * str)
+                    local chainRange = 200 * rng
+                    local chainRange2 = chainRange * chainRange
+                    local maxHits = math.max(1, math.floor(3 + 2 * rng))
                     local ok, calc = pcall(require, 'gameplay.calculator')
-                    if ok and calc then
-                        local instance = calc.createInstance({
-                            damage = math.floor(50 * str),
-                            critChance = 0.15,
-                            critMultiplier = 2.0,
-                            statusChance = 0.40,
-                            elements = {'SLASH'},
-                            damageBreakdown = {SLASH = 1},
-                            weaponTags = {'ability', 'melee'}
-                        })
-                        for _, e in ipairs(state.enemies or {}) do
-                            if e and not e.isDummy then
-                                local dx, dy = e.x - p.x, e.y - p.y
-                                if dx*dx + dy*dy < radius*radius then
-                                    calc.applyHit(state, e, instance)
-                                    if state.spawnEffect then state.spawnEffect('blast_hit', e.x, e.y, 0.5) end
+                    local enemies = state.enemies or {}
+                    local targets = {}
+                    local hit = {}
+                    local cx, cy = p.x, p.y
+
+                    for _ = 1, maxHits do
+                        local best, bestD2 = nil, math.huge
+                        for _, e in ipairs(enemies) do
+                            if e and not e.isDummy and (e.health or 0) > 0 and not hit[e] then
+                                local dx, dy = e.x - cx, e.y - cy
+                                local d2 = dx*dx + dy*dy
+                                if d2 < chainRange2 and d2 < bestD2 then
+                                    best = e
+                                    bestD2 = d2
                                 end
                             end
                         end
+                        if not best then break end
+                        table.insert(targets, best)
+                        hit[best] = true
+                        cx, cy = best.x, best.y
+                    end
+                
+                    p.invincibleTimer = math.max(p.invincibleTimer or 0, 0.5 + 0.05 * #targets)
+
+                    if #targets == 0 then
+                        local ang = p.aimAngle or 0
+                        playerMod.tryDash(state, math.cos(ang), math.sin(ang))
+                        local radius = 80 * rng
+                        local r2 = radius * radius
+                        if ok and calc then
+                            local instance = calc.createInstance({
+                                damage = baseDamage,
+                                critChance = 0.15,
+                                critMultiplier = 2.0,
+                                statusChance = 0.40,
+                                elements = {'SLASH'},
+                                damageBreakdown = {SLASH = 1},
+                                weaponTags = {'ability', 'melee'}
+                            })
+                            for _, e in ipairs(enemies) do
+                                if e and not e.isDummy then
+                                    local dx, dy = e.x - p.x, e.y - p.y
+                                    if dx*dx + dy*dy < r2 then
+                                        calc.applyHit(state, e, instance)
+                                        if state.spawnEffect then state.spawnEffect('blast_hit', e.x, e.y, 0.5) end
+                                    end
+                                end
+                            end
+                        end
+                    else
+                        local instance = nil
+                        if ok and calc then
+                            instance = calc.createInstance({
+                                damage = baseDamage,
+                                critChance = 0.15,
+                                critMultiplier = 2.0,
+                                statusChance = 0.40,
+                                elements = {'SLASH'},
+                                damageBreakdown = {SLASH = 1},
+                                weaponTags = {'ability', 'melee'}
+                            })
+                        end
+                        p.slashDashChain = {
+                            active = true,
+                            targets = targets,
+                            index = 1,
+                            speed = 520,
+                            pause = 0.06,
+                            hitRadius = 18,
+                            maxStepTime = 0.55,
+                            damage = baseDamage,
+                            instance = instance,
+                            trailX = p.x,
+                            trailY = p.y,
+                            lastDx = 0,
+                            lastDy = 0
+                        }
+                        local est = #targets * ((p.slashDashChain.maxStepTime or 0) + (p.slashDashChain.pause or 0))
+                        p.invincibleTimer = math.max(p.invincibleTimer or 0, est)
                     end
                     if state.playSfx then state.playSfx('shoot') end
                     return true
                 end
             },
             {
-                name = "战争践踏", -- Warcry / Stomp
+                name = "致盲闪光", -- Radial Blind
                 cost = 50,
+                castTime = 0.3,
+                effect = function(state)
+                    local p = state.player
+                    local rng = p.stats.abilityRange or 1.0
+                    local dur = p.stats.abilityDuration or 1.0
+                
+                    local radius = 240 * rng
+                    local blindTime = 4.0 * dur
+                
+                    for _, e in ipairs(state.enemies or {}) do
+                        if e and not e.isDummy then
+                            local dx, dy = e.x - p.x, e.y - p.y
+                            if dx*dx + dy*dy < radius*radius then
+                                e.status = e.status or {}
+                                e.status.impactTimer = math.max(e.status.impactTimer or 0, blindTime)
+                            end
+                        end
+                    end
+                
+                    if state.spawnEffect then state.spawnEffect('shock', p.x, p.y, 1.5) end
+                    if state.playSfx then state.playSfx('hit') end
+                    return true
+                end
+            },
+            {
+                name = "辐射标枪", -- Radial Javelin
+                cost = 75,
                 castTime = 0.5,
                 effect = function(state)
                     local p = state.player
                     local str = p.stats.abilityStrength or 1.0
                     local rng = p.stats.abilityRange or 1.0
-                    local dur = p.stats.abilityDuration or 1.0
-                
-                    local bonus = math.floor(30 * str)
-                    addBuff(state, {
-                        id = "warrior_stomp_armor",
-                        timer = 15 * dur,
-                        onApply = function(s) s.player.stats.armor = (s.player.stats.armor or 0) + bonus end,
-                        onExpire = function(s) s.player.stats.armor = (s.player.stats.armor or 0) - bonus end
-                    })
-                
-                    local radius = 200 * rng
+                    local radius = 260 * rng
+                    local damage = math.floor(80 * str)
                     local ok, calc = pcall(require, 'gameplay.calculator')
                     if ok and calc then
-                        local inst = calc.createInstance({damage=math.floor(40*str), elements={'IMPACT'}, weaponTags={'ability','area'}})
+                        local inst = calc.createInstance({
+                            damage = damage,
+                            critChance = 0.1,
+                            critMultiplier = 2.0,
+                            statusChance = 0.5,
+                            elements = {'PUNCTURE'},
+                            damageBreakdown = {PUNCTURE = 1},
+                            weaponTags = {'ability', 'area', 'physical'}
+                        })
                         for _, e in ipairs(state.enemies or {}) do
                             if e and not e.isDummy then
                                 local d2 = (e.x-p.x)^2 + (e.y-p.y)^2
                                 if d2 < radius*radius then
                                     calc.applyHit(state, e, inst)
-                                    e.frozenTimer = 3.0 * dur
+                                    if state.spawnEffect then state.spawnEffect('blast_hit', e.x, e.y, 0.8) end
                                 end
                             end
                         end
                     end
-                    if state.spawnEffect then state.spawnEffect('shock', p.x, p.y, 2.0) end
-                    return true
-                end
-            },
-            {
-                name = "钢化皮肤", -- Iron Skin
-                cost = 75,
-                castTime = 0.3,
-                effect = function(state)
-                    local p = state.player
-                    local amount = 150 * (p.stats.abilityStrength or 1.0)
-                    p.shield = (p.shield or 0) + amount
-                    p.invincibleTimer = math.max(p.invincibleTimer or 0, 1.5)
-                    if state.texts then table.insert(state.texts, {x=p.x, y=p.y-50, text="IRON SKIN", color={0.8, 0.8, 0.4}, life=1.5}) end
+                    if state.spawnEffect then state.spawnEffect('blast_hit', p.x, p.y, 2.0) end
                     return true
                 end
             },
@@ -97,6 +185,7 @@ local function build(helpers)
                 name = "显赫之剑", -- Exalted Blade
                 cost = 100,
                 castTime = 0.8,
+                toggleId = "excalibur_exalted_blade",
                 effect = function(state)
                     local p = state.player
                     if p.exaltedBladeActive then return false end
@@ -107,17 +196,29 @@ local function build(helpers)
                     local speedBonus = 1.5
                 
                     addBuff(state, {
-                        id = "warrior_exalted_blade",
+                        id = "excalibur_exalted_blade",
                         timer = 20 * dur,
                         onApply = function(s)
+                            local inv = s.inventory
                             s.player.exaltedBladeActive = true
-                            s.player.stats.meleeDamageMult = (s.player.stats.meleeDamageMult or 1) + dmgBonus
-                            s.player.stats.meleeSpeed = (s.player.stats.meleeSpeed or 1) * speedBonus
+                            s.player.exaltedBladeDamageMult = 1 + dmgBonus
+                            s.player.exaltedBladeSpeedMult = speedBonus
+                            if inv and inv.weaponSlots and inv.weaponSlots.melee then
+                                s.player.exaltedBladePrevSlot = inv.activeSlot or 'ranged'
+                                inv.activeSlot = 'melee'
+                                s.player.activeSlot = 'melee'
+                            end
                         end,
                         onExpire = function(s)
+                            local inv = s.inventory
                             s.player.exaltedBladeActive = false
-                            s.player.stats.meleeDamageMult = (s.player.stats.meleeDamageMult or 1) - dmgBonus
-                            s.player.stats.meleeSpeed = (s.player.stats.meleeSpeed or 1) / speedBonus
+                            s.player.exaltedBladeDamageMult = nil
+                            s.player.exaltedBladeSpeedMult = nil
+                            if inv and s.player.exaltedBladePrevSlot and inv.weaponSlots and inv.weaponSlots[s.player.exaltedBladePrevSlot] then
+                                inv.activeSlot = s.player.exaltedBladePrevSlot
+                                s.player.activeSlot = s.player.exaltedBladePrevSlot
+                            end
+                            s.player.exaltedBladePrevSlot = nil
                         end
                     })
                 
@@ -126,154 +227,226 @@ local function build(helpers)
                 end
             }
         },
-        mage = {
+        mag = {
             {
-                name = "火球术",
-                castTime = 0.25,
+                name = "牵引", -- Pull
                 cost = 25,
+                castTime = 0.2,
                 effect = function(state)
                     local p = state.player
-                    local ang = p.aimAngle or 0
-                    local target = { x = p.x + math.cos(ang) * 100, y = p.y + math.sin(ang) * 100 }
-                    local weapons = require('gameplay.weapons')
-                    weapons.spawnProjectile(state, 'fireball', p.x, p.y, target, {damage = 50 * (p.stats.abilityStrength or 1.0)})
+                    local str = p.stats.abilityStrength or 1.0
+                    local rng = p.stats.abilityRange or 1.0
+                    local dur = p.stats.abilityDuration or 1.0
+                
+                    local radius = 260 * rng
+                    local pullDist = 140 * rng
+                    local stunTime = 0.6 * dur
+                
+                    local ok, calc = pcall(require, 'gameplay.calculator')
+                    local inst = nil
+                    if ok and calc then
+                        inst = calc.createInstance({
+                            damage = math.floor(30 * str),
+                            critChance = 0.1,
+                            critMultiplier = 1.8,
+                            statusChance = 0.6,
+                            elements = {'MAGNETIC'},
+                            damageBreakdown = {MAGNETIC = 1},
+                            weaponTags = {'ability', 'magnetic'}
+                        })
+                    end
+                
+                    local hitAny = false
+                    for _, e in ipairs(state.enemies or {}) do
+                        if e and not e.isDummy then
+                            local dx, dy = p.x - e.x, p.y - e.y
+                            local d2 = dx*dx + dy*dy
+                            if d2 < radius*radius then
+                                hitAny = true
+                                local len = math.sqrt(d2)
+                                if len > 0.1 then
+                                    local step = math.min(pullDist, math.max(0, len - 20))
+                                    local mx = dx / len * step
+                                    local my = dy / len * step
+                                    if state.world and state.world.moveCircle then
+                                        e.x, e.y = state.world:moveCircle(e.x, e.y, (e.size or 16) / 2, mx, my)
+                                    else
+                                        e.x = e.x + mx
+                                        e.y = e.y + my
+                                    end
+                                end
+                                e.status = e.status or {}
+                                e.status.impactTimer = math.max(e.status.impactTimer or 0, stunTime)
+                                if inst and ok and calc then
+                                    calc.applyHit(state, e, inst)
+                                else
+                                    e.health = (e.health or 0) - math.floor(30 * str)
+                                end
+                                if state.spawnEffect then state.spawnEffect('static', e.x, e.y, 0.6) end
+                            end
+                        end
+                    end
+                
+                    if state.playSfx then state.playSfx('shoot') end
+                    return hitAny
+                end
+            },
+            {
+                name = "磁化球", -- Magnetize
+                cost = 50,
+                castTime = 0.35,
+                recastNoCost = true,
+                recastCheck = function(state)
+                    local p = state.player
+                    local rng = p.stats.abilityRange or 1.0
+                    local maxRange = 420 * rng
+                    return findMagnetizeDetonateTarget(state, maxRange * maxRange)
+                end,
+                recastAction = function(state, target)
+                    local abilities = require('gameplay.abilities')
+                    return abilities.detonateMagnetize(state, target, 'recast')
+                end,
+                effect = function(state)
+                    local p = state.player
+                    local str = p.stats.abilityStrength or 1.0
+                    local rng = p.stats.abilityRange or 1.0
+                    local dur = p.stats.abilityDuration or 1.0
+                
+                    local maxRange = 420 * rng
+                    local maxR2 = maxRange * maxRange
+                    local target, best = nil, math.huge
+                    for _, e in ipairs(state.enemies or {}) do
+                        if e and not e.isDummy and e.health and e.health > 0 then
+                            local dx, dy = e.x - p.x, e.y - p.y
+                            local d2 = dx*dx + dy*dy
+                            if d2 < best and d2 < maxR2 then
+                                best = d2
+                                target = e
+                            end
+                        end
+                    end
+                
+                    if not target then return false end
+                
+                    target.magnetize = {
+                        timer = 8 * dur,
+                        radius = 140 * rng,
+                        dps = 20 * str,
+                        pullStrength = 160 * rng,
+                        tick = 0,
+                        storedDamage = 0,
+                        absorbMult = 1.0,
+                        explosionMult = 1.0 + 0.5 * str
+                    }
+                
+                    if state.spawnEffect then state.spawnEffect('static', target.x, target.y, 1.0) end
+                    if state.texts then table.insert(state.texts, {x=target.x, y=target.y-40, text="MAGNETIZE", color={0.7, 0.5, 1}, life=1.2}) end
                     return true
                 end
             },
             {
-                name = "能量爆发", -- Fire Blast
-                cost = 50,
+                name = "极化", -- Polarize
+                cost = 75,
                 castTime = 0.4,
                 effect = function(state)
                     local p = state.player
                     local str = p.stats.abilityStrength or 1.0
                     local rng = p.stats.abilityRange or 1.0
-                    local radius = 220 * rng
+                    local dur = p.stats.abilityDuration or 1.0
+                
+                    local radius = 300 * rng
+                    local damage = math.floor(45 * str)
+                    local debuffTime = 6.0 * dur
                     local ok, calc = pcall(require, 'gameplay.calculator')
+                    local enemies = require('gameplay.enemies')
+                    local inst = nil
                     if ok and calc then
-                        local inst = calc.createInstance({damage=math.floor(70*str), elements={'HEAT'}, weaponTags={'ability','fire'}})
-                        for _, e in ipairs(state.enemies or {}) do
-                            if e and not e.isDummy then
-                                local d2 = (e.x-p.x)^2 + (e.y-p.y)^2
-                                if d2 < radius*radius then
+                        inst = calc.createInstance({
+                            damage = damage,
+                            critChance = 0.1,
+                            critMultiplier = 2.0,
+                            statusChance = 0.7,
+                            elements = {'MAGNETIC'},
+                            damageBreakdown = {MAGNETIC = 1},
+                            weaponTags = {'ability', 'area', 'magnetic'}
+                        })
+                    end
+                
+                    local hitCount = 0
+                    for _, e in ipairs(state.enemies or {}) do
+                        if e and not e.isDummy then
+                            local d2 = (e.x-p.x)^2 + (e.y-p.y)^2
+                            if d2 < radius*radius then
+                                hitCount = hitCount + 1
+                                if inst and ok and calc then
                                     calc.applyHit(state, e, inst)
-                                    e.fireTimer = (e.fireTimer or 0) + 6.0
+                                else
+                                    e.health = (e.health or 0) - damage
                                 end
+                                enemies.applyStatus(state, e, 'MAGNETIC', damage, nil, {duration = debuffTime})
+                                enemies.applyStatus(state, e, 'MAGNETIC', damage, nil, {duration = debuffTime})
+                                if state.spawnEffect then state.spawnEffect('static', e.x, e.y, 0.5) end
                             end
                         end
                     end
-                    if state.spawnEffect then state.spawnEffect('blast_hit', p.x, p.y, 2.5) end
-                    return true
-                end
-            },
-            {
-                name = "加速增幅", -- Accelerant
-                cost = 75,
-                castTime = 0.3,
-                effect = function(state)
-                    local p = state.player
-                    local dur = p.stats.abilityDuration or 1.0
-                    local str = p.stats.abilityStrength or 1.0
-                    local moveBonus = 0.4 * str
-                    local powerBonus = 0.5 * str
                 
-                    addBuff(state, {
-                        id = "mage_accelerant",
-                        timer = 12 * dur,
-                        onApply = function(s) 
-                            s.player.moveSpeedBuffMult = (s.player.moveSpeedBuffMult or 1) * (1 + moveBonus)
-                            s.player.stats.abilityStrength = (s.player.stats.abilityStrength or 1.0) + powerBonus
-                        end,
-                        onExpire = function(s)
-                            s.player.moveSpeedBuffMult = (s.player.moveSpeedBuffMult or 1) / (1 + moveBonus)
-                            s.player.stats.abilityStrength = (s.player.stats.abilityStrength or 1.0) - powerBonus
+                    if hitCount > 0 then
+                        local maxShield = p.maxShield or (p.stats and p.stats.maxShield) or 0
+                        if maxShield > 0 then
+                            local restore = math.floor(8 * str) * hitCount
+                            p.shield = math.min(maxShield, (p.shield or 0) + restore)
                         end
-                    })
-                    return true
+                    end
+                
+                    if state.spawnEffect then state.spawnEffect('shock', p.x, p.y, 1.8) end
+                    return hitCount > 0
                 end
             },
             {
-                name = "世界在燃烧", -- World on Fire
+                name = "碾压", -- Crush
                 cost = 100,
-                castTime = 0.75,
+                castTime = 0.6,
                 effect = function(state)
                     local p = state.player
-                    if p.wofRunning then return false end
+                    local str = p.stats.abilityStrength or 1.0
+                    local rng = p.stats.abilityRange or 1.0
                     local dur = p.stats.abilityDuration or 1.0
-                    addBuff(state, {
-                        id = "mage_world_on_fire",
-                        timer = 15 * dur,
-                        onApply = function(s)
-                            s.player.wofRunning = true
-                            s.player.wofPulseTimer = 0
-                        end,
-                        onExpire = function(s)
-                            s.player.wofRunning = false
-                            if s.texts then table.insert(s.texts, {x=s.player.x, y=s.player.y-30, text="火焰熄灭", color={0.6,0.6,0.6}, life=1}) end
-                        end
-                    })
-                    if state.texts then table.insert(state.texts, {x=p.x, y=p.y-50, text="WORLD ON FIRE", color={1, 0.4, 0.1}, life=2}) end
-                    return true
-                end
-            }
-        },
-
-        beastmaster = {
-            {
-                name = "狩猎标记", -- Hunt
-                cost = 25,
-                castTime = 0.2,  -- Quick mark
-                effect = function(state)
-                    -- Buff pets
-                    if state.pets then
-                        for _, pet in ipairs(state.pets) do
-                            pet.damageMult = (pet.damageMult or 1) * 1.5
-                        end
+                
+                    local radius = 280 * rng
+                    local damage = math.floor(70 * str)
+                    local stunTime = 2.5 * dur
+                    local ok, calc = pcall(require, 'gameplay.calculator')
+                    local inst = nil
+                    if ok and calc then
+                        inst = calc.createInstance({
+                            damage = damage,
+                            critChance = 0.2,
+                            critMultiplier = 2.2,
+                            statusChance = 0.6,
+                            elements = {'MAGNETIC'},
+                            damageBreakdown = {MAGNETIC = 1},
+                            weaponTags = {'ability', 'area', 'magnetic'}
+                        })
                     end
-                    return true
-                end
-            },
-            {
-                name = "狂暴怒吼", -- Howl
-                cost = 50,
-                castTime = 0.6,  -- Roar animation
-                effect = function(state)
-                    local p = state.player
-                    local radius = 250
-                    for _, e in ipairs(state.enemies) do
-                        local dx, dy = e.x - p.x, e.y - p.y
-                        if dx*dx + dy*dy < radius*radius then
-                            e.stunTimer = 3.0
+                
+                    for _, e in ipairs(state.enemies or {}) do
+                        if e and not e.isDummy then
+                            local d2 = (e.x-p.x)^2 + (e.y-p.y)^2
+                            if d2 < radius*radius then
+                                e.status = e.status or {}
+                                e.status.impactTimer = math.max(e.status.impactTimer or 0, stunTime)
+                                if inst and ok and calc then
+                                    calc.applyHit(state, e, inst)
+                                else
+                                    e.health = (e.health or 0) - damage
+                                end
+                                if state.spawnEffect then state.spawnEffect('static', e.x, e.y, 0.8) end
+                            end
                         end
                     end
-                    return true
-                end
-            },
-            {
-                name = "群体治愈", -- Pack Health
-                cost = 75,
-                castTime = 0.4,  -- Healing channel
-                effect = function(state)
-                    local p = state.player
-                    p.hp = math.min(p.maxHp, p.hp + 50)
-                    if state.pets then
-                        for _, pet in ipairs(state.pets) do
-                            pet.hp = (pet.hp or 100) + 50
-                        end
-                    end
-                    return true
-                end
-            },
-            {
-                name = "幽灵兽群", -- Spectral Pack
-                cost = 100,
-                castTime = 1.0,  -- Summoning takes time
-                effect = function(state)
-                    -- Spawn temporary extra pets
-                    local petsModule = require('gameplay.pets')
-                    for i=1, 3 do
-                        petsModule.spawnPet(state, 'ghost_wolf', state.player.x, state.player.y)
-                    end
+                
+                    if state.playSfx then state.playSfx('hit') end
+                    if state.spawnEffect then state.spawnEffect('shock', p.x, p.y, 2.2) end
                     return true
                 end
             }
@@ -562,37 +735,26 @@ local function build(helpers)
     }
 
     local passives = {
-        warrior = {
-            name = "战士之魂",
-            desc = "近战伤害+20%, 护甲+15%",
+        excalibur = {
+            name = "剑术大师",
+            desc = "近战伤害+15%, 近战速度+10%",
             icon = "⚔️",
             apply = function(state)
                 local p = state.player
                 if not p or not p.stats then return end
-                p.stats.meleeDamageMult = (p.stats.meleeDamageMult or 1) + 0.20
-                p.stats.armor = (p.stats.armor or 0) + 15
+                p.stats.meleeDamageMult = (p.stats.meleeDamageMult or 1) + 0.15
+                p.stats.meleeSpeed = (p.stats.meleeSpeed or 1) * 1.10
             end
         },
-        mage = {
-            name = "能量亲和",
-            desc = "能量回复+50%, 技能CD-15%",
-            icon = "✨",
-            apply = function(state)
-                local p = state.player
-                if not p then return end
-                p.energyRegen = (p.energyRegen or 2) * 1.5
-                p.abilityCdMult = (p.abilityCdMult or 1) * 0.85
-            end
-        },
-        beastmaster = {
-            name = "野性直觉",
-            desc = "移动速度+10%, 暴击率+5%",
-            icon = "🐾",
+        mag = {
+            name = "磁能掌控",
+            desc = "技能范围+15%, 技能效率+10%",
+            icon = "🧲",
             apply = function(state)
                 local p = state.player
                 if not p or not p.stats then return end
-                p.stats.moveSpeed = (p.stats.moveSpeed or 170) * 1.10
-                p.stats.critChance = (p.stats.critChance or 0) + 0.05
+                p.stats.abilityRange = (p.stats.abilityRange or 1.0) * 1.15
+                p.stats.abilityEfficiency = (p.stats.abilityEfficiency or 1.0) * 1.10
             end
         },
         volt = {

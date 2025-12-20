@@ -703,7 +703,7 @@ function mods.refreshActiveStats(state)
     if not p then return end
     
     -- 1. Determine base stats from class
-    local classKey = p.class or 'warrior'
+    local classKey = p.class or 'volt'
     local classDef = state.classes and state.classes[classKey]
     local baseStats = {}
     

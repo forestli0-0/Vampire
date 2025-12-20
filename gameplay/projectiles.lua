@@ -206,7 +206,33 @@ local function applyProjectileHit(state, enemy, bullet, effectData, knock, knock
     return calculator.applyHit(state, enemy, instance)
 end
 
+local function addMagnetizeStoredDamage(enemy, result, bullet)
+    local m = enemy and enemy.magnetize
+    if not m then return end
+    local base = 0
+    if result and result.damage and result.damage > 0 then
+        base = result.damage
+    elseif bullet and bullet.damage then
+        base = bullet.damage
+    end
+    if base > 0 then
+        local mult = m.absorbMult or 1
+        m.storedDamage = (m.storedDamage or 0) + math.floor(base * mult)
+    end
+end
+
 function projectiles.updatePlayerBullets(state, dt)
+    local magnetizeTargets = nil
+    if state.enemies then
+        for _, e in ipairs(state.enemies) do
+            local m = e and e.magnetize
+            if m and m.timer and m.timer > 0 and m.radius and m.radius > 0 then
+                magnetizeTargets = magnetizeTargets or {}
+                table.insert(magnetizeTargets, {enemy = e, data = m})
+            end
+        end
+    end
+
     for i = #state.bullets, 1, -1 do
         local b = state.bullets[i]
         local handled = false
@@ -237,6 +263,34 @@ function projectiles.updatePlayerBullets(state, dt)
         if not handled then
             local ox, oy = b.x, b.y
             updateBulletGuidance(state, b, dt)
+
+            if magnetizeTargets and b.vx and b.vy and not b.noMagnetize and b.type ~= 'absolute_zero' and b.type ~= 'death_spiral' and b.type ~= 'axe' and b.type ~= 'oil_bottle' then
+                local bestTarget = nil
+                local bestD2 = math.huge
+                for _, t in ipairs(magnetizeTargets) do
+                    local e = t.enemy
+                    local m = t.data
+                    if e and m then
+                        local dx = e.x - b.x
+                        local dy = e.y - b.y
+                        local r = m.radius or 0
+                        local d2 = dx * dx + dy * dy
+                        if r > 0 and d2 <= r * r and d2 < bestD2 then
+                            bestD2 = d2
+                            bestTarget = e
+                        end
+                    end
+                end
+                if bestTarget then
+                    local spd = math.sqrt((b.vx or 0) * (b.vx or 0) + (b.vy or 0) * (b.vy or 0))
+                    if spd > 0 then
+                        local ang = math.atan2(bestTarget.y - b.y, bestTarget.x - b.x)
+                        b.vx = math.cos(ang) * spd
+                        b.vy = math.sin(ang) * spd
+                        b.rotation = ang
+                    end
+                end
+            end
             
             -- Special projectiles with unique movement patterns
             if b.type == 'axe' then
@@ -322,6 +376,7 @@ function projectiles.updatePlayerBullets(state, dt)
                                 b.hitTargets[e] = true
                                 local instance = buildInstanceFromBullet(b, e)
                                 local result = calculator.applyHit(state, e, instance)
+                                addMagnetizeStoredDamage(e, result, b)
                                 if state and state.augments and state.augments.dispatch then
                                     state.augments.dispatch(state, 'onProjectileHit', {bullet = b, enemy = e, result = result, player = state.player, weaponKey = b.parentWeaponKey or b.type})
                                 end
@@ -333,6 +388,7 @@ function projectiles.updatePlayerBullets(state, dt)
                                 b.hitTargets[e] = true
                                 local instance = buildInstanceFromBullet(b, e)
                                 local result = calculator.applyHit(state, e, instance)
+                                addMagnetizeStoredDamage(e, result, b)
                                 if state and state.augments and state.augments.dispatch then
                                     state.augments.dispatch(state, 'onProjectileHit', {bullet = b, enemy = e, result = result, player = state.player, weaponKey = b.parentWeaponKey or b.type})
                                 end
@@ -348,6 +404,7 @@ function projectiles.updatePlayerBullets(state, dt)
                                 end
                                 local instance = buildInstanceFromBullet(b, e, effectData)
                                 local result = calculator.applyHit(state, e, instance)
+                                addMagnetizeStoredDamage(e, result, b)
                                 if state and state.augments and state.augments.dispatch then
                                     state.augments.dispatch(state, 'onProjectileHit', {bullet = b, enemy = e, result = result, player = state.player, weaponKey = b.parentWeaponKey or b.type})
                                 end
@@ -403,6 +460,17 @@ function projectiles.updateEnemyBullets(state, dt)
             table.remove(state.enemyBullets, 1)
         end
     end
+
+    local magnetizeTargets = nil
+    if state.enemies then
+        for _, e in ipairs(state.enemies) do
+            local m = e and e.magnetize
+            if m and m.timer and m.timer > 0 and m.radius and m.radius > 0 then
+                magnetizeTargets = magnetizeTargets or {}
+                table.insert(magnetizeTargets, {enemy = e, data = m})
+            end
+        end
+    end
     
     -- Helper function to check if a point is within the electric shield arc
     local function isInShieldArc(px, py, bx, by, shield)
@@ -443,6 +511,37 @@ function projectiles.updateEnemyBullets(state, dt)
             if world:segmentHitsWall(ox, oy, eb.x, eb.y) then
                 table.remove(state.enemyBullets, i)
                 goto continue_enemy_bullet
+            end
+        end
+
+        if magnetizeTargets and eb.vx and eb.vy and not eb.noMagnetize then
+            local bestTarget = nil
+            local bestD2 = math.huge
+            local absorbRadius = nil
+            for _, t in ipairs(magnetizeTargets) do
+                local e = t.enemy
+                local m = t.data
+                if e and m then
+                    local dx = e.x - eb.x
+                    local dy = e.y - eb.y
+                    local r = m.radius or 0
+                    local pullRange = r * 1.4
+                    local d2 = dx * dx + dy * dy
+                    if r > 0 and d2 <= pullRange * pullRange and d2 < bestD2 then
+                        bestD2 = d2
+                        bestTarget = e
+                        absorbRadius = r
+                    end
+                end
+            end
+            if bestTarget then
+                steerBullet(eb, bestTarget.x, bestTarget.y, 14, dt)
+                if absorbRadius and bestD2 <= absorbRadius * absorbRadius then
+                    addMagnetizeStoredDamage(bestTarget, nil, eb)
+                    if state.spawnEffect then state.spawnEffect('static', eb.x, eb.y, 0.4) end
+                    table.remove(state.enemyBullets, i)
+                    goto continue_enemy_bullet
+                end
             end
         end
         
