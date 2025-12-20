@@ -266,7 +266,7 @@ function state.init()
         invincibleTimer = 0,
         shieldDelayTimer = 0,
         dash = {charges = 2, maxCharges = 2, rechargeTimer = 0, timer = 0, dx = 1, dy = 0},
-        class = 'warrior', -- Current class: warrior / mage / beastmaster
+        class = 'volt', -- Current class: warrior / mage / beastmaster / volt
         ability = {cooldown = 0, timer = 0}, -- Q skill state
         -- Weapon slots (2-slot system: ranged + melee, with reserved slot for future class passive)
         weaponSlots = {
