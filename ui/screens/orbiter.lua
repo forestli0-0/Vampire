@@ -7,6 +7,7 @@
 local orbiter = {}
 
 local mods = require('mods')
+local modsModel = require('ui.mods_model')
 local ui = require('ui')
 local core = require('ui.core')
 local theme = require('ui.theme')
@@ -43,45 +44,6 @@ local INV_COLS = 6
 -- HELPERS
 -- =============================================================================
 
-local function getColor(rarity)
-    local def = mods.RARITY[rarity]
-    return def and def.color or {0.7, 0.7, 0.7}
-end
-
-local function getModName(category, modKey)
-    local catalog = mods.getCatalog(category)
-    if catalog and catalog[modKey] then
-        return catalog[modKey].name or modKey
-    end
-    return modKey
-end
-
-local function getModShortName(category, modKey)
-    local name = getModName(category, modKey)
-    if name then
-        -- For Chinese: UTF-8 Chinese chars are 3 bytes
-        local len = #name
-        if len >= 6 then
-            local first = name:sub(1, 3)
-            local second = name:sub(4, 6)
-            if first:byte(1) and first:byte(1) >= 128 and second:byte(1) and second:byte(1) >= 128 then
-                return first .. second
-            end
-        end
-        if len <= 4 then return name end
-        return name:sub(1, 4)
-    end
-    return "???"
-end
-
-local function getModDesc(category, modKey)
-    local catalog = mods.getCatalog(category)
-    if catalog and catalog[modKey] then
-        return catalog[modKey].desc or ""
-    end
-    return ""
-end
-
 local function getModCost(category, modKey, rank)
     local catalog = mods.getCatalog(category)
     if catalog and catalog[modKey] and catalog[modKey].cost then
@@ -89,29 +51,6 @@ local function getModCost(category, modKey, rank)
         return catalog[modKey].cost[rank + 1] or 4
     end
     return 4
-end
-
-local function getModStat(category, modKey)
-    local catalog = mods.getCatalog(category)
-    if catalog and catalog[modKey] then
-        return catalog[modKey].stat or ""
-    end
-    return ""
-end
-
--- Stat abbreviations for quick recognition (ASCII-safe)
-local STAT_ABBREVS = {
-    maxHp = "HP", armor = "AR", maxShield = "SH", maxEnergy = "EN",
-    speed = "SP", abilityStrength = "STR", abilityEfficiency = "EFF",
-    abilityDuration = "DUR", abilityRange = "RNG", energyRegen = "REG",
-    damage = "DMG", critChance = "CC", critMult = "CD", fireRate = "FR",
-    multishot = "MS", statusChance = "SC", magSize = "MAG", reloadSpeed = "RLD",
-    meleeDamage = "MEL", healthLink = "HLK", armorLink = "ALK"
-}
-
-local function getStatAbbrev(category, modKey)
-    local stat = getModStat(category, modKey)
-    return STAT_ABBREVS[stat] or "+"
 end
 
 -- =============================================================================
@@ -149,9 +88,9 @@ function ModSlot:drawContent(gx, gy, w, h)
     local rank = self.modData.rank or 0
     local rarity = self.modData.rarity or 'COMMON'
     
-    local color = getColor(rarity)
-    local abbrev = getStatAbbrev(category, modKey)
-    local shortName = getModShortName(category, modKey)
+    local color = modsModel.getColor(rarity)
+    local abbrev = modsModel.getStatAbbrev(category, modKey)
+    local shortName = modsModel.getModShortName(category, modKey)
     
     -- Background gradient based on rarity
     love.graphics.setColor(color[1] * 0.3, color[2] * 0.3, color[3] * 0.3, 0.8)
@@ -202,7 +141,7 @@ function ModSlot:getDragData()
         slotType = self.slotType,
         slotIndex = self.slotIndex,
         category = self.category,
-        label = getModName(self.modData.category or self.category, self.modData.key)
+        label = modsModel.getModName(self.modData.category or self.category, self.modData.key)
     }
 end
 
@@ -396,7 +335,7 @@ function orbiter.buildModSlots(parent)
         local hasContent = slotMod ~= nil
         local slotIdx = i
         local currentSlotMod = slotMod
-        local color = hasContent and getColor(slotMod.rarity) or {0.3, 0.3, 0.4}
+        local color = hasContent and modsModel.getColor(slotMod.rarity) or {0.3, 0.3, 0.4}
         
         local slot = ModSlot.new({
             x = slotX, y = slotYPos,
@@ -411,7 +350,7 @@ function orbiter.buildModSlots(parent)
             filledColor = hasContent and {color[1] * 0.25, color[2] * 0.25, color[3] * 0.25, 0.9} or {0.15, 0.15, 0.2, 0.9},
             borderColor = hasContent and {color[1], color[2], color[3], 1} or {0.3, 0.3, 0.4, 1},
             selectedBorderColor = {1, 1, 0.3, 1},
-            tooltip = hasContent and (getModName(category, slotMod.key) .. ": " .. getModDesc(category, slotMod.key)) or nil
+            tooltip = hasContent and (modsModel.getModName(category, slotMod.key) .. ": " .. modsModel.getModDesc(category, slotMod.key)) or nil
         })
         
         -- Drop handler
@@ -535,7 +474,7 @@ function orbiter.buildInventory(parent)
         end
         
         local isSelected = selectedInventoryMod and selectedInventoryMod.index == actualIdx
-        local modColor = getColor(modData.rarity)
+        local modColor = modsModel.getColor(modData.rarity)
         local capturedModData = modData
         local capturedIdx = actualIdx
         
@@ -552,7 +491,7 @@ function orbiter.buildInventory(parent)
             filledColor = {modColor[1] * 0.25, modColor[2] * 0.25, modColor[3] * 0.25, 0.9},
             borderColor = isSelected and {1, 1, 0.3, 1} or {modColor[1], modColor[2], modColor[3], 1},
             selectedBorderColor = {1, 1, 0.3, 1},
-            tooltip = getModName(modData.category, modData.key) .. ": " .. getModDesc(modData.category, modData.key)
+            tooltip = modsModel.getModName(modData.category, modData.key) .. ": " .. modsModel.getModDesc(modData.category, modData.key)
         })
         
         slot:on('click', function()
@@ -692,14 +631,14 @@ function orbiter.buildStatsPanel(parent)
         
         local nameText = Text.new({
             x = statsX, y = infoY,
-            text = getModName(modData.category, modData.key),
-            color = getColor(modData.rarity)
+            text = modsModel.getModName(modData.category, modData.key),
+            color = modsModel.getColor(modData.rarity)
         })
         parent:addChild(nameText)
         
         local descText = Text.new({
             x = statsX, y = infoY + 14,
-            text = getModDesc(modData.category, modData.key),
+            text = modsModel.getModDesc(modData.category, modData.key),
             color = {0.65, 0.65, 0.75, 1}
         })
         parent:addChild(descText)
