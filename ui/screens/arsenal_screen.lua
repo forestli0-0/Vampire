@@ -528,7 +528,7 @@ local function buildRightColumn(gameState, parent)
         
         card:on('activate_mod', function(self)
             -- Handle Enter/Space on focused card
-            local arsenal = require('arsenal')
+            local arsenal = require('core.arsenal')
             arsenal.toggleEquip(gameState, self.modKey)
             arsenalScreen.rebuild(gameState)
         end)
@@ -598,7 +598,7 @@ function arsenalScreen.rebuild(gameState)
 end
 
 function arsenalScreen.equipModToSlot(gameState, modKey, slotIndex)
-    local arsenal = require('arsenal')
+    local arsenal = require('core.arsenal')
     
     -- Use existing arsenal logic
     arsenal.toggleEquip(gameState, modKey)
@@ -608,7 +608,7 @@ function arsenalScreen.equipModToSlot(gameState, modKey, slotIndex)
 end
 
 function arsenalScreen.unequipMod(gameState, modKey)
-    local arsenal = require('arsenal')
+    local arsenal = require('core.arsenal')
     
     if isModEquipped(gameState, getCurrentWeaponKey(gameState), modKey) then
         arsenal.toggleEquip(gameState, modKey)
@@ -618,7 +618,7 @@ function arsenalScreen.unequipMod(gameState, modKey)
 end
 
 function arsenalScreen.startRun(gameState)
-    local arsenal = require('arsenal')
+    local arsenal = require('core.arsenal')
     -- Explicitly pass the current mode to avoid ambiguity or residuals
     arsenal.startRun(gameState, {runMode = gameState.runMode or 'rooms'})
 end
@@ -633,7 +633,7 @@ function arsenalScreen.keypressed(gameState, key)
     
     -- E to equip selected mod
     if key == 'e' and selectedModCard and selectedModCard.owned then
-        local arsenal = require('arsenal')
+        local arsenal = require('core.arsenal')
         arsenal.toggleEquip(gameState, selectedModCard.modKey)
         arsenalScreen.rebuild(gameState)
         return true

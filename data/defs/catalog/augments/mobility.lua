@@ -45,7 +45,7 @@ local catalog = {
                     event = 'onDash',
                     cooldown = 0.05,
                     action = function(state, ctx)
-                        local ok, calc = pcall(require, 'calculator')
+                        local ok, calc = pcall(require, 'gameplay.calculator')
                         if not ok or not calc then return end
                         local p = (ctx and ctx.player) or state.player
                         if not p then return end
@@ -153,7 +153,7 @@ local catalog = {
                     event = 'onDash',
                     cooldown = 0.15,
                     action = function(state, ctx)
-                        local ok, calc = pcall(require, 'calculator')
+                        local ok, calc = pcall(require, 'gameplay.calculator')
                         if not ok or not calc then return end
                         local p = (ctx and ctx.player) or state.player
                         if not p then return end
@@ -200,7 +200,7 @@ local catalog = {
                     event = 'onDash',
                     cooldown = 0.65,
                     action = function(state, ctx)
-                        local ok, calc = pcall(require, 'calculator')
+                        local ok, calc = pcall(require, 'gameplay.calculator')
                         if not ok or not calc then return end
                         local p = (ctx and ctx.player) or state.player
                         if not p then return end

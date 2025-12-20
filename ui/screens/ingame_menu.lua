@@ -6,7 +6,7 @@
 
 local ingameMenu = {}
 
-local mods = require('mods')
+local mods = require('systems.mods')
 local menuModel = require('ui.ingame_menu_model')
 local ui = require('ui')
 local core = require('ui.core')
@@ -582,7 +582,7 @@ function ingameMenu.buildActionButtons(parent)
     arsenalBtn:on('click', function()
         ingameMenu.hide()
         state.init()
-        local arsenal = require('arsenal')
+        local arsenal = require('core.arsenal')
         arsenal.init(state)
         state.gameState = 'ARSENAL'
         arsenal.show(state)
@@ -613,7 +613,7 @@ function ingameMenu.keypressed(key)
     if key == 'r' then
         ingameMenu.hide()
         state.init()
-        local arsenal = require('arsenal')
+        local arsenal = require('core.arsenal')
         arsenal.init(state)
         state.gameState = 'ARSENAL'
         arsenal.show(state)

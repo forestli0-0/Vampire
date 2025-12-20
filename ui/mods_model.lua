@@ -1,4 +1,4 @@
-local mods = require('mods')
+local mods = require('systems.mods')
 
 local model = {}
 

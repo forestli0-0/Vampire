@@ -1,4 +1,4 @@
-local abilities = require('abilities')
+local abilities = require('gameplay.abilities')
 
 local hudModel = {}
 

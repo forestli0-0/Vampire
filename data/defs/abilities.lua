@@ -9,7 +9,7 @@ local function build(helpers)
                 castTime = 0,  -- Instant (dash ability)
                 effect = function(state)
                     local p = state.player
-                    local playerMod = require('player')
+                    local playerMod = require('gameplay.player')
                     local str = p.stats.abilityStrength or 1.0
                     local rng = p.stats.abilityRange or 1.0
                 
@@ -19,7 +19,7 @@ local function build(helpers)
                 
                     -- Damage enemies in a line
                     local radius = 80 * rng
-                    local ok, calc = pcall(require, 'calculator')
+                    local ok, calc = pcall(require, 'gameplay.calculator')
                     if ok and calc then
                         local instance = calc.createInstance({
                             damage = math.floor(50 * str),
@@ -63,7 +63,7 @@ local function build(helpers)
                     })
                 
                     local radius = 200 * rng
-                    local ok, calc = pcall(require, 'calculator')
+                    local ok, calc = pcall(require, 'gameplay.calculator')
                     if ok and calc then
                         local inst = calc.createInstance({damage=math.floor(40*str), elements={'IMPACT'}, weaponTags={'ability','area'}})
                         for _, e in ipairs(state.enemies or {}) do
@@ -135,7 +135,7 @@ local function build(helpers)
                     local p = state.player
                     local ang = p.aimAngle or 0
                     local target = { x = p.x + math.cos(ang) * 100, y = p.y + math.sin(ang) * 100 }
-                    local weapons = require('weapons')
+                    local weapons = require('gameplay.weapons')
                     weapons.spawnProjectile(state, 'fireball', p.x, p.y, target, {damage = 50 * (p.stats.abilityStrength or 1.0)})
                     return true
                 end
@@ -149,7 +149,7 @@ local function build(helpers)
                     local str = p.stats.abilityStrength or 1.0
                     local rng = p.stats.abilityRange or 1.0
                     local radius = 220 * rng
-                    local ok, calc = pcall(require, 'calculator')
+                    local ok, calc = pcall(require, 'gameplay.calculator')
                     if ok and calc then
                         local inst = calc.createInstance({damage=math.floor(70*str), elements={'HEAT'}, weaponTags={'ability','fire'}})
                         for _, e in ipairs(state.enemies or {}) do
@@ -270,7 +270,7 @@ local function build(helpers)
                 castTime = 1.0,  -- Summoning takes time
                 effect = function(state)
                     -- Spawn temporary extra pets
-                    local petsModule = require('pets')
+                    local petsModule = require('gameplay.pets')
                     for i=1, 3 do
                         petsModule.spawnPet(state, 'ghost_wolf', state.player.x, state.player.y)
                     end
@@ -305,7 +305,7 @@ local function build(helpers)
                 
                     if not nearestEnemy then return false end
                 
-                    local ok, calc = pcall(require, 'calculator')
+                    local ok, calc = pcall(require, 'gameplay.calculator')
                     local damage = math.floor(50 * str)
                     local chainRange = 180 * rng
                     local chainR2 = chainRange * chainRange

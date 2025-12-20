@@ -1,7 +1,7 @@
-local mods = require('mods')
+local mods = require('systems.mods')
 local modsModel = require('ui.mods_model')
-local pets = require('pets')
-local weapons = require('weapons')
+local pets = require('gameplay.pets')
+local weapons = require('gameplay.weapons')
 
 local model = {}
 

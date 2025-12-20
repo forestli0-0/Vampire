@@ -144,7 +144,7 @@ function gameoverScreen.rebuild(gameState)
         -- Reset game state but keep profile
         state.gameState = 'ARSENAL'
         ui.core.setRoot(nil)
-        local arsenal = require('arsenal')
+        local arsenal = require('core.arsenal')
         arsenal.show(state)
     end)
     root:addChild(arsenalBtn)
@@ -164,7 +164,7 @@ function gameoverScreen.keypressed(key)
          -- Return to Arsenal
         state.gameState = 'ARSENAL'
         ui.core.setRoot(nil)
-        local arsenal = require('arsenal')
+        local arsenal = require('core.arsenal')
         arsenal.show(state)
         return true
     end

@@ -2,7 +2,7 @@
 -- Replaces legacy draw.lua rendering
 local ui = require('ui')
 local theme = ui.theme
-local upgrades = require('upgrades')
+local upgrades = require('systems.upgrades')
 
 local levelupScreen = {}
 
@@ -258,7 +258,7 @@ function levelupScreen.selectOption(index)
 end
 
 function levelupScreen.applySelection(idx)
-    local upgrades = require('upgrades')
+    local upgrades = require('systems.upgrades')
     
     if state.pendingWeaponSwap then
          -- Handle swap
@@ -288,7 +288,7 @@ function levelupScreen.applySelection(idx)
 end
 
 function levelupScreen.finalize()
-    local upgrades = require('upgrades')
+    local upgrades = require('systems.upgrades')
     state.pendingWeaponSwap = nil
     if state.pendingLevelUps > 0 then
         state.pendingLevelUps = state.pendingLevelUps - 1

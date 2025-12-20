@@ -30,7 +30,7 @@ local catalog = {
                     maxPerSecond = 2,
                     requires = {isMoving = true},
                     action = function(state, ctx)
-                        local ok, calc = pcall(require, 'calculator')
+                        local ok, calc = pcall(require, 'gameplay.calculator')
                         if not ok or not calc then return end
                         local p = (ctx and ctx.player) or state.player
                         if not p then return end
@@ -72,7 +72,7 @@ local catalog = {
                     cooldown = 0.15,
                     maxPerSecond = 6,
                     action = function(state, ctx)
-                        local ok, calc = pcall(require, 'calculator')
+                        local ok, calc = pcall(require, 'gameplay.calculator')
                         if not ok or not calc then return end
                         local enemy = ctx and ctx.enemy
                         if not enemy then return end
@@ -117,7 +117,7 @@ local catalog = {
                     cooldown = 0.1,
                     maxPerSecond = 3,
                     action = function(state, ctx)
-                        local ok, calc = pcall(require, 'calculator')
+                        local ok, calc = pcall(require, 'gameplay.calculator')
                         if not ok or not calc then return end
                         local enemy = ctx and ctx.enemy
                         if not enemy then return end
