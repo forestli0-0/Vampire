@@ -1,6 +1,7 @@
 local state = {}
 
 local assets = require('assets')
+local effects = require('effects')
 
 local PROFILE_PATH = "profile.lua"
 
@@ -1798,6 +1799,7 @@ function state.init()
     }
 
     assets.init(state)
+    effects.init(state)
 end
 
 return state
