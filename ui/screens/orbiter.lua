@@ -659,7 +659,11 @@ function orbiter.buildStatsPanel(parent)
     })
     parent:addChild(goldText)
     
-    local hpPct = state.player.hp / state.player.maxHp
+    local p = state.player or {}
+    local stats = p.stats or {}
+    local maxHp = stats.maxHp or p.maxHp or 100
+    local curHp = p.hp or 0
+    local hpPct = curHp / maxHp
     local hpColor
     if hpPct > 0.5 then
         hpColor = {0.4, 1, 0.4, 1}
@@ -671,7 +675,7 @@ function orbiter.buildStatsPanel(parent)
     
     local hpText = Text.new({
         x = SCREEN_W - 100, y = SCREEN_H - 75,
-        text = string.format("HP: %d/%d", math.floor(state.player.hp), state.player.maxHp),
+        text = string.format("HP: %d/%d", math.floor(curHp), math.floor(maxHp)),
         color = hpColor
     })
     parent:addChild(hpText)
@@ -682,7 +686,10 @@ function orbiter.buildActionButtons(parent)
     
     -- Heal button
     local healCost = 30 + (state.rooms and state.rooms.roomIndex or 1) * 5
-    local canHeal = (state.player.hp < state.player.maxHp) and (state.runCurrency or 0) >= healCost
+    local p = state.player or {}
+    local stats = p.stats or {}
+    local maxHp = stats.maxHp or p.maxHp or 100
+    local canHeal = ((p.hp or 0) < maxHp) and (state.runCurrency or 0) >= healCost
     
     local healBtn = Button.new({
         x = PANEL_X, y = buttonY,
@@ -695,8 +702,8 @@ function orbiter.buildActionButtons(parent)
     healBtn:on('click', function()
         if canHeal then
             state.runCurrency = (state.runCurrency or 0) - healCost
-            local heal = math.floor(state.player.maxHp * 0.5)
-            state.player.hp = math.min(state.player.maxHp, state.player.hp + heal)
+            local heal = math.floor(maxHp * 0.5)
+            p.hp = math.min(maxHp, (p.hp or 0) + heal)
             if state.playSfx then state.playSfx('gem') end
             orbiter.buildUI()
         end
@@ -757,15 +764,16 @@ function orbiter.exit()
         return
     end
     
+    local stats = p.stats or {}
     if not state._basePlayerStats then
         state._basePlayerStats = {
-            maxHp = p.maxHp or 100,
-            maxShield = p.maxShield or 0,
-            maxEnergy = p.maxEnergy or 100,
-            armor = p.stats and p.stats.armor or 0,
-            moveSpeed = p.stats and p.stats.moveSpeed or 180,
-            might = p.stats and p.stats.might or 1.0,
-            energyRegen = p.stats and p.stats.energyRegen or 0
+            maxHp = stats.maxHp or p.maxHp or 100,
+            maxShield = stats.maxShield or p.maxShield or 0,
+            maxEnergy = stats.maxEnergy or p.maxEnergy or 100,
+            armor = stats.armor or 0,
+            moveSpeed = stats.moveSpeed or 180,
+            might = stats.might or 1.0,
+            energyRegen = stats.energyRegen or 0
         }
     end
     
@@ -799,6 +807,9 @@ function orbiter.exit()
     if modded.maxEnergy then p.maxEnergy = math.floor(modded.maxEnergy) end
     
     if p.stats then
+        if modded.maxHp then p.stats.maxHp = math.floor(modded.maxHp) end
+        if modded.maxShield then p.stats.maxShield = math.floor(modded.maxShield) end
+        if modded.maxEnergy then p.stats.maxEnergy = math.floor(modded.maxEnergy) end
         if modded.armor then p.stats.armor = modded.armor end
         if modded.moveSpeed then p.stats.moveSpeed = modded.moveSpeed end
         if modded.speed then p.stats.moveSpeed = modded.speed end

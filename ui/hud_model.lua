@@ -16,7 +16,7 @@ function hudModel.build(state)
     local data = {
         player = {
             class = p.class or "Tenno",
-            level = p.level or 1,
+            level = (p.level ~= nil) and p.level or 0,
             hp = p.hp or 0,
             maxHp = stats.maxHp or p.maxHp or 100,
             shield = p.shield or 0,

@@ -71,7 +71,7 @@ local function buildPlayerFrame(data, parent)
     -- Name / Level
     local p = data.player or {}
     local name = p.class or "Tenno"
-    local level = p.level or 1
+    local level = (p.level ~= nil) and p.level or 0
     
     local nameText = ui.Text.new({
         x = x, y = y,
@@ -463,7 +463,8 @@ function hud.update(gameState, dt)
 
         -- Level Text
         if widgets.levelText then
-            widgets.levelText:setText(string.upper(p.class or "Tenno") .. " Lv" .. tostring(p.level or 1))
+            local level = (p.level ~= nil) and p.level or 0
+            widgets.levelText:setText(string.upper(p.class or "Tenno") .. " Lv" .. tostring(level))
         end
 
         -- Gold

@@ -56,9 +56,12 @@ function model.buildStatsLines(state, currentTab, selectedWeaponKey)
     local stats = p.stats or {}
 
     if currentTab == 'warframe' then
-        table.insert(lines, {label = "HP", value = string.format("%d/%d", math.floor(p.hp or 0), math.floor(p.maxHp or 100))})
-        table.insert(lines, {label = "护盾", value = string.format("%d/%d", math.floor(p.shield or 0), math.floor(p.maxShield or 100))})
-        table.insert(lines, {label = "能量", value = string.format("%d/%d", math.floor(p.energy or 0), math.floor(p.maxEnergy or 100))})
+        local maxHp = stats.maxHp or p.maxHp or 100
+        local maxShield = stats.maxShield or p.maxShield or 100
+        local maxEnergy = stats.maxEnergy or p.maxEnergy or 100
+        table.insert(lines, {label = "HP", value = string.format("%d/%d", math.floor(p.hp or 0), math.floor(maxHp))})
+        table.insert(lines, {label = "护盾", value = string.format("%d/%d", math.floor(p.shield or 0), math.floor(maxShield))})
+        table.insert(lines, {label = "能量", value = string.format("%d/%d", math.floor(p.energy or 0), math.floor(maxEnergy))})
         table.insert(lines, {label = "护甲", value = string.format("%d", stats.armor or 0)})
         table.insert(lines, {label = "移速", value = string.format("%d", stats.moveSpeed or 180)})
         table.insert(lines, {label = "强度", value = string.format("%.0f%%", (stats.abilityStrength or 1) * 100)})
