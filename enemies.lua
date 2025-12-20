@@ -1,5 +1,5 @@
 local player = require('player')
-local enemyDefs = require('enemy_defs')
+local enemyDefs = require('data.defs.enemies')
 local logger = require('logger')
 local pets = require('pets')
 

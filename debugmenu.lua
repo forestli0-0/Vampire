@@ -1,7 +1,7 @@
 local upgrades = require('upgrades')
 local weapons = require('weapons')
 local enemies = require('enemies')
-local enemyDefs = require('enemy_defs')
+local enemyDefs = require('data.defs.enemies')
 
 local debugmenu = {}
 
