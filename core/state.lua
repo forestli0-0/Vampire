@@ -3,6 +3,7 @@ local state = {}
 local assets = require('render.assets')
 local effects = require('render.effects')
 local progression = require('systems.progression')
+local mods = require('systems.mods')
 
 local PROFILE_PATH = "profile.lua"
 
@@ -32,24 +33,27 @@ end
 local function defaultProfile()
     return {
         modRanks = {},
-        -- Weapon-specific mod loadouts (Warframe-like). Each weapon has its own equipped set + ordering.
+        -- Weapon-specific pre-run mod loadouts (8-slot system).
         weaponMods = {
             wand = {
-                equippedMods = {},
-                modOrder = {}
+                slots = {}
             }
         },
+        warframeMods = {slots = {}},
+        companionMods = {slots = {}},
         modTargetWeapon = 'wand',
+        modTargetCategory = 'weapons',
+        modSystemVersion = 2,
 
         -- Legacy global mod equip fields (kept for backward compatibility; migrated into weaponMods).
         equippedMods = {},
         modOrder = {},
         ownedMods = {
-            mod_serration = true,
-            mod_split_chamber = true,
-            mod_point_strike = true,
-            mod_vital_sense = true,
-            mod_status_matrix = true
+            serration = true,
+            split_chamber = true,
+            point_strike = true,
+            vital_sense = true,
+            status_matrix = true
         },
         currency = 0,
 
@@ -74,62 +78,160 @@ function state.loadProfile()
     profile.modRanks = profile.modRanks or {}
     profile.weaponMods = profile.weaponMods or {}
     profile.modTargetWeapon = profile.modTargetWeapon or 'wand'
+    profile.modTargetCategory = profile.modTargetCategory or 'weapons'
     profile.equippedMods = profile.equippedMods or {} -- legacy
     profile.modOrder = profile.modOrder or {} -- legacy
     profile.ownedMods = profile.ownedMods or {}
+    profile.modSystemVersion = profile.modSystemVersion or 1
+
+    local function buildModKeySet()
+        local set = {}
+        for _, category in ipairs({'warframe', 'weapons', 'companion'}) do
+            for key, _ in pairs(mods.getCatalog(category) or {}) do
+                set[key] = true
+            end
+        end
+        return set
+    end
+
+    local validModKeys = buildModKeySet()
+    local function normalizeModKey(key)
+        if validModKeys[key] then return key end
+        if type(key) == 'string' and key:sub(1, 4) == 'mod_' then
+            local stripped = key:sub(5)
+            if validModKeys[stripped] then
+                return stripped
+            end
+        end
+        return key
+    end
+
+    local function remapKeys(tbl)
+        local out = {}
+        for k, v in pairs(tbl or {}) do
+            local nk = normalizeModKey(k)
+            out[nk] = v
+        end
+        return out
+    end
+
     if next(profile.ownedMods) == nil then
         for k, v in pairs(defaultProfile().ownedMods) do
             profile.ownedMods[k] = v
         end
     end
-    for k, _ in pairs(profile.modRanks) do profile.ownedMods[k] = true end
 
-    -- Migrate legacy global equippedMods/modOrder into weaponMods.wand if no weapon loadouts exist yet.
-    if next(profile.weaponMods) == nil then
-        local legacyEq = profile.equippedMods or {}
-        local legacyOrder = profile.modOrder or {}
-        local hasLegacy = (next(legacyEq) ~= nil) or (type(legacyOrder) == 'table' and #legacyOrder > 0)
-        if hasLegacy then
-            profile.weaponMods.wand = profile.weaponMods.wand or {equippedMods = {}, modOrder = {}}
-            local lo = profile.weaponMods.wand
-            lo.equippedMods = lo.equippedMods or {}
-            lo.modOrder = lo.modOrder or {}
+    if profile.modSystemVersion ~= 2 then
+        profile.ownedMods = remapKeys(profile.ownedMods)
+        profile.modRanks = remapKeys(profile.modRanks)
 
-            for k, v in pairs(legacyEq) do
-                if v then lo.equippedMods[k] = true end
+        for k, v in pairs(profile.modRanks) do
+            if type(v) == 'number' then
+                profile.modRanks[k] = math.max(0, math.floor(v) - 1)
             end
-            for _, k in ipairs(legacyOrder) do
-                if legacyEq[k] then
-                    table.insert(lo.modOrder, k)
-                end
-            end
-            -- include equipped-but-not-in-order mods deterministically
-            local extra = {}
-            for k, v in pairs(legacyEq) do
-                if v then
-                    local found = false
-                    for _, ok in ipairs(lo.modOrder) do
-                        if ok == k then found = true break end
+        end
+
+        -- Migrate legacy global equippedMods/modOrder into weaponMods.wand if no weapon loadouts exist yet.
+        if next(profile.weaponMods) == nil then
+            local legacyEq = profile.equippedMods or {}
+            local legacyOrder = profile.modOrder or {}
+            local hasLegacy = (next(legacyEq) ~= nil) or (type(legacyOrder) == 'table' and #legacyOrder > 0)
+            if hasLegacy then
+                profile.weaponMods.wand = profile.weaponMods.wand or {slots = {}}
+                local lo = profile.weaponMods.wand
+                local slots = lo.slots or {}
+                local idx = 1
+
+                for _, k in ipairs(legacyOrder) do
+                    local nk = normalizeModKey(k)
+                    if legacyEq[k] or legacyEq[nk] then
+                        slots[idx] = nk
+                        idx = idx + 1
+                        if idx > 8 then break end
                     end
-                    if not found then table.insert(extra, k) end
                 end
-            end
-            table.sort(extra)
-            for _, k in ipairs(extra) do
-                table.insert(lo.modOrder, k)
+
+                local extra = {}
+                for k, v in pairs(legacyEq) do
+                    if v then
+                        local nk = normalizeModKey(k)
+                        local found = false
+                        for _, ok in pairs(slots) do
+                            if ok == nk then found = true break end
+                        end
+                        if not found then table.insert(extra, nk) end
+                    end
+                end
+                table.sort(extra)
+                for _, nk in ipairs(extra) do
+                    if idx > 8 then break end
+                    slots[idx] = nk
+                    idx = idx + 1
+                end
+                lo.slots = slots
             end
         end
+
+        for weaponKey, lo in pairs(profile.weaponMods or {}) do
+            if lo and lo.equippedMods and lo.modOrder then
+                local slots = {}
+                local idx = 1
+                for _, modKey in ipairs(lo.modOrder) do
+                    local nk = normalizeModKey(modKey)
+                    if lo.equippedMods[modKey] or lo.equippedMods[nk] then
+                        slots[idx] = nk
+                        idx = idx + 1
+                        if idx > 8 then break end
+                    end
+                end
+                local extra = {}
+                for modKey, on in pairs(lo.equippedMods) do
+                    if on then
+                        local nk = normalizeModKey(modKey)
+                        local found = false
+                        for _, ok in pairs(slots) do
+                            if ok == nk then found = true break end
+                        end
+                        if not found then table.insert(extra, nk) end
+                    end
+                end
+                table.sort(extra)
+                for _, nk in ipairs(extra) do
+                    if idx > 8 then break end
+                    slots[idx] = nk
+                    idx = idx + 1
+                end
+                profile.weaponMods[weaponKey] = {slots = slots}
+            elseif lo and lo.slots then
+                local slots = {}
+                for slotIdx, modKey in pairs(lo.slots) do
+                    slots[tonumber(slotIdx) or slotIdx] = normalizeModKey(modKey)
+                end
+                lo.slots = slots
+            elseif lo then
+                lo.slots = lo.slots or {}
+            end
+        end
+
+        profile.modSystemVersion = 2
     end
 
+    for k, _ in pairs(profile.modRanks) do profile.ownedMods[k] = true end
     for _, lo in pairs(profile.weaponMods or {}) do
-        for k, _ in pairs((lo and lo.equippedMods) or {}) do
-            profile.ownedMods[k] = true
+        for _, modKey in pairs((lo and lo.slots) or {}) do
+            if modKey then profile.ownedMods[modKey] = true end
         end
     end
+    profile.warframeMods = profile.warframeMods or {slots = {}}
+    profile.companionMods = profile.companionMods or {slots = {}}
     profile.startPetKey = profile.startPetKey or 'pet_magnet'
     profile.petModules = profile.petModules or {}
     profile.petRanks = profile.petRanks or {}
     profile.currency = profile.currency or 0
+    if next(profile.weaponMods) == nil then
+        profile.weaponMods.wand = {slots = {}}
+    end
+    profile.weaponMods[profile.modTargetWeapon] = profile.weaponMods[profile.modTargetWeapon] or {slots = {}}
     return profile
 end
 
@@ -143,35 +245,18 @@ function state.applyPersistentMods()
     state.inventory.mods = {} -- legacy (do not apply globally)
     state.inventory.modOrder = {} -- legacy (do not apply globally)
     state.inventory.weaponMods = {}
+    state.inventory.warframeMods = nil
+    state.inventory.companionMods = nil
     if not state.profile then return end
     local ranks = state.profile.modRanks or {}
 
     for weaponKey, lo in pairs(state.profile.weaponMods or {}) do
-        local equipped = (lo and lo.equippedMods) or {}
-        local order = (lo and lo.modOrder) or {}
-
         local entry = {mods = {}, modOrder = {}}
-
-        for _, modKey in ipairs(order) do
-            if equipped[modKey] then
-                local lvl = ranks[modKey] or 1
-                if lvl > 0 then
-                    entry.mods[modKey] = lvl
-                    table.insert(entry.modOrder, modKey)
-                end
-            end
-        end
-
-        local extra = {}
-        for modKey, on in pairs(equipped) do
-            if on and not entry.mods[modKey] then
-                table.insert(extra, modKey)
-            end
-        end
-        table.sort(extra)
-        for _, modKey in ipairs(extra) do
-            local lvl = ranks[modKey] or 1
-            if lvl > 0 then
+        local slots = (lo and lo.slots) or {}
+        for i = 1, 8 do
+            local modKey = slots[i]
+            if modKey then
+                local lvl = ranks[modKey] or 0
                 entry.mods[modKey] = lvl
                 table.insert(entry.modOrder, modKey)
             end
@@ -179,6 +264,23 @@ function state.applyPersistentMods()
 
         state.inventory.weaponMods[weaponKey] = entry
     end
+
+    local function buildEntry(loadout)
+        local entry = {mods = {}, modOrder = {}}
+        local slots = (loadout and loadout.slots) or {}
+        for i = 1, 8 do
+            local modKey = slots[i]
+            if modKey then
+                local lvl = ranks[modKey] or 0
+                entry.mods[modKey] = lvl
+                table.insert(entry.modOrder, modKey)
+            end
+        end
+        return entry
+    end
+
+    state.inventory.warframeMods = buildEntry(state.profile.warframeMods)
+    state.inventory.companionMods = buildEntry(state.profile.companionMods)
 end
 
 function state.gainGold(amount, ctx)

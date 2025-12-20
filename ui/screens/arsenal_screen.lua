@@ -4,6 +4,7 @@
 
 local ui = require('ui')
 local theme = ui.theme
+local mods = require('systems.mods')
 
 local arsenalScreen = {}
 
@@ -61,22 +62,42 @@ local LAYOUT = {
 -- Helper Functions
 -------------------------------------------
 
-local function getWeaponLoadout(gameState, weaponKey)
+local function getCurrentCategory(gameState)
+    return (gameState.profile and gameState.profile.modTargetCategory) or 'weapons'
+end
+
+local function getLoadout(gameState, category, weaponKey)
     local profile = gameState.profile
     if not profile then return nil end
-    profile.weaponMods = profile.weaponMods or {}
-    profile.weaponMods[weaponKey] = profile.weaponMods[weaponKey] or {equippedMods = {}, modOrder = {}}
-    return profile.weaponMods[weaponKey]
+    if category == 'weapons' then
+        profile.weaponMods = profile.weaponMods or {}
+        profile.weaponMods[weaponKey] = profile.weaponMods[weaponKey] or {slots = {}}
+        return profile.weaponMods[weaponKey]
+    elseif category == 'warframe' then
+        profile.warframeMods = profile.warframeMods or {slots = {}}
+        profile.warframeMods.slots = profile.warframeMods.slots or {}
+        return profile.warframeMods
+    elseif category == 'companion' then
+        profile.companionMods = profile.companionMods or {slots = {}}
+        profile.companionMods.slots = profile.companionMods.slots or {}
+        return profile.companionMods
+    end
+    return nil
 end
 
-local function getEquippedMods(gameState, weaponKey)
-    local loadout = getWeaponLoadout(gameState, weaponKey)
+local function getEquippedMods(gameState, category, weaponKey)
+    local loadout = getLoadout(gameState, category, weaponKey)
     if not loadout then return {} end
-    return loadout.modOrder or {}
+    return loadout.slots or {}
 end
 
-local function getModDef(gameState, modKey)
-    return gameState.catalog and gameState.catalog[modKey]
+local function getModCatalog(category)
+    return mods.getCatalog(category or 'weapons') or {}
+end
+
+local function getModDef(gameState, category, modKey)
+    local catalog = getModCatalog(category)
+    return catalog[modKey]
 end
 
 local function isModOwned(gameState, modKey)
@@ -84,14 +105,35 @@ local function isModOwned(gameState, modKey)
     return profile and profile.ownedMods and profile.ownedMods[modKey]
 end
 
-local function isModEquipped(gameState, weaponKey, modKey)
-    local loadout = getWeaponLoadout(gameState, weaponKey)
-    return loadout and loadout.equippedMods and loadout.equippedMods[modKey]
+local function isModEquipped(gameState, category, weaponKey, modKey)
+    local loadout = getLoadout(gameState, category, weaponKey)
+    if not (loadout and loadout.slots) then return false end
+    for _, key in pairs(loadout.slots) do
+        if key == modKey then return true end
+    end
+    return false
 end
 
 local function getModRank(gameState, modKey)
     local profile = gameState.profile
-    return (profile and profile.modRanks and profile.modRanks[modKey]) or 1
+    local r = (profile and profile.modRanks and profile.modRanks[modKey]) or 0
+    r = tonumber(r) or 0
+    return math.max(0, math.floor(r))
+end
+
+local function getMaxRank(def)
+    local len = 0
+    if def and type(def.cost) == 'table' then len = #def.cost end
+    if len == 0 and def and type(def.value) == 'table' then len = #def.value end
+    if len == 0 then return 0 end
+    return math.max(0, len - 1)
+end
+
+local function getRankCost(def, rank)
+    if def and type(def.cost) == 'table' then
+        return def.cost[rank + 1] or 0
+    end
+    return 0
 end
 
 local function getCurrentWeaponKey(gameState)
@@ -102,23 +144,19 @@ local function getWeaponDef(gameState, weaponKey)
     return gameState.catalog and gameState.catalog[weaponKey]
 end
 
-local function calculateCapacity(gameState, weaponKey)
-    local loadout = getWeaponLoadout(gameState, weaponKey)
+local function calculateCapacity(gameState, category, weaponKey)
+    local loadout = getLoadout(gameState, category, weaponKey)
     if not loadout then return 0, 30 end
     
-    local used = 0
-    for modKey, equipped in pairs(loadout.equippedMods or {}) do
-        if equipped then
-            local def = getModDef(gameState, modKey)
-            local cost = (def and def.cost) or 4
-            local rank = getModRank(gameState, modKey)
-            -- Warframe Mod Cost: Base + Rank (assuming rank 1 is base)
-            -- If rank serves as 0-based level + 1, then rank-1 is the added cost
-            used = used + cost + (rank - 1)
+    local slots = {}
+    for slotIdx, modKey in pairs(loadout.slots or {}) do
+        if modKey then
+            slots[slotIdx] = {key = modKey, rank = getModRank(gameState, modKey)}
         end
     end
-    
-    local maxCapacity = 30  -- Base capacity
+
+    local used = mods.getTotalCost(slots, getModCatalog(category))
+    local maxCapacity = (gameState.progression and gameState.progression.modCapacity) or 30
     return used, maxCapacity
 end
 
@@ -140,9 +178,8 @@ function ModCard.new(opts)
     self.modDef = opts.modDef
     self.owned = opts.owned or false
     self.equipped = opts.equipped or false
-    self.rank = opts.rank or 1
-    self.maxRank = (opts.modDef and opts.modDef.maxLevel) or 1
-    self.cost = (opts.modDef and opts.modDef.cost) or 4
+    self.rank = opts.rank or 0
+    self.maxRank = getMaxRank(opts.modDef)
     
     -- Visual
     self.hoverT = 0
@@ -213,8 +250,9 @@ function ModCard:drawSelf()
     end
     
     -- Cost (top right)
+    local cost = getRankCost(self.modDef, self.rank or 0)
     love.graphics.setColor(0.9, 0.9, 0.5, 0.9)
-    love.graphics.print(tostring(self.cost), gx + w - 14, gy + 3)
+    love.graphics.print(tostring(cost), gx + w - 14, gy + 3)
     
     -- Mod name (centered)
     local name = (self.modDef and self.modDef.name) or self.modKey or "???"
@@ -228,16 +266,17 @@ function ModCard:drawSelf()
     love.graphics.printf(name, gx + 2, gy + h/2 - 8, w - 4, 'center')
     
     -- Rank dots (bottom)
-    if self.maxRank > 1 then
+    if self.maxRank > 0 then
         local dotSize = 4
         local dotSpacing = 6
-        local totalWidth = (self.maxRank - 1) * dotSpacing + dotSize
+        local dotCount = self.maxRank + 1
+        local totalWidth = (dotCount - 1) * dotSpacing + dotSize
         local startX = gx + (w - totalWidth) / 2
         local dotY = gy + h - 12
         
-        for i = 1, self.maxRank do
+        for i = 1, dotCount do
             local dx = startX + (i - 1) * dotSpacing
-            if i <= self.rank then
+            if i <= (self.rank + 1) then
                 love.graphics.setColor(0.9, 0.85, 0.4, 1)
             else
                 love.graphics.setColor(0.3, 0.3, 0.3, 0.8)
@@ -281,6 +320,7 @@ end
 local function buildLeftColumn(gameState, parent)
     local x = LAYOUT.leftX
     local y = 32
+    local category = getCurrentCategory(gameState)
     
     -- Weapon selector
     local currentWeapon = getCurrentWeaponKey(gameState)
@@ -303,7 +343,32 @@ local function buildLeftColumn(gameState, parent)
         tooltip = "按 Tab 切换武器"
     })
     parent:addChild(weaponBtn)
-    y = y + 30
+    y = y + 26
+
+    -- Mod category selector
+    local catLabel = ui.Text.new({
+        x = x, y = y,
+        text = "MOD类别(1/2/3)",
+        color = theme.colors.text_dim
+    })
+    parent:addChild(catLabel)
+    y = y + 14
+
+    local catName = (category == 'warframe' and "战甲") or (category == 'weapons' and "武器") or "宠物"
+    local catBtn = ui.Button.new({
+        x = x, y = y,
+        w = LAYOUT.leftW - 4, h = 22,
+        text = catName,
+        tooltip = "1:战甲  2:武器  3:宠物"
+    })
+    catBtn:on('click', function()
+        local arsenal = require('core.arsenal')
+        local next = (category == 'warframe' and 'weapons') or (category == 'weapons' and 'companion') or 'warframe'
+        arsenal.setModCategory(gameState, next)
+        arsenalScreen.rebuild(gameState)
+    end)
+    parent:addChild(catBtn)
+    y = y + 24
     
     -- Stats panel
     local panelW = LAYOUT.leftW - 4
@@ -352,7 +417,7 @@ local function buildLeftColumn(gameState, parent)
     end
     
     statsPanel = panel
-    y = y + 96
+    y = y + 92
     
     -- Class button
     local classKey = gameState.player and gameState.player.class or 'warrior'
@@ -367,7 +432,7 @@ local function buildLeftColumn(gameState, parent)
         tooltip = "按 C 切换职业"
     })
     parent:addChild(classBtn)
-    y = y + 24
+    y = y + 22
     
     -- Pet button
     local petKey = (gameState.profile and gameState.profile.startPetKey) or 'pet_magnet'
@@ -382,7 +447,7 @@ local function buildLeftColumn(gameState, parent)
         tooltip = "按 P/O 切换宠物"
     })
     parent:addChild(petBtn)
-    y = y + 28
+    y = y + 24
     
     -- Start button
     local startBtn = ui.Button.new({
@@ -406,10 +471,11 @@ end
 local function buildRightColumn(gameState, parent)
     local x = LAYOUT.rightX
     local y = 32
+    local category = getCurrentCategory(gameState)
     
     -- Capacity bar
     local currentWeapon = getCurrentWeaponKey(gameState)
-    local used, max = calculateCapacity(gameState, currentWeapon)
+    local used, max = calculateCapacity(gameState, category, currentWeapon)
     local gridW = LAYOUT.modSlotSize * LAYOUT.modGridCols + LAYOUT.modSlotSpacing * (LAYOUT.modGridCols - 1)
     
     local capLabel = ui.Text.new({
@@ -433,7 +499,7 @@ local function buildRightColumn(gameState, parent)
     y = y + 16
     
     -- MOD grid (8 slots, 2 rows × 4 cols)
-    local equippedOrder = getEquippedMods(gameState, currentWeapon)
+    local equippedOrder = getEquippedMods(gameState, category, currentWeapon)
     modSlots = {}
     
     for row = 1, LAYOUT.modGridRows do
@@ -443,7 +509,7 @@ local function buildRightColumn(gameState, parent)
             local slotY = y + (row - 1) * (LAYOUT.modSlotSize + LAYOUT.modSlotSpacing)
             
             local modKey = equippedOrder[idx]
-            local modDef = modKey and getModDef(gameState, modKey)
+            local modDef = modKey and getModDef(gameState, category, modKey)
             
             local slot = ui.Slot.new({
                 x = slotX, y = slotY,
@@ -476,9 +542,10 @@ local function buildRightColumn(gameState, parent)
     y = y + LAYOUT.modGridRows * (LAYOUT.modSlotSize + LAYOUT.modSlotSpacing) + 8
     
     -- MOD library label
+    local catName = (category == 'warframe' and "战甲") or (category == 'weapons' and "武器") or "宠物"
     local libLabel = ui.Text.new({
         x = x, y = y,
-        text = "MOD库 (E装备)",
+        text = "MOD库 (E装备) - " .. catName,
         color = theme.colors.text_dim
     })
     parent:addChild(libLabel)
@@ -503,9 +570,9 @@ local function buildRightColumn(gameState, parent)
     local cardsPerRow = math.floor((LAYOUT.rightW - 8) / (LAYOUT.libraryCardW + LAYOUT.libraryCardSpacing))
     
     for i, modKey in ipairs(modList) do
-        local modDef = getModDef(gameState, modKey)
+        local modDef = getModDef(gameState, category, modKey)
         local owned = isModOwned(gameState, modKey)
-        local equipped = isModEquipped(gameState, currentWeapon, modKey)
+        local equipped = isModEquipped(gameState, category, currentWeapon, modKey)
         local rank = getModRank(gameState, modKey)
         
         local card = ModCard.new({
@@ -530,6 +597,18 @@ local function buildRightColumn(gameState, parent)
             -- Handle Enter/Space on focused card
             local arsenal = require('core.arsenal')
             arsenal.toggleEquip(gameState, self.modKey)
+            arsenalScreen.rebuild(gameState)
+        end)
+        card:on('rightClick', function(self)
+            if not self.owned then return end
+            local arsenal = require('core.arsenal')
+            local category = getCurrentCategory(gameState)
+            local weaponKey = getCurrentWeaponKey(gameState)
+            if isModEquipped(gameState, category, weaponKey, self.modKey) then
+                arsenal.unequipMod(gameState, self.modKey)
+            else
+                arsenal.toggleEquip(gameState, self.modKey)
+            end
             arsenalScreen.rebuild(gameState)
         end)
 
@@ -600,8 +679,8 @@ end
 function arsenalScreen.equipModToSlot(gameState, modKey, slotIndex)
     local arsenal = require('core.arsenal')
     
-    -- Use existing arsenal logic
-    arsenal.toggleEquip(gameState, modKey)
+    -- Slot-specific equip
+    arsenal.equipToSlot(gameState, modKey, slotIndex)
     
     -- Rebuild UI to reflect changes
     arsenalScreen.rebuild(gameState)
@@ -610,9 +689,7 @@ end
 function arsenalScreen.unequipMod(gameState, modKey)
     local arsenal = require('core.arsenal')
     
-    if isModEquipped(gameState, getCurrentWeaponKey(gameState), modKey) then
-        arsenal.toggleEquip(gameState, modKey)
-    end
+    arsenal.unequipMod(gameState, modKey)
     
     arsenalScreen.rebuild(gameState)
 end
@@ -627,7 +704,7 @@ function arsenalScreen.keypressed(gameState, key)
     -- Let UI system handle Tab/Enter/Arrow keys first
     -- Let UI system handle Enter/Arrow keys first
     -- Note: We skip 'tab' here so it falls through to arsenal.lua for weapon switching
-    if key ~= 'tab' and ui.core.enabled and ui.keypressed(key) then
+    if key ~= 'tab' and key ~= '1' and key ~= '2' and key ~= '3' and ui.core.enabled and ui.keypressed(key) then
         return true
     end
     

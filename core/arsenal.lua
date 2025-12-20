@@ -19,7 +19,7 @@ end
 -- Flag to use new UI (set to true to enable)
 arsenal.useNewUI = true
 
-local MAX_SLOTS = 4
+local MAX_SLOTS = 8
 
 local function tagsMatch(weaponTags, targetTags)
     if not weaponTags or not targetTags then return false end
@@ -31,18 +31,16 @@ local function tagsMatch(weaponTags, targetTags)
     return false
 end
 
-local function buildModList(state)
+local function buildModList(state, category)
     local list = {}
-    for key, def in pairs(state.catalog or {}) do
-        if def.type == 'mod' then
-            table.insert(list, key)
-        end
+    local catalog = mods.getCatalog(category or 'weapons') or {}
+    for key, _ in pairs(catalog) do
+        table.insert(list, key)
     end
     table.sort(list, function(a, b)
-        local da, db = state.catalog[a], state.catalog[b]
-        if da and db and da.name and db.name then
-            return da.name < db.name
-        end
+        local catalog = mods.getCatalog(category or 'weapons') or {}
+        local da, db = catalog[a], catalog[b]
+        if da and db and da.name and db.name then return da.name < db.name end
         return a < b
     end)
     return list
@@ -68,43 +66,126 @@ end
 local function ensureWeaponLoadout(profile, weaponKey)
     if not profile then return nil end
     profile.weaponMods = profile.weaponMods or {}
-    profile.weaponMods[weaponKey] = profile.weaponMods[weaponKey] or {equippedMods = {}, modOrder = {}}
+    profile.weaponMods[weaponKey] = profile.weaponMods[weaponKey] or {slots = {}}
     local lo = profile.weaponMods[weaponKey]
-    lo.equippedMods = lo.equippedMods or {}
-    lo.modOrder = lo.modOrder or {}
+    lo.slots = lo.slots or {}
     return lo
+end
+
+local function ensureCategoryLoadout(profile, category, weaponKey)
+    if not profile then return nil end
+    if category == 'weapons' then
+        return ensureWeaponLoadout(profile, weaponKey)
+    elseif category == 'warframe' then
+        profile.warframeMods = profile.warframeMods or {slots = {}}
+        profile.warframeMods.slots = profile.warframeMods.slots or {}
+        return profile.warframeMods
+    elseif category == 'companion' then
+        profile.companionMods = profile.companionMods or {slots = {}}
+        profile.companionMods.slots = profile.companionMods.slots or {}
+        return profile.companionMods
+    end
+    return nil
 end
 
 local function countEquipped(loadout)
     local n = 0
-    for _, v in pairs((loadout and loadout.equippedMods) or {}) do
+    for _, v in pairs((loadout and loadout.slots) or {}) do
         if v then n = n + 1 end
     end
     return n
 end
 
 local function isEquipped(loadout, key)
-    return loadout and loadout.equippedMods and loadout.equippedMods[key]
+    if not (loadout and loadout.slots) then return false end
+    for _, k in pairs(loadout.slots) do
+        if k == key then return true end
+    end
+    return false
 end
 
 local function isOwned(profile, key)
     return profile and profile.ownedMods and profile.ownedMods[key]
 end
 
-local function ensureOrder(loadout, key)
-    if not loadout then return end
-    loadout.modOrder = loadout.modOrder or {}
-    for _, k in ipairs(loadout.modOrder) do
-        if k == key then return end
-    end
-    table.insert(loadout.modOrder, key)
+local function getModCategory(profile)
+    return (profile and profile.modTargetCategory) or 'weapons'
 end
 
-local function removeOrder(loadout, key)
-    local order = (loadout and loadout.modOrder) or {}
-    for i = #order, 1, -1 do
-        if order[i] == key then table.remove(order, i) end
+local function getWeaponClass(state, weaponKey)
+    local def = state and state.catalog and state.catalog[weaponKey]
+    if not def then return nil end
+    if def.slotType == 'melee' or def.slot == 'melee' then return 'melee' end
+    if def.tags then
+        for _, tag in ipairs(def.tags) do
+            if tag == 'melee' then return 'melee' end
+        end
     end
+    return 'ranged'
+end
+
+local function isWeaponModCompatible(state, weaponKey, modKey, category)
+    if category ~= 'weapons' then return true end
+    local catalog = mods.getCatalog(category) or {}
+    local def = catalog[modKey]
+    if not def or not def.weaponType then return true end
+    local weaponClass = getWeaponClass(state, weaponKey)
+    if not weaponClass then return false end
+    return def.weaponType == weaponClass
+end
+
+local function getModRank(profile, modKey)
+    local r = (profile and profile.modRanks and profile.modRanks[modKey]) or 0
+    r = tonumber(r) or 0
+    return math.max(0, math.floor(r))
+end
+
+local function getMaxRank(def)
+    local len = 0
+    if def and type(def.cost) == 'table' then len = #def.cost end
+    if len == 0 and def and type(def.value) == 'table' then len = #def.value end
+    if len == 0 then return 0 end
+    return math.max(0, len - 1)
+end
+
+local function getCapacity(state)
+    if state and state.progression and state.progression.modCapacity then
+        return state.progression.modCapacity
+    end
+    return 30
+end
+
+local function buildSlotData(profile, loadout, overrideSlot, overrideMod)
+    local slots = {}
+    for idx, modKey in pairs((loadout and loadout.slots) or {}) do
+        if modKey then
+            slots[idx] = {key = modKey, rank = getModRank(profile, modKey)}
+        end
+    end
+    if overrideSlot then
+        if overrideMod then
+            slots[overrideSlot] = {key = overrideMod, rank = getModRank(profile, overrideMod)}
+        else
+            slots[overrideSlot] = nil
+        end
+    end
+    return slots
+end
+
+local function findSlotForMod(loadout, modKey)
+    if not (loadout and loadout.slots) then return nil end
+    for idx, key in pairs(loadout.slots) do
+        if key == modKey then return idx end
+    end
+    return nil
+end
+
+local function findFirstEmptySlot(loadout)
+    if not loadout then return nil end
+    for i = 1, MAX_SLOTS do
+        if not loadout.slots[i] then return i end
+    end
+    return nil
 end
 
 local function setMessage(state, text)
@@ -162,9 +243,45 @@ local function buildClassList(state)
     return list
 end
 
+local function applyPreRunMods(state)
+    local profile = state.profile
+    if not profile then return end
+    local loadouts = profile.weaponMods or {}
+    for weaponKey, lo in pairs(loadouts) do
+        local slots = (lo and lo.slots) or {}
+        for i = 1, MAX_SLOTS do
+            local modKey = slots[i]
+            if modKey then
+                local rank = getModRank(profile, modKey)
+                mods.equipToRunSlot(state, 'weapons', weaponKey, i, modKey, rank)
+            end
+        end
+    end
+
+    local wfSlots = (profile.warframeMods and profile.warframeMods.slots) or {}
+    for i = 1, MAX_SLOTS do
+        local modKey = wfSlots[i]
+        if modKey then
+            local rank = getModRank(profile, modKey)
+            mods.equipToRunSlot(state, 'warframe', nil, i, modKey, rank)
+        end
+    end
+
+    local compSlots = (profile.companionMods and profile.companionMods.slots) or {}
+    for i = 1, MAX_SLOTS do
+        local modKey = compSlots[i]
+        if modKey then
+            local rank = getModRank(profile, modKey)
+            mods.equipToRunSlot(state, 'companion', nil, i, modKey, rank)
+        end
+    end
+end
+
 function arsenal.init(state)
+    local profile = state.profile
+    local category = getModCategory(profile)
     state.arsenal = {
-        modList = buildModList(state),
+        modList = buildModList(state, category),
         weaponList = buildWeaponList(state),
         petList = buildPetList(state),
         classList = buildClassList(state),
@@ -172,6 +289,7 @@ function arsenal.init(state)
         weaponIdx = 1,
         petIdx = 1,
         classIdx = 1,
+        modCategory = category,
         message = nil,
         messageTimer = 0
     }
@@ -179,9 +297,9 @@ function arsenal.init(state)
         state.arsenal.idx = 0
     end
 
-    local profile = state.profile
     if profile then
         profile.modTargetWeapon = profile.modTargetWeapon or 'wand'
+        profile.modTargetCategory = profile.modTargetCategory or 'weapons'
         profile.startPetKey = profile.startPetKey or 'pet_magnet'
         profile.petModules = profile.petModules or {}
         local list = state.arsenal.weaponList or {}
@@ -254,58 +372,147 @@ function arsenal.update(state, dt)
     end
 end
 
+function arsenal.setModCategory(state, category)
+    local profile = state.profile
+    if not profile then return end
+    category = category or 'weapons'
+    if category ~= 'weapons' and category ~= 'warframe' and category ~= 'companion' then
+        return
+    end
+    profile.modTargetCategory = category
+    if state.arsenal then
+        state.arsenal.modCategory = category
+        state.arsenal.modList = buildModList(state, category)
+        state.arsenal.idx = (#state.arsenal.modList > 0) and 1 or 0
+    end
+    if state.saveProfile then state.saveProfile(profile) end
+end
+
 function arsenal.toggleEquip(state, modKey)
     local profile = state.profile
     if not profile then return end
     local weaponKey = profile.modTargetWeapon or 'wand'
-    local loadout = ensureWeaponLoadout(profile, weaponKey)
+    local category = getModCategory(profile)
+    local loadout = ensureCategoryLoadout(profile, category, weaponKey)
     if not isOwned(profile, modKey) then
         setMessage(state, "Locked mod")
         return
     end
 
-    local weaponDef = state.catalog and state.catalog[weaponKey]
-    local modDef = state.catalog and state.catalog[modKey]
-    local weaponTags = weaponDef and weaponDef.tags or {}
-    local targetTags = modDef and modDef.targetTags or nil
-    if targetTags and not tagsMatch(weaponTags, targetTags) then
+    if not isWeaponModCompatible(state, weaponKey, modKey, category) then
+        local weaponDef = state.catalog and state.catalog[weaponKey]
         setMessage(state, "Incompatible with " .. tostring(weaponDef and weaponDef.name or weaponKey))
         return
     end
 
-    loadout.equippedMods = loadout.equippedMods or {}
-    profile.modRanks = profile.modRanks or {}
-    loadout.modOrder = loadout.modOrder or {}
-
-    if loadout.equippedMods[modKey] then
-        loadout.equippedMods[modKey] = nil
-        removeOrder(loadout, modKey)
-        setMessage(state, "Unequipped " .. ((state.catalog[modKey] and state.catalog[modKey].name) or modKey))
+    if isEquipped(loadout, modKey) then
+        local slotIdx = findSlotForMod(loadout, modKey)
+        if slotIdx then
+            loadout.slots[slotIdx] = nil
+        end
+        local modDef = mods.getCatalog(category)[modKey]
+        setMessage(state, "Unequipped " .. ((modDef and modDef.name) or modKey))
     else
-        if countEquipped(loadout) >= MAX_SLOTS then
+        local slotIdx = findFirstEmptySlot(loadout)
+        if not slotIdx then
             setMessage(state, "Slots full (" .. MAX_SLOTS .. ")")
             return
         end
-        loadout.equippedMods[modKey] = true
-        profile.modRanks[modKey] = profile.modRanks[modKey] or 1
-        ensureOrder(loadout, modKey)
-        setMessage(state, "Equipped " .. ((state.catalog[modKey] and state.catalog[modKey].name) or modKey))
+        local slots = buildSlotData(profile, loadout, slotIdx, modKey)
+        local used = mods.getTotalCost(slots, mods.getCatalog(category))
+        local cap = getCapacity(state)
+        if used > cap then
+            setMessage(state, "Capacity full (" .. used .. "/" .. cap .. ")")
+            return
+        end
+        loadout.slots[slotIdx] = modKey
+        profile.modRanks[modKey] = profile.modRanks[modKey] or 0
+        local modDef = mods.getCatalog(category)[modKey]
+        setMessage(state, "Equipped " .. ((modDef and modDef.name) or modKey))
     end
 
     state.saveProfile(profile)
     state.applyPersistentMods()
 end
 
+function arsenal.equipToSlot(state, modKey, slotIndex)
+    local profile = state.profile
+    if not profile then return false end
+    local weaponKey = profile.modTargetWeapon or 'wand'
+    local category = getModCategory(profile)
+    local loadout = ensureCategoryLoadout(profile, category, weaponKey)
+    if not isOwned(profile, modKey) then
+        setMessage(state, "Locked mod")
+        return false
+    end
+    if slotIndex < 1 or slotIndex > MAX_SLOTS then return false end
+    if not isWeaponModCompatible(state, weaponKey, modKey, category) then
+        local weaponDef = state.catalog and state.catalog[weaponKey]
+        setMessage(state, "Incompatible with " .. tostring(weaponDef and weaponDef.name or weaponKey))
+        return false
+    end
+
+    local existingSlot = findSlotForMod(loadout, modKey)
+    if existingSlot == slotIndex then
+        return true
+    end
+
+    local oldMod = loadout.slots[slotIndex]
+    if existingSlot then
+        loadout.slots[existingSlot] = nil
+    end
+
+    local slots = buildSlotData(profile, loadout, slotIndex, modKey)
+    local used = mods.getTotalCost(slots, mods.getCatalog(category))
+    local cap = getCapacity(state)
+    if used > cap then
+        if existingSlot then
+            loadout.slots[existingSlot] = modKey
+        end
+        setMessage(state, "Capacity full (" .. used .. "/" .. cap .. ")")
+        return false
+    end
+
+    loadout.slots[slotIndex] = modKey
+    if oldMod and oldMod == modKey then
+        return true
+    end
+
+    profile.modRanks[modKey] = profile.modRanks[modKey] or 0
+    local modDef = mods.getCatalog(category)[modKey]
+    setMessage(state, "Equipped " .. ((modDef and modDef.name) or modKey))
+    state.saveProfile(profile)
+    state.applyPersistentMods()
+    return true
+end
+
+function arsenal.unequipMod(state, modKey)
+    local profile = state.profile
+    if not profile then return false end
+    local weaponKey = profile.modTargetWeapon or 'wand'
+    local category = getModCategory(profile)
+    local loadout = ensureCategoryLoadout(profile, category, weaponKey)
+    local slotIdx = findSlotForMod(loadout, modKey)
+    if not slotIdx then return false end
+    loadout.slots[slotIdx] = nil
+    local modDef = mods.getCatalog(category)[modKey]
+    setMessage(state, "Unequipped " .. ((modDef and modDef.name) or modKey))
+    state.saveProfile(profile)
+    state.applyPersistentMods()
+    return true
+end
+
 function arsenal.adjustRank(state, modKey, delta)
     local profile = state.profile
     if not profile then return end
     local weaponKey = profile.modTargetWeapon or 'wand'
-    local loadout = ensureWeaponLoadout(profile, weaponKey)
+    local category = getModCategory(profile)
+    local loadout = ensureCategoryLoadout(profile, category, weaponKey)
     if not isEquipped(loadout, modKey) then return end
-    local def = state.catalog[modKey] or {}
-    local maxLv = def.maxLevel or 1
-    local cur = profile.modRanks[modKey] or 1
-    cur = math.max(1, math.min(maxLv, cur + delta))
+    local def = mods.getCatalog(category)[modKey] or {}
+    local maxLv = getMaxRank(def)
+    local cur = profile.modRanks[modKey] or 0
+    cur = math.max(0, math.min(maxLv, cur + delta))
     profile.modRanks[modKey] = cur
     state.saveProfile(profile)
     state.applyPersistentMods()
@@ -403,6 +610,9 @@ function arsenal.startRun(state, opts)
     if not opts.skipStartingPet then
         pets.spawnStartingPet(state)
     end
+
+    -- Apply pre-run loadouts to in-run mod slots.
+    applyPreRunMods(state)
     
     -- Refresh from class + progression + run mods, then start at full resources
     mods.refreshActiveStats(state)
@@ -450,6 +660,18 @@ function arsenal.keypressed(state, key)
                 local screen = getArsenalScreen()
                 screen.rebuild(state)
             end
+        end
+        return true
+    end
+
+    if key == '1' or key == '2' or key == '3' then
+        local category = (key == '1' and 'warframe') or (key == '2' and 'weapons') or 'companion'
+        arsenal.setModCategory(state, category)
+        local label = (category == 'warframe' and "Warframe") or (category == 'weapons' and "Weapon") or "Companion"
+        setMessage(state, "Mod Category: " .. label)
+        if arsenal.useNewUI then
+            local screen = getArsenalScreen()
+            screen.rebuild(state)
         end
         return true
     end
@@ -561,7 +783,8 @@ function arsenal.draw(state)
     local weaponKey = (state.profile and state.profile.modTargetWeapon) or 'wand'
     local weaponDef = state.catalog and state.catalog[weaponKey]
     local weaponName = (weaponDef and weaponDef.name) or weaponKey
-    local loadout = ensureWeaponLoadout(state.profile, weaponKey) or {}
+    local category = getModCategory(state.profile)
+    local loadout = ensureCategoryLoadout(state.profile, category, weaponKey) or {}
 
     local petKey = (state.profile and state.profile.startPetKey) or 'pet_magnet'
     local petDef = state.catalog and state.catalog[petKey]
@@ -583,13 +806,14 @@ function arsenal.draw(state)
     love.graphics.print("Class: " .. tostring(className) .. "  (C)", leftX, topY - 66)
     
 
+    local modCatalog = mods.getCatalog(category) or {}
     for i, key in ipairs(list) do
-        local def = state.catalog[key]
+        local def = modCatalog[key]
         local name = (def and def.name) or key
         local owned = isOwned(state.profile, key)
         local equipped = isEquipped(loadout, key)
-        local rank = (state.profile and state.profile.modRanks and state.profile.modRanks[key]) or 1
-        local maxLv = (def and def.maxLevel) or 1
+        local rank = (state.profile and state.profile.modRanks and state.profile.modRanks[key]) or 0
+        local maxLv = getMaxRank(def)
         local y = topY + (i - 1) * lineH
 
         if i == a.idx then
@@ -612,13 +836,13 @@ function arsenal.draw(state)
     love.graphics.print(string.format("Equipped (%d/%d)", countEquipped(loadout), MAX_SLOTS), rightX, topY - 30)
 
     local eqY = topY
-    local order = (loadout and loadout.modOrder) or {}
-    for _, key in ipairs(order) do
-        if isEquipped(loadout, key) then
-            local def = state.catalog[key]
+    for i = 1, MAX_SLOTS do
+        local key = loadout and loadout.slots and loadout.slots[i]
+        if key then
+            local def = modCatalog[key]
             local name = (def and def.name) or key
-            local rank = (state.profile.modRanks and state.profile.modRanks[key]) or 1
-            local maxLv = (def and def.maxLevel) or 1
+            local rank = (state.profile.modRanks and state.profile.modRanks[key]) or 0
+            local maxLv = getMaxRank(def)
             love.graphics.print(string.format("%s  R%d/%d", name, rank, maxLv), rightX, eqY)
             eqY = eqY + lineH
         end
@@ -630,7 +854,7 @@ function arsenal.draw(state)
 
     local selKey = list[a.idx]
     if selKey then
-        local def = state.catalog[selKey]
+        local def = modCatalog[selKey]
         if def and def.desc then
             love.graphics.setColor(0.75, 0.75, 0.75)
             love.graphics.printf(def.desc, leftX, h - 120, w - leftX * 2, "left")
@@ -638,7 +862,7 @@ function arsenal.draw(state)
     end
 
     love.graphics.setColor(0.9, 0.9, 0.9)
-    love.graphics.printf("E: equip   Tab: weapon   P: pet   C: class   F: explore   Enter: start(rooms)", 0, h - 60, w, "center")
+    love.graphics.printf("E: equip   1/2/3: mod type   Tab: weapon   P: pet   C: class   F: explore   Enter: start(rooms)", 0, h - 60, w, "center")
 
     if a.message then
         love.graphics.setColor(1, 0.8, 0.3)

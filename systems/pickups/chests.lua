@@ -1,6 +1,7 @@
 local upgrades = require('systems.upgrades')
 local logger = require('core.logger')
 local campaign = require('world.campaign')
+local modsModule = require('systems.mods')
 
 return function(pickups)
     function pickups.updateChests(state, dt)
@@ -39,23 +40,30 @@ return function(pickups)
                         end
 
                         local newModKey = nil
-                        if state.profile and state.catalog then
+                        local newModCategory = nil
+                        if state.profile then
                             state.profile.ownedMods = state.profile.ownedMods or {}
                             local locked = {}
-                            for key, def in pairs(state.catalog) do
-                                if def.type == 'mod' and not state.profile.ownedMods[key] then
-                                    table.insert(locked, key)
+                            local categories = {'warframe', 'weapons', 'companion'}
+                            for _, category in ipairs(categories) do
+                                local catalog = modsModule.getCatalog(category) or {}
+                                for key, _ in pairs(catalog) do
+                                    if not state.profile.ownedMods[key] then
+                                        table.insert(locked, {key = key, category = category})
+                                    end
                                 end
                             end
                             if #locked > 0 then
-                                newModKey = locked[math.random(#locked)]
+                                local picked = locked[math.random(#locked)]
+                                newModKey = picked.key
+                                newModCategory = picked.category
                                 state.profile.ownedMods[newModKey] = true
                             end
                             if state.saveProfile then state.saveProfile(state.profile) end
                         end
                         state.victoryRewards = {
                             newModKey = newModKey,
-                            newModName = (newModKey and state.catalog and state.catalog[newModKey] and state.catalog[newModKey].name) or nil
+                            newModName = (newModKey and newModCategory and modsModule.getCatalog(newModCategory)[newModKey] and modsModule.getCatalog(newModCategory)[newModKey].name) or nil
                         }
                         state.gameState = 'GAME_CLEAR'
                         state.directorState = state.directorState or {}
