@@ -22,9 +22,11 @@ return function(pickups)
             return
         end
     
+        local levelsGained = 0
         while p.xp >= p.xpToNextLevel do
             p.level = p.level + 1
             p.xp = p.xp - p.xpToNextLevel
+            levelsGained = levelsGained + 1
             
             -- Warframe curve approximation (simplified)
             p.xpToNextLevel = math.floor(p.xpToNextLevel * xpGrowth)
@@ -32,15 +34,9 @@ return function(pickups)
             if state and state.augments and state.augments.dispatch then
                 state.augments.dispatch(state, 'onLevelUp', {level = p.level, player = p})
             end
-
-            progression.applyRankUp(state)
     
             -- WF Style: Leveling up just restores stats and shows a notification
             -- No pause, no selection screen
-            p.hp = p.maxHp or (p.stats and p.stats.maxHp) or 100
-            p.shield = p.maxShield or (p.stats and p.stats.maxShield) or 100
-            p.energy = p.maxEnergy or (p.stats and p.stats.maxEnergy) or 100
-            
             if state.texts then
                 table.insert(state.texts, {
                     x = p.x, 
@@ -60,6 +56,13 @@ return function(pickups)
                 p.xpToNextLevel = xpCapValue
                 break
             end
+        end
+
+        if levelsGained > 0 then
+            progression.applyRankUp(state)
+            p.hp = p.maxHp or (p.stats and p.stats.maxHp) or 100
+            p.shield = p.maxShield or (p.stats and p.stats.maxShield) or 100
+            p.energy = p.maxEnergy or (p.stats and p.stats.maxEnergy) or 100
         end
     end
     

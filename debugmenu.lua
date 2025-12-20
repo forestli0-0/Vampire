@@ -168,10 +168,12 @@ local function grantXp(state, amount)
         p.xpToNextLevel = xpCapValue
         return
     end
+    local levelsGained = 0
     while p.xp >= p.xpToNextLevel do
         p.level = p.level + 1
         p.xp = p.xp - p.xpToNextLevel
         p.xpToNextLevel = math.floor(p.xpToNextLevel * xpGrowth)
+        levelsGained = levelsGained + 1
         if state and state.augments and state.augments.dispatch then
             state.augments.dispatch(state, 'onLevelUp', {level = p.level, player = p})
         end
@@ -181,6 +183,12 @@ local function grantXp(state, amount)
             p.xpToNextLevel = xpCapValue
             break
         end
+    end
+    if levelsGained > 0 then
+        progression.applyRankUp(state)
+        p.hp = p.maxHp or (p.stats and p.stats.maxHp) or 100
+        p.shield = p.maxShield or (p.stats and p.stats.maxShield) or 100
+        p.energy = p.maxEnergy or (p.stats and p.stats.maxEnergy) or 100
     end
 end
 
