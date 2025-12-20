@@ -34,9 +34,10 @@ local function computeRunState(state, upgrades)
     if state and state.runMode == 'rooms' and state.rooms then
         runLevel = tonumber(state.rooms.roomIndex) or 1
     else
-        runLevel = (state.player and state.player.level) or 1
+        runLevel = (state.player and state.player.level)
+        if runLevel == nil then runLevel = 1 end
     end
-    runLevel = math.max(1, math.floor(runLevel))
+    runLevel = math.max(0, math.floor(runLevel))
     local preferExistingChance = 0.7
     if runLevel <= 6 then
         preferExistingChance = 0.35

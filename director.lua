@@ -72,7 +72,7 @@ function director.update(state, dt)
         if state.gameTimer >= 90 then add('shield_lancer', 3) end
         if state.gameTimer >= 150 then add('armored_brute', 2) end
         local type = pool[math.random(#pool)]
-        local eliteCap = 1.0 + (state.player.level or 1) * 0.5 -- at most ~3 elites on screen early game
+        local eliteCap = 1.0 + (state.player.level or 0) * 0.5 -- at most ~3 elites on screen early game
         local elitesAlive = 0
         for _, e in ipairs(state.enemies) do if e.isElite then elitesAlive = elitesAlive + 1 end end
         local isElite = false
@@ -95,7 +95,7 @@ function director.update(state, dt)
             enemies.spawnEnemy(state, type, isElite)
         end
         local timeFactor = (state.gameTimer or 0) / 240 -- ramp over ~6 min
-        state.spawnTimer = math.max(0.16, 0.6 - (state.player.level or 1) * 0.005 - timeFactor * 0.08)
+        state.spawnTimer = math.max(0.16, 0.6 - (state.player.level or 0) * 0.005 - timeFactor * 0.08)
     end
 end
 

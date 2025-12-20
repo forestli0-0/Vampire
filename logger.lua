@@ -97,11 +97,13 @@ function logger.flush(state, reason)
     logger.runActive = false
     local lines = {}
     local duration = state.gameTimer or 0
+    local level = state.player.level
+    if level == nil then level = 1 end
     table.insert(lines, string.format("RUN %s result=%s duration=%.2f level=%d xp=%d damageTaken=%d",
         logger.runId,
         tostring(reason or "unknown"),
         duration,
-        state.player.level or 1,
+        level,
         logger.summary.xp or 0,
         logger.summary.damageTaken or 0))
     table.insert(lines, "KILLS " .. formatDict(logger.summary.kills))
