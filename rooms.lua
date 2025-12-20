@@ -363,9 +363,30 @@ local function spawnRewardChest(state, r)
     r.roomCenterX = cx
     r.roomCenterY = cy
 
-    -- SKIP CHEST: Go directly to doors phase without spawning a chest
-    -- (No chest, no orbiter - straight to mission selection)
-    r.rewardChest = nil  -- Mark as consumed immediately
+    -- Spawn room reward chest near player
+    state.chests = state.chests or {}
+    local p = state.player or {}
+    local offset = 40
+    local ang = math.random() * math.pi * 2
+    local chestX = (p.x or cx) + math.cos(ang) * offset
+    local chestY = (p.y or cy) + math.sin(ang) * offset
+    if state.world and state.world.enabled and state.world.adjustToWalkable then
+        local ax, ay = state.world:adjustToWalkable(chestX, chestY, 12)
+        if ax and ay then
+            chestX, chestY = ax, ay
+        end
+    end
+    local chest = {
+        x = chestX,
+        y = chestY,
+        w = 26,
+        h = 26,
+        kind = 'room_reward',
+        room = r.roomIndex,
+        roomKind = r.roomKind
+    }
+    table.insert(state.chests, chest)
+    r.rewardChest = chest
 
     -- Extra pet progression (low frequency): elite rooms may drop a pet chip.
     if r.roomKind == 'elite' and state.floorPickups then
@@ -653,7 +674,9 @@ function rooms.update(state, dt)
     end
 
     if r.phase == 'reward' then
-        -- Since chest is skipped, go straight to doors
+        if r.rewardChest and containsRef(state.chests, r.rewardChest) then
+            return
+        end
         r.rewardChest = nil
 
         -- if the next room is the boss room, skip branching and move on.

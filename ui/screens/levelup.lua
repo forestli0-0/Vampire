@@ -147,6 +147,8 @@ function levelupScreen.rebuild(gameState)
     local titleText = "LEVEL UP!"
     if state.pendingWeaponSwap then
         titleText = "WEAPON LIMIT REACHED - SELECT TO REPLACE"
+    elseif state.activeUpgradeRequest and state.activeUpgradeRequest.reason == 'mod_drop' then
+        titleText = "CHOOSE MOD"
     end
     
     local title = ui.Text.new({

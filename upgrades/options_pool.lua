@@ -3,6 +3,72 @@ local helpers = require('upgrades.options_helpers')
 local mods = require('mods')
 local rewardDefs = require('data.defs.mod_rewards')
 
+local function weightsSignature(weights)
+    if type(weights) ~= 'table' then return '' end
+    local keys = {}
+    for k, _ in pairs(weights) do
+        table.insert(keys, k)
+    end
+    table.sort(keys)
+    local parts = {}
+    for _, k in ipairs(keys) do
+        table.insert(parts, k .. ":" .. tostring(weights[k]))
+    end
+    return table.concat(parts, "|")
+end
+
+local function cloneList(list)
+    local out = {}
+    for i = 1, #list do
+        out[i] = list[i]
+    end
+    return out
+end
+
+local function getModRewardPool(state)
+    local sig = weightsSignature(rewardDefs.weights)
+    local cache = state and state.modRewardPoolCache
+    if cache and cache.sig == sig and cache.poolNew then
+        return cache.poolNew
+    end
+
+    local poolNew = {}
+    local added = {}
+    local pools = mods.buildRewardPools()
+    local weights = rewardDefs.weights or {}
+
+    for group, entries in pairs(pools or {}) do
+        local groupWeight = weights[group] or 0
+        for _, entry in ipairs(entries or {}) do
+            local key = entry.key
+            if key and not added[key] then
+                local weight = (entry.weight or 1) * groupWeight
+                if weight > 0 then
+                    local def = entry.def or {}
+                    table.insert(poolNew, {
+                        key = key,
+                        type = 'mod',
+                        name = def.name or key,
+                        desc = def.desc or '',
+                        def = def,
+                        category = entry.category,
+                        rarity = entry.rarity,
+                        group = group,
+                        weight = weight
+                    })
+                    added[key] = true
+                end
+            end
+        end
+    end
+
+    if state then
+        state.modRewardPoolCache = {sig = sig, poolNew = poolNew}
+    end
+
+    return poolNew
+end
+
 local function hasAllowedType(allowed, want)
     if type(allowed) ~= 'table' then return false end
     if allowed[want] then return true end
@@ -20,35 +86,8 @@ end
 
 local function buildPools(state, request)
     if isModReward(request) then
-        local poolNew = {}
-        local added = {}
-        local pools = mods.buildRewardPools()
-        local weights = rewardDefs.weights or {}
-
-        for group, entries in pairs(pools or {}) do
-            local groupWeight = weights[group] or 0
-            for _, entry in ipairs(entries or {}) do
-                local key = entry.key
-                if key and not added[key] then
-                    local weight = (entry.weight or 1) * groupWeight
-                    if weight > 0 then
-                        local def = entry.def or {}
-                        table.insert(poolNew, {
-                            key = key,
-                            type = 'mod',
-                            name = def.name or key,
-                            desc = def.desc or '',
-                            def = def,
-                            category = entry.category,
-                            rarity = entry.rarity,
-                            group = group,
-                            weight = weight
-                        })
-                        added[key] = true
-                    end
-                end
-            end
-        end
+        local basePool = getModRewardPool(state)
+        local poolNew = cloneList(basePool)
 
         return {
             mode = 'mod',

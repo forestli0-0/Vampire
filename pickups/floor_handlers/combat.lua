@@ -97,7 +97,7 @@ local function handleEnergyOrb(state, p, item)
 end
 
 local function handleModCard(state, p, item)
-    -- WF-style MOD card drop - triggers mod selection
+    -- WF-style MOD card drop - rolls a random mod into run inventory
     local ctx = {kind = 'mod_card', amount = 1, player = p, item = item}
     if state and state.augments and state.augments.dispatch then
         state.augments.dispatch(state, 'onPickup', ctx)
@@ -108,12 +108,18 @@ local function handleModCard(state, p, item)
         end
         return false
     end
-    -- Queue a MOD selection upgrade
-    upgrades.queueLevelUp(state, 'mod_drop', {
-        allowedTypes = {mod = true, augment = true},
-        source = 'enemy_drop'
-    })
-    table.insert(state.texts, {x=p.x, y=p.y-30, text="MOD ACQUIRED!", color={0.9, 0.8, 0.2}, life=1.2})
+    local modsModule = require('mods')
+    local categories = {'warframe', 'weapons', 'companion'}
+    local category = categories[math.random(#categories)]
+    local pool = modsModule.buildDropPool(category)
+    local bonusRareChance = item and item.bonusRareChance or 0
+    local rolled = modsModule.rollMod(pool, bonusRareChance)
+    if not rolled then return false end
+    modsModule.addToRunInventory(state, rolled.key, rolled.category, 0, rolled.rarity)
+    local rarityDef = modsModule.RARITY[rolled.rarity] or modsModule.RARITY.COMMON
+    local modDef = modsModule.getCatalog(category)[rolled.key]
+    local modName = modDef and modDef.name or rolled.key
+    table.insert(state.texts, {x=p.x, y=p.y-30, text="MOD: " .. modName, color=rarityDef.color, life=1.2})
     if state.playSfx then state.playSfx('gem') end
     logger.pickup(state, 'mod_card')
     if state and state.augments and state.augments.dispatch then

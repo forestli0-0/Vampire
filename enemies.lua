@@ -2176,7 +2176,7 @@ function enemies.update(state, dt)
                             for k = #state.enemyBullets, 1, -1 do table.remove(state.enemyBullets, k) end
                         end
                         if state.texts then
-                            table.insert(state.texts, {x = e.x, y = e.y - 110, text = "BOSS DOWN! CLAIM REWARD", color = {1, 0.85, 0.35}, life = 2.2})
+                            table.insert(state.texts, {x = e.x, y = e.y - 110, text = "BOSS DOWN!", color = {1, 0.85, 0.35}, life = 2.2})
                         end
                         logger.kill(state, e)
                         table.remove(state.enemies, i)
@@ -2296,28 +2296,16 @@ function enemies.update(state, dt)
                                 end
                             end
                             
-                            -- MOD DROP for exploreMode
+                            -- MOD DROP for exploreMode (floor pickup)
                             local modDropChance = e.isElite and 0.80 or 0.25
                             if math.random() < modDropChance then
-                                local modsModule = require('mods')
-                                local categories = {'warframe', 'weapons', 'companion'}
-                                local category = categories[math.random(#categories)]
-                                local pool = modsModule.buildDropPool(category)
-                                local rolled = modsModule.rollMod(pool, e.isElite and 0.5 or 0)
-                                if rolled then
-                                    modsModule.addToRunInventory(state, rolled.key, rolled.category, 0, rolled.rarity)
-                                    local rarityDef = modsModule.RARITY[rolled.rarity] or modsModule.RARITY.COMMON
-                                    local modDef = modsModule.getCatalog(category)[rolled.key]
-                                    local modName = modDef and modDef.name or rolled.key
-                                    table.insert(state.texts, {
-                                        x = e.x, y = e.y - 50,
-                                        text = "MOD: " .. modName,
-                                        color = rarityDef.color,
-                                        life = 1.5,
-                                        scale = 1.2
-                                    })
-                                    if state.playSfx then state.playSfx('levelup') end
-                                end
+                                table.insert(state.floorPickups, {
+                                    x = e.x,
+                                    y = e.y,
+                                    size = 12,
+                                    kind = 'mod_card',
+                                    bonusRareChance = e.isElite and 0.5 or 0
+                                })
                             end
                         else
                             local roomsMode = (state.runMode == 'rooms')
@@ -2344,25 +2332,13 @@ function enemies.update(state, dt)
                                 end
                                 -- MOD drop (lower rate - 40% for elite)
                                 if math.random() < 0.40 then
-                                    local modsModule = require('mods')
-                                    local categories = {'warframe', 'weapons', 'companion'}
-                                    local category = categories[math.random(#categories)]
-                                    local pool = modsModule.buildDropPool(category)
-                                    local rolled = modsModule.rollMod(pool, 0.5)
-                                    if rolled then
-                                        modsModule.addToRunInventory(state, rolled.key, rolled.category, 0, rolled.rarity)
-                                        local rarityDef = modsModule.RARITY[rolled.rarity] or modsModule.RARITY.COMMON
-                                        local modDef = modsModule.getCatalog(category)[rolled.key]
-                                        local modName = modDef and modDef.name or rolled.key
-                                        table.insert(state.texts, {
-                                            x = e.x, y = e.y - 30,
-                                            text = "MOD: " .. modName,
-                                            color = rarityDef.color,
-                                            life = 1.5,
-                                            scale = 1.2
-                                        })
-                                        if state.playSfx then state.playSfx('levelup') end
-                                    end
+                                    table.insert(state.floorPickups, {
+                                        x = e.x,
+                                        y = e.y,
+                                        size = 12,
+                                        kind = 'mod_card',
+                                        bonusRareChance = 0.5
+                                    })
                                 end
                             else
                                 -- Normal enemy drops (WF-style low rates)
@@ -2398,24 +2374,13 @@ function enemies.update(state, dt)
                                 end
                                 -- Normal enemy MOD drop (25% chance - DEBUG HIGH RATE)
                                 if math.random() < 0.25 then
-                                    local modsModule = require('mods')
-                                    local categories = {'warframe', 'weapons', 'companion'}
-                                    local category = categories[math.random(#categories)]
-                                    local pool = modsModule.buildDropPool(category)
-                                    local rolled = modsModule.rollMod(pool, 0) -- No bonus rare chance
-                                    if rolled then
-                                        modsModule.addToRunInventory(state, rolled.key, rolled.category, 0, rolled.rarity)
-                                        local rarityDef = modsModule.RARITY[rolled.rarity] or modsModule.RARITY.COMMON
-                                        local modDef = modsModule.getCatalog(category)[rolled.key]
-                                        local modName = modDef and modDef.name or rolled.key
-                                        table.insert(state.texts, {
-                                            x = e.x, y = e.y - 30,
-                                            text = "MOD: " .. modName,
-                                            color = rarityDef.color,
-                                            life = 1.2
-                                        })
-                                        if state.playSfx then state.playSfx('gem') end
-                                    end
+                                    table.insert(state.floorPickups, {
+                                        x = e.x,
+                                        y = e.y,
+                                        size = 12,
+                                        kind = 'mod_card',
+                                        bonusRareChance = 0
+                                    })
                                 end
                             end
                         end

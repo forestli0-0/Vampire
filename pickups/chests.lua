@@ -32,22 +32,12 @@ return function(pickups)
                     -- Boss reward chest: ends the run and grants meta rewards (no in-run upgrades).
                     if c and c.kind == 'boss_reward' then
                         if state.runMode == 'explore' and state.campaign and not campaign.isFinalBoss(state) then
-                            local rewardCurrency = tonumber(c.rewardCurrency) or 100
-                            if state.gainGold then
-                                state.gainGold(rewardCurrency, {source = 'boss_stage', chest = c, x = p.x, y = p.y - 70, life = 1.2})
-                            else
-                                state.runCurrency = (state.runCurrency or 0) + rewardCurrency
-                                if state.texts then
-                                    table.insert(state.texts, {x = p.x, y = p.y - 70, text = "+" .. tostring(rewardCurrency) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 1.2})
-                                end
-                            end
                             logger.pickup(state, 'boss_reward')
                             table.remove(state.chests, i)
                             campaign.advanceStage(state)
                             return
                         end
-    
-                        local rewardCurrency = tonumber(c.rewardCurrency) or 100
+
                         local newModKey = nil
                         if state.profile and state.catalog then
                             state.profile.ownedMods = state.profile.ownedMods or {}
@@ -61,11 +51,9 @@ return function(pickups)
                                 newModKey = locked[math.random(#locked)]
                                 state.profile.ownedMods[newModKey] = true
                             end
-                            state.profile.currency = (state.profile.currency or 0) + rewardCurrency
                             if state.saveProfile then state.saveProfile(state.profile) end
                         end
                         state.victoryRewards = {
-                            currency = rewardCurrency,
                             newModKey = newModKey,
                             newModName = (newModKey and state.catalog and state.catalog[newModKey] and state.catalog[newModKey].name) or nil
                         }
@@ -82,43 +70,15 @@ return function(pickups)
                         goto continue_chest
                     end
     
-                    -- Room-mode economy: reward run currency on room reward chests (shop spend).
-                    if state and not state.benchmarkMode and c and c.kind == 'room_reward' then
-                        local room = tonumber(c.room) or (state.rooms and state.rooms.roomIndex) or 1
-                        local gain = 18 + math.floor(room * 6)
-                        if c.roomKind == 'elite' then gain = gain + 16 end
-                        if state.gainGold then
-                            state.gainGold(gain, {source = 'room_reward', chest = c, x = p.x, y = p.y - 70, life = 1.2})
-                        else
-                            state.runCurrency = (state.runCurrency or 0) + gain
-                            table.insert(state.texts, {x = p.x, y = p.y - 70, text = "+" .. tostring(gain) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 1.2})
-                        end
-                    end
-    
                     local rewardType = c and c.rewardType or nil
-                    
-                    -- VS-Style Evolution removed. 
-                    -- Generic chests now give a Mod Card (triggering selection) or pure Gold.
-                    
-                    if math.random() < 0.3 then
-                         -- Mod Drop
-                         upgrades.queueLevelUp(state, 'mod_drop', {
-                            allowedTypes = {mod = true, augment = true},
-                            source = 'chest'
-                        })
-                        table.insert(state.texts, {x=p.x, y=p.y-50, text="MOD FOUND!", color={0.2, 1, 0.2}, life=1.5})
-                        logger.pickup(state, 'chest_mod')
-                    else
-                        -- Gold Reward
-                        local gain = 50 + (state.rooms and state.rooms.roomIndex or 1) * 10
-                        if state.gainGold then
-                            state.gainGold(gain, {source = 'chest', x = p.x, y = p.y - 50, life = 1.0})
-                        else
-                            state.runCurrency = (state.runCurrency or 0) + gain
-                            table.insert(state.texts, {x = p.x, y = p.y - 50, text = "+" .. tostring(gain) .. " GOLD", color = {1, 0.9, 0.4}, life = 1.2})
-                        end
-                        logger.pickup(state, 'chest_gold')
-                    end
+
+                    -- Chests now always grant a 3-choice MOD selection.
+                    upgrades.queueLevelUp(state, 'mod_drop', {
+                        allowedTypes = {mod = true, augment = true},
+                        source = 'chest'
+                    })
+                    table.insert(state.texts, {x=p.x, y=p.y-50, text="MOD FOUND!", color={0.2, 1, 0.2}, life=1.5})
+                    logger.pickup(state, 'chest_mod')
     
                     if state and state.augments and state.augments.dispatch then
                         ctx = ctx or {kind = 'chest', amount = 1, player = p, chest = c}
