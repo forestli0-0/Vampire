@@ -7,6 +7,7 @@
 local ingameMenu = {}
 
 local mods = require('mods')
+local menuModel = require('ui.ingame_menu_model')
 local ui = require('ui')
 local core = require('ui.core')
 local theme = require('ui.theme')
@@ -16,7 +17,6 @@ local Button = require('ui.widgets.button')
 local Text = require('ui.widgets.text')
 local Slot = require('ui.widgets.slot')
 local Panel = require('ui.widgets.panel')
-local pets = require('pets')
 
 -- State
 local state = nil
@@ -56,61 +56,6 @@ local LAYOUT = {
 -- HELPERS
 -- =============================================================================
 
-local function getColor(rarity)
-    local def = mods.RARITY[rarity]
-    return def and def.color or {0.7, 0.7, 0.7}
-end
-
-local function getModName(category, modKey)
-    local catalog = mods.getCatalog(category)
-    if catalog and catalog[modKey] then
-        return catalog[modKey].name or modKey
-    end
-    return modKey
-end
-
-local function getModShortName(category, modKey)
-    local name = getModName(category, modKey)
-    if name then
-        local len = #name
-        if len >= 6 then
-            local first = name:sub(1, 3)
-            local second = name:sub(4, 6)
-            if first:byte(1) and first:byte(1) >= 128 and second:byte(1) and second:byte(1) >= 128 then
-                return first .. second
-            end
-        end
-        if len <= 4 then return name end
-        return name:sub(1, 4)
-    end
-    return "???"
-end
-
-local function getModDesc(category, modKey)
-    local catalog = mods.getCatalog(category)
-    if catalog and catalog[modKey] then
-        return catalog[modKey].desc or ""
-    end
-    return ""
-end
-
-local STAT_ABBREVS = {
-    maxHp = "HP", armor = "AR", maxShield = "SH", maxEnergy = "EN",
-    speed = "SP", abilityStrength = "STR", abilityEfficiency = "EFF",
-    abilityDuration = "DUR", abilityRange = "RNG", energyRegen = "REG",
-    damage = "DMG", critChance = "CC", critMult = "CD", fireRate = "FR",
-    multishot = "MS", statusChance = "SC", magSize = "MAG", reloadSpeed = "RLD",
-    meleeDamage = "MEL", healthLink = "HLK", armorLink = "ALK"
-}
-
-local function getStatAbbrev(category, modKey)
-    local catalog = mods.getCatalog(category)
-    if catalog and catalog[modKey] then
-        local stat = catalog[modKey].stat
-        return STAT_ABBREVS[stat] or "+"
-    end
-    return "+"
-end
 
 -- =============================================================================
 -- MOD SLOT WIDGET (Interactive with drag-drop support)
@@ -146,9 +91,9 @@ function ModSlot:drawContent(gx, gy, w, h)
     local rank = self.modData.rank or 0
     local rarity = self.modData.rarity or 'COMMON'
     
-    local color = getColor(rarity)
-    local abbrev = getStatAbbrev(category, modKey)
-    local shortName = getModShortName(category, modKey)
+    local color = menuModel.getColor(rarity)
+    local abbrev = menuModel.getStatAbbrev(category, modKey)
+    local shortName = menuModel.getModShortName(category, modKey)
     
     -- Background gradient
     love.graphics.setColor(color[1] * 0.35, color[2] * 0.35, color[3] * 0.35, 0.9)
@@ -200,7 +145,7 @@ function ModSlot:getDragData()
         slotType = self.slotType,
         slotIndex = self.slotIndex,
         category = self.category,
-        label = getModName(self.modData.category or self.category, self.modData.key)
+        label = menuModel.getModName(self.modData.category or self.category, self.modData.key)
     }
 end
 
@@ -357,33 +302,24 @@ end
 function ingameMenu.buildWeaponSelector(parent)
     local weaponY = LAYOUT.statsY - 2
     local weaponX = LAYOUT.statsX
-    
-    local slots = state.inventory and state.inventory.weaponSlots or {}
-    
-    for slotType, slotData in pairs(slots) do
-        local weaponKey = slotData and slotData.key
-        if weaponKey then
-            local def = state.catalog and state.catalog[weaponKey]
-            local name = def and def.name or weaponKey
-            if #name > 5 then name = name:sub(1, 4) .. ".." end
-            local isSelected = (selectedWeaponKey == weaponKey)
-            local wKey = weaponKey
-            
-            local btn = Button.new({
-                x = weaponX, y = weaponY,
-                w = 55, h = 16,
-                text = name,
-                normalColor = isSelected and {0.35, 0.55, 0.3, 1} or {0.15, 0.15, 0.18, 0.9},
-                hoverColor = {0.45, 0.65, 0.4, 1},
-                textColor = {1, 1, 1, 1}
-            })
-            btn:on('click', function()
-                selectedWeaponKey = wKey
-                ingameMenu.buildUI()
-            end)
-            parent:addChild(btn)
-            weaponX = weaponX + 60
-        end
+
+    local list = menuModel.getWeaponSelectorData(state, selectedWeaponKey)
+    for _, entry in ipairs(list) do
+        local wKey = entry.key
+        local btn = Button.new({
+            x = weaponX, y = weaponY,
+            w = 55, h = 16,
+            text = entry.label,
+            normalColor = entry.isSelected and {0.35, 0.55, 0.3, 1} or {0.15, 0.15, 0.18, 0.9},
+            hoverColor = {0.45, 0.65, 0.4, 1},
+            textColor = {1, 1, 1, 1}
+        })
+        btn:on('click', function()
+            selectedWeaponKey = wKey
+            ingameMenu.buildUI()
+        end)
+        parent:addChild(btn)
+        weaponX = weaponX + 60
     end
 end
 
@@ -401,64 +337,7 @@ function ingameMenu.buildStatsPanel(parent)
     parent:addChild(header)
     
     local statsY = panelY + 12
-    local p = state.player
-    local stats = p and p.stats or {}
-    
-    local statLines = {}
-    
-    if currentTab == 'warframe' then
-        table.insert(statLines, {label = "HP", value = string.format("%d/%d", math.floor(p.hp or 0), math.floor(p.maxHp or 100))})
-        table.insert(statLines, {label = "护盾", value = string.format("%d/%d", math.floor(p.shield or 0), math.floor(p.maxShield or 100))})
-        table.insert(statLines, {label = "能量", value = string.format("%d/%d", math.floor(p.energy or 0), math.floor(p.maxEnergy or 100))})
-        table.insert(statLines, {label = "护甲", value = string.format("%d", stats.armor or 0)})
-        table.insert(statLines, {label = "移速", value = string.format("%d", stats.moveSpeed or 180)})
-        table.insert(statLines, {label = "强度", value = string.format("%.0f%%", (stats.abilityStrength or 1) * 100)})
-        table.insert(statLines, {label = "持续", value = string.format("%.0f%%", (stats.abilityDuration or 1) * 100)})
-        table.insert(statLines, {label = "效率", value = string.format("%.0f%%", (stats.abilityEfficiency or 1) * 100)})
-        table.insert(statLines, {label = "范围", value = string.format("%.0f%%", (stats.abilityRange or 1) * 100)})
-        table.insert(statLines, {label = "回能", value = string.format("%.1f/s", stats.energyRegen or 2)})
-        
-    elseif currentTab == 'weapons' then
-        local weaponKey = selectedWeaponKey
-        local weaponDef = state.catalog and state.catalog[weaponKey]
-        local weaponData = state.inventory and state.inventory.weapons and state.inventory.weapons[weaponKey]
-        
-        if weaponDef then
-            -- Calculate actual stats with all mods applied
-            local weapons = require('weapons')
-            local calculated = weapons.calculateStats(state, weaponKey)
-            
-            table.insert(statLines, {label = "伤害", value = string.format("%.0f", calculated.damage or 10)})
-            table.insert(statLines, {label = "多重", value = string.format("%.1f", (calculated.amount or 0) + 1)})
-            table.insert(statLines, {label = "暴击", value = string.format("%.0f%%", (calculated.critChance or 0.1) * 100)})
-            table.insert(statLines, {label = "倍率", value = string.format("%.1fx", (calculated.critMultiplier or calculated.critMult or 2.0))})
-            table.insert(statLines, {label = "异常", value = string.format("%.0f%%", (calculated.statusChance or 0) * 100)})
-            
-            -- Display as fire rate (reciprocal of CD)
-            local fireRate = calculated.fireRate or (1 / (calculated.cd or 1))
-            table.insert(statLines, {label = "射速", value = string.format("%.1f", fireRate)})
-            
-            if weaponData then
-                local mag = weaponData.magazine or 0
-                local maxMag = (calculated.maxMagazine) or calculated.magazine or mag
-                table.insert(statLines, {label = "弹匣", value = string.format("%d/%d", mag, maxMag)})
-                table.insert(statLines, {label = "储备", value = string.format("%d", weaponData.reserve or 0)})
-            end
-        else
-            table.insert(statLines, {label = "武器", value = "无"})
-        end
-        
-    elseif currentTab == 'companion' then
-        local pet = pets.getActive(state)
-        if pet then
-            local petDef = state.catalog and state.catalog[pet.key]
-            table.insert(statLines, {label = "名称", value = (petDef and petDef.name) or pet.key})
-            table.insert(statLines, {label = "HP", value = string.format("%d/%d", math.floor(pet.hp or 0), math.floor(pet.maxHp or 50))})
-            table.insert(statLines, {label = "攻击", value = string.format("%.0f", pet.damage or 10)})
-        else
-            table.insert(statLines, {label = "同伴", value = "无"})
-        end
-    end
+    local statLines = menuModel.buildStatsLines(state, currentTab, selectedWeaponKey)
     
     -- Use small font for stats
     local smallFont = theme.getFont('small')
@@ -486,14 +365,13 @@ end
 function ingameMenu.buildEquippedMods(parent)
     local panelX = LAYOUT.equippedX
     local panelY = LAYOUT.equippedY
-    
-    local category = currentTab == 'weapons' and 'weapons' or currentTab
-    local key = currentTab == 'weapons' and selectedWeaponKey or nil
-    local slotData = state.runMods and mods.getRunSlotData(state, category, key)
-    local slotsData = slotData and slotData.slots or {}
-    local capacity = slotData and slotData.capacity or 30
-    local catalog = mods.getCatalog(category)
-    local usedCapacity = mods.getTotalCost(slotsData, catalog)
+
+    local equippedData = menuModel.getEquippedModsData(state, currentTab, selectedWeaponKey)
+    local category = equippedData.category
+    local key = equippedData.key
+    local slotsData = equippedData.slotsData
+    local capacity = equippedData.capacity
+    local usedCapacity = equippedData.usedCapacity
     
     -- Section header with capacity
     local capColor = usedCapacity > capacity and {1, 0.4, 0.4, 1} or {0.5, 0.75, 0.5, 1}
@@ -518,7 +396,7 @@ function ingameMenu.buildEquippedMods(parent)
         local slotYPos = slotY + row * (slotSize + slotGap)
         
         local hasContent = slotMod ~= nil
-        local modColor = hasContent and getColor(slotMod.rarity) or {0.25, 0.25, 0.3}
+        local modColor = hasContent and menuModel.getColor(slotMod.rarity) or {0.25, 0.25, 0.3}
         local slotIdx = i
         local currentSlotMod = slotMod
         
@@ -535,7 +413,7 @@ function ingameMenu.buildEquippedMods(parent)
             filledColor = hasContent and {modColor[1] * 0.3, modColor[2] * 0.3, modColor[3] * 0.3, 0.95} or {0.1, 0.1, 0.14, 0.9},
             borderColor = hasContent and {modColor[1], modColor[2], modColor[3], 1} or {0.2, 0.2, 0.25, 1},
             borderWidth = hasContent and 2 or 1,
-            tooltip = hasContent and (getModName(category, slotMod.key) .. ": " .. getModDesc(category, slotMod.key)) or nil
+            tooltip = hasContent and (menuModel.getModName(category, slotMod.key) .. ": " .. menuModel.getModDesc(category, slotMod.key)) or nil
         })
         
         -- Drop handler
@@ -587,10 +465,10 @@ end
 
 function ingameMenu.buildInventory(parent)
     local invY = LAYOUT.invY
-    local category = currentTab == 'weapons' and 'weapons' or currentTab
-    local key = currentTab == 'weapons' and selectedWeaponKey or nil
-    
-    local inventory = state.runMods and mods.getRunInventoryByCategory(state, category) or {}
+    local inventoryData = menuModel.getInventoryData(state, currentTab, selectedWeaponKey)
+    local category = inventoryData.category
+    local key = inventoryData.key
+    local inventory = inventoryData.list
     
     -- Section header
     local header = Text.new({
@@ -620,25 +498,16 @@ function ingameMenu.buildInventory(parent)
     local contentH = totalRows * (slotSize + gap)
     
     -- Add MOD slots to scroll container
-    for idx, modData in ipairs(inventory) do
+    for idx, entry in ipairs(inventory) do
+        local modData = entry.mod
         local row = math.floor((idx - 1) / cols)
         local col = (idx - 1) % cols
         local slotX = col * (slotSize + gap)
         local slotYPos = row * (slotSize + gap)
-        
-        local modColor = getColor(modData.rarity)
-        
-        -- Find actual index in global inventory
-        local actualIdx = 0
-        for i, m in ipairs(state.runMods.inventory) do
-            if m == modData then
-                actualIdx = i
-                break
-            end
-        end
-        
+
+        local modColor = menuModel.getColor(modData.rarity)
         local capturedModData = modData
-        local capturedIdx = actualIdx
+        local capturedIdx = entry.index
         
         local slot = ModSlot.new({
             x = slotX, y = slotYPos,
@@ -652,7 +521,7 @@ function ingameMenu.buildInventory(parent)
             emptyColor = {modColor[1] * 0.15, modColor[2] * 0.15, modColor[3] * 0.15, 0.9},
             filledColor = {modColor[1] * 0.25, modColor[2] * 0.25, modColor[3] * 0.25, 0.9},
             borderColor = {modColor[1], modColor[2], modColor[3], 1},
-            tooltip = getModName(modData.category, modData.key) .. ": " .. getModDesc(modData.category, modData.key)
+            tooltip = menuModel.getModName(modData.category, modData.key) .. ": " .. menuModel.getModDesc(modData.category, modData.key)
         })
         
         -- Right click - quick equip to first empty slot
