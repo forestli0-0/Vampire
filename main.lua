@@ -40,11 +40,7 @@ function love.load()
     if state.playMusic then state.playMusic() end
     debugmenu.init(state)
     testmode.init(state)
-    -- 调试用武器组合：测试状态联动时取消注释
-    -- weapons.addWeapon(state, 'oil_bottle')
-    -- weapons.addWeapon(state, 'fire_wand')
-    -- weapons.addWeapon(state, 'ice_ring')
-    -- weapons.addWeapon(state, 'heavy_hammer')
+
 
     -- Initialize HUD if starting directly in game
     if state.gameState == 'PLAYING' then

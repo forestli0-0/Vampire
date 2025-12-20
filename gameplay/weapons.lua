@@ -389,26 +389,16 @@ function Behaviors.SHOOT_NEAREST(state, weaponKey, w, stats, params, sx, sy)
     local range = math.max(1, math.floor(stats.range or 600))
     local losOpts = state.world and state.world.enabled and {requireLOS = true} or nil
     
-    -- Check for precision aim mode (Shift held)
+    -- Prefer player aim direction when available
     local isPlayerWeapon = (w.owner == nil or w.owner == 'player')
     local weaponDef = state.catalog and state.catalog[weaponKey]
     local aimDx, aimDy = nil, nil
    
-    local p = state.player
     local baseAngle = nil
     local dist = range
     
-    -- Sniper mode: extended range and cursor-based targeting
-    if isPlayerWeapon and weaponDef and weaponDef.sniperMode and p and p.sniperAim and p.sniperAim.active then
-        -- Use extended sniper range
-        local sniperRange = weaponDef.sniperRange or (range * 2)
-        dist = sniperRange
-        -- Aim at cursor position
-        local dx = p.sniperAim.worldX - sx
-        local dy = p.sniperAim.worldY - sy
-        baseAngle = math.atan2(dy, dx)
-    elseif isPlayerWeapon and player.getAimDirection then
-        -- Normal precision aim: use player's aim direction
+    if isPlayerWeapon and player.getAimDirection then
+        -- Use player's aim direction
         aimDx, aimDy = player.getAimDirection(state, weaponDef)
         if aimDx and aimDy then
             baseAngle = math.atan2(aimDy, aimDx)
@@ -718,7 +708,7 @@ function Behaviors.SHOOT_DIRECTIONAL(state, weaponKey, w, stats, params, sx, sy)
     local range = math.max(1, math.floor(stats.range or 550))
     local losOpts = state.world and state.world.enabled and {requireLOS = true} or nil
     
-    -- Check for precision aim mode
+    -- Use player aim direction when available
     local isPlayerWeapon = (w.owner == nil or w.owner == 'player')
     local weaponDef = state.catalog and state.catalog[weaponKey]
     local aimDx, aimDy = nil, nil
@@ -973,12 +963,10 @@ function weapons.update(state, dt)
                 
                 -- Check if player is firing (required for most weapons unless pet/aura/melee/charge)
                 -- Auras, melee, charge shots, and pet weapons fire with their own logic
-                -- autoTrigger meta item bypasses the firing requirement
                 local isAura = (behaviorName == 'AURA')
                 local isMelee = (behaviorName == 'MELEE_SWING')
                 local isChargeShot = (behaviorName == 'CHARGE_SHOT')
-                local hasAutoTrigger = state.profile and state.profile.autoTrigger
-                local needsFiring = isPlayerWeapon and not isAura and not isMelee and not isChargeShot and not hasAutoTrigger
+                local needsFiring = isPlayerWeapon and not isAura and not isMelee and not isChargeShot
                 local canFire = not needsFiring or (state.player.isFiring == true)
                 
                 -- Skip if player weapon not in active slot

@@ -75,7 +75,7 @@ local catalog = {
         },
         vectis = {
             type = 'weapon', name = "Vectis",
-            desc = "Sniper rifle. [Shift: Sniper Mode]",
+            desc = "Sniper rifle.",
             maxLevel = 5,
             slotType = 'primary',
             weaponCategory = 'sniper',
@@ -95,7 +95,7 @@ local catalog = {
         },
         lanka = {
             type = 'weapon', name = "Lanka",
-            desc = "Corpus energy sniper. [Shift: Sniper Mode]",
+            desc = "Corpus energy sniper.",
             maxLevel = 5,
             slotType = 'primary',
             weaponCategory = 'sniper',

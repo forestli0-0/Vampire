@@ -56,10 +56,7 @@ local function defaultProfile()
         -- Pets (loadout + light meta progression)
         startPetKey = 'pet_magnet',
         petModules = {},
-        petRanks = {},
-        
-        -- Meta items
-        autoTrigger = false -- When true, weapons fire automatically without holding attack key
+        petRanks = {}
     }
 end
 
@@ -282,12 +279,6 @@ function state.init()
             startTime = 0,
             chargeTime = 0,
             weaponKey = nil
-        },
-        -- Sniper extended aim (Shift to aim beyond screen)
-        sniperAim = {
-            active = false,
-            worldX = 0,
-            worldY = 0
         },
         stats = {
             moveSpeed = 110,

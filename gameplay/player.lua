@@ -30,19 +30,6 @@ local function isAttackKeyDown()
     return input.isDown('fire')
 end
 
--- Check if precision aiming mode
-local function isPrecisionAimMode()
-    return input.isDown('precision_aim')
-end
-
--- Get mouse position in world coordinates
-local function getMouseWorldPos(state)
-    local mx, my = love.mouse.getPosition()
-    local camX = state.camera and state.camera.x or 0
-    local camY = state.camera and state.camera.y or 0
-    return mx + camX, my + camY
-end
-
 -- Get aim direction based on weapon type and current input
 function player.getAimDirection(state, weaponDef)
     local p = state.player
@@ -83,80 +70,19 @@ end
 -- Update firing state
 function player.updateFiring(state)
     local p = state.player
-    local profile = state.profile or {}
     
     -- Manual input tracking (essential for charge weapons that need true key state)
     local manualAttack = isAttackKeyDown()
-    
-    -- Auto-trigger meta item bypasses manual attack requirement
-    if profile.autoTrigger then
-        p.isFiring = true
-    else
-        p.isFiring = manualAttack
-    end
+    p.isFiring = manualAttack
 
     -- Block firing while sliding (Tactical Rush focus)
     if p.isSliding then
         p.isFiring = false
     end
     
-    -- Track precision aim mode for UI
-    p.isPrecisionAim = isPrecisionAimMode()
-    
-    -- Update sniper aim (Shift held with sniper equipped)
     local activeWeaponInst = state.inventory and state.inventory.weaponSlots and state.inventory.weaponSlots[p.activeSlot]
     local activeWeaponKey = activeWeaponInst and activeWeaponInst.key
     local weaponDef = activeWeaponKey and state.catalog and state.catalog[activeWeaponKey]
-    local isSniperMode = weaponDef and weaponDef.sniperMode and p.isPrecisionAim
-    
-    if isSniperMode then
-        local screenW, screenH = love.graphics.getWidth(), love.graphics.getHeight()
-        local centerX, centerY = screenW / 2, screenH / 2
-        
-        if not p.sniperAim.active then
-            -- Just entered sniper mode: initialize cursor at MOUSE world position
-            local mx, my = getMouseWorldPos(state)
-            p.sniperAim.worldX = mx
-            p.sniperAim.worldY = my
-            -- Set mouse to center for delta tracking
-            love.mouse.setPosition(centerX, centerY)
-        end
-        p.sniperAim.active = true
-        
-        -- Track mouse delta from center
-        local mx, my = love.mouse.getPosition()
-        local dx = mx - centerX
-        local dy = my - centerY
-        
-        -- Accumulate movement with sensitivity based on sniper range
-        local sensitivity = (weaponDef.sniperRange or 1500) / 300
-        p.sniperAim.worldX = p.sniperAim.worldX + dx * sensitivity
-        p.sniperAim.worldY = p.sniperAim.worldY + dy * sensitivity
-        
-        -- Reset mouse to center for continuous tracking
-        love.mouse.setPosition(centerX, centerY)
-        
-        -- Clamp to maximum sniper range from player
-        local maxRange = weaponDef.sniperRange or 1500
-        local offsetX = p.sniperAim.worldX - p.x
-        local offsetY = p.sniperAim.worldY - p.y
-        local dist = math.sqrt(offsetX * offsetX + offsetY * offsetY)
-        if dist > maxRange then
-            local scale = maxRange / dist
-            p.sniperAim.worldX = p.x + offsetX * scale
-            p.sniperAim.worldY = p.y + offsetY * scale
-        end
-    else
-        p.sniperAim.active = false
-    end
-    
-    -- Update aim direction for UI crosshair
-    if p.isPrecisionAim then
-        local mx, my = getMouseWorldPos(state)
-        p.aimX, p.aimY = mx, my
-    else
-        p.aimX, p.aimY = nil, nil
-    end
     
     -- Reset bow charge if weapon changed or no longer holding a bow
     if p.bowCharge.isCharging and p.bowCharge.weaponKey ~= activeWeaponKey then
@@ -172,24 +98,7 @@ function player.updateFiring(state)
         local shouldCharge = manualAttack
         local maxCharge = weaponDef.maxChargeTime or 2.0
         
-        -- Auto-trigger logic: spam attacks (charge -> immediate release)
-        if not manualAttack and profile.autoTrigger and not p.bowCharge.pendingRelease then
-            if not p.bowCharge.isCharging then
-                 -- Start charge cycle
-                 shouldCharge = true
-            else
-                 -- Already charging? Release immediately for rapid fire (no charge)
-                 shouldCharge = false
-            end
-        end
-
         if shouldCharge then 
-            -- Intercept any pending release (e.g. from auto-trigger) and convert back to charging
-            if p.bowCharge.pendingRelease then
-                p.bowCharge.pendingRelease = false
-                p.bowCharge.isCharging = true
-            end
-
             if not p.bowCharge.isCharging then
                 -- Start charging
                 p.bowCharge.isCharging = true
@@ -769,17 +678,8 @@ function player.updateMovement(state, dt)
 
     local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
     
-    -- Camera target: sniper aim point if active, otherwise player
-    local camTargetX, camTargetY = p.x, p.y
-    if p.sniperAim and p.sniperAim.active then
-        -- Blend camera between player and sniper aim point (70% towards aim)
-        local aimX, aimY = p.sniperAim.worldX, p.sniperAim.worldY
-        camTargetX = p.x * 0.3 + aimX * 0.7
-        camTargetY = p.y * 0.3 + aimY * 0.7
-    end
-    
-    local camX = camTargetX - sw / 2
-    local camY = camTargetY - sh / 2
+    local camX = p.x - sw / 2
+    local camY = p.y - sh / 2
     if world and world.enabled and world.pixelW and world.pixelH then
         local maxCamX = math.max(0, world.pixelW - sw)
         local maxCamY = math.max(0, world.pixelH - sh)
