@@ -47,6 +47,22 @@ return function(pickups)
             if canDespawn and age >= PICKUP_WARN_TIME then
                 item.flashing = true
             end
+
+            -- Auto-pickup MOD cards after a short delay
+            if item.kind == 'mod_card' and age >= 1.0 then
+                local handler = handlers.mod_card
+                local consume = true
+                if handler then
+                    local result = handler(state, p, item)
+                    if result ~= nil then
+                        consume = result
+                    end
+                end
+                if consume then
+                    table.remove(state.floorPickups, i)
+                end
+                goto continue
+            end
             
             -- Distance check with expanded pickup radius
             local dx = p.x - item.x
