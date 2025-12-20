@@ -19,6 +19,7 @@ local SLIDE_SPEED_MULT = 1.3
 local SLIDE_DRAG = 0.98        -- Speed decay during slide if not moving
 local BULLET_JUMP_SPEED = 500
 local BULLET_JUMP_DURATION = 0.4
+local QUICK_ABILITY_COUNT = 4
 
 local function getMoveInput()
     return input.getAxis('move_x'), input.getAxis('move_y')
@@ -46,6 +47,37 @@ end
 function player.getAimDirection(state, weaponDef)
     local p = state.player
     return math.cos(p.aimAngle or 0), math.sin(p.aimAngle or 0), nil
+end
+
+local function normalizeQuickAbilityIndex(index)
+    local idx = math.floor(tonumber(index) or 1)
+    idx = ((idx - 1) % QUICK_ABILITY_COUNT) + 1
+    return idx
+end
+
+function player.getQuickAbilityIndex(state)
+    local p = state.player
+    if not p then return 1 end
+    p.quickAbilityIndex = normalizeQuickAbilityIndex(p.quickAbilityIndex)
+    return p.quickAbilityIndex
+end
+
+function player.setQuickAbilityIndex(state, index)
+    local p = state.player
+    if not p then return 1 end
+    p.quickAbilityIndex = normalizeQuickAbilityIndex(index)
+    return p.quickAbilityIndex
+end
+
+function player.cycleQuickAbility(state, dir)
+    local p = state.player
+    if not p then return 1 end
+    local step = tonumber(dir) or 0
+    if step == 0 then
+        return player.getQuickAbilityIndex(state)
+    end
+    step = (step > 0) and 1 or -1
+    return player.setQuickAbilityIndex(state, (p.quickAbilityIndex or 1) + step)
 end
 
 -- Update firing state
@@ -527,7 +559,13 @@ function player.keypressed(state, key)
         return player.quickMelee(state)
     end
     
-    -- Ability keys (Q/E/C/V or 1/2/3/4)
+    -- Quick cast (Q)
+    if input.isActionKey(key, 'quick_cast') then
+        local abilities = require('gameplay.abilities')
+        return abilities.tryActivate(state, player.getQuickAbilityIndex(state))
+    end
+
+    -- Ability keys (1/2/3/4)
     local abilities = require('gameplay.abilities')
     local abilityIndex = abilities.getAbilityForKey(key)
     if not abilityIndex then

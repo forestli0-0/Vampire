@@ -25,6 +25,8 @@ function Slot.new(opts)
     self.label = opts.label or nil      -- Optional text label
     self.sublabel = opts.sublabel or nil  -- Secondary label (e.g., "Lv3")
     self.cooldownRatio = opts.cooldownRatio or 0 -- 0 to 1
+    self.quickCast = opts.quickCast or false
+    self.quickLabel = opts.quickLabel or nil
     
     -- State
     self.selected = opts.selected or false
@@ -198,6 +200,26 @@ function Slot:drawSelf()
         
         love.graphics.setStencilTest()
     end
+
+    if self.quickCast and not self.locked then
+        local label = self.quickLabel or 'Q'
+        local prevFont = love.graphics.getFont()
+        local font = theme.getFont('small')
+        love.graphics.setFont(font)
+
+        local size = math.min(14, w - 4)
+        local mx, my = gx + 2, gy + 2
+        love.graphics.setColor(theme.colors.accent[1], theme.colors.accent[2], theme.colors.accent[3], 0.9)
+        love.graphics.rectangle('fill', mx, my, size, size, 2, 2)
+
+        love.graphics.setColor(1, 1, 1, 0.95)
+        local tw = font:getWidth(label)
+        local th = font:getHeight()
+        love.graphics.print(label, mx + (size - tw) / 2, my + (size - th) / 2 - 1)
+
+        love.graphics.setFont(prevFont)
+        love.graphics.setColor(1, 1, 1, 1)
+    end
     
     -- Draw lock overlay
     if self.locked then
@@ -271,6 +293,12 @@ end
 function Slot:setLabel(label, sublabel)
     self.label = label
     if sublabel ~= nil then self.sublabel = sublabel end
+    return self
+end
+
+function Slot:setQuickCast(enabled, label)
+    self.quickCast = enabled and true or false
+    if label ~= nil then self.quickLabel = label end
     return self
 end
 

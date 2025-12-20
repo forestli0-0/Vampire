@@ -274,11 +274,17 @@ function scenes.textinput(state, text)
 end
 
 function scenes.wheelmoved(state, x, y)
-    if state.gameState == 'PLAYING' and ingameMenu.isActive() then
-        if ingameMenu.wheelmoved then
-            ingameMenu.wheelmoved(x, y)
+    if state.gameState == 'PLAYING' then
+        if ingameMenu.isActive() then
+            if ingameMenu.wheelmoved then
+                ingameMenu.wheelmoved(x, y)
+            end
+            return
         end
-        return
+        if y and y ~= 0 then
+            -- Scroll up: previous quick ability, scroll down: next
+            player.cycleQuickAbility(state, -y)
+        end
     end
     ui.wheelmoved(x, y)
 end

@@ -36,6 +36,7 @@ function hudModel.build(state)
             max = 100
         },
         abilities = {},
+        quickAbilityIndex = 1,
         weapons = {
             activeSlot = (state.inventory and state.inventory.activeSlot) or 'ranged',
             slots = {}
@@ -70,6 +71,12 @@ function hudModel.build(state)
             cooldownRatio = cooldownRatio,
             canUse = canUse
         }
+    end
+
+    do
+        local quickIndex = math.floor(tonumber(p.quickAbilityIndex) or 1)
+        if quickIndex < 1 or quickIndex > 4 then quickIndex = 1 end
+        data.quickAbilityIndex = quickIndex
     end
 
     do

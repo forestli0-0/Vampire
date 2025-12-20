@@ -24,6 +24,7 @@ input.keymap = {
     ability2 = {'2'},
     ability3 = {'3'},
     ability4 = {'4'},
+    quick_cast = {'q'},
     
     -- Utility
     cycle_weapon = {'f'},

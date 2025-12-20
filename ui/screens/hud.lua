@@ -516,6 +516,7 @@ function hud.update(gameState, dt)
         end
 
         -- Ability Slots (updated for index 1-4, WF-style no-CD system)
+        local quickIndex = data.quickAbilityIndex or 1
         for i, slot in pairs(widgets.abilitySlots) do
             local ability = data.abilities and data.abilities[i] or nil
             slot.cooldownRatio = ability and ability.cooldownRatio or 0
@@ -524,6 +525,8 @@ function hud.update(gameState, dt)
             else
                 slot.iconColor = {0.5, 0.5, 0.5, 0.5}
             end
+            slot.quickCast = (i == quickIndex)
+            slot.quickLabel = 'Q'
         end
 
         -- Weapon Slots

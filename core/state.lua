@@ -268,6 +268,7 @@ function state.init()
         dash = {charges = 2, maxCharges = 2, rechargeTimer = 0, timer = 0, dx = 1, dy = 0},
         class = 'volt', -- Current class: warrior / mage / beastmaster / volt
         ability = {cooldown = 0, timer = 0}, -- Q skill state
+        quickAbilityIndex = 1, -- Quick cast selection (1-4)
         -- Weapon slots (2-slot system: ranged + melee, with reserved slot for future class passive)
         weaponSlots = {
             ranged = nil,    -- Ranged weapon key (wands, bows, guns, thrown)
