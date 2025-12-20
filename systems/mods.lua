@@ -788,6 +788,7 @@ function mods.equipToRunSlot(state, category, key, slotIndex, modKey, modRank)
     
     -- Check capacity
     local oldMod = slotData.slots[slotIndex]
+    local replacing = oldMod ~= nil
     slotData.slots[slotIndex] = nil
     
     if not mods.canEquipToRun(state, category, key, modKey, modRank) then
@@ -796,7 +797,9 @@ function mods.equipToRunSlot(state, category, key, slotIndex, modKey, modRank)
     end
     
     slotData.slots[slotIndex] = { key = modKey, rank = modRank or 0 }
-    state.runMods.totalEquipped = (state.runMods.totalEquipped or 0) + 1
+    if not replacing then
+        state.runMods.totalEquipped = (state.runMods.totalEquipped or 0) + 1
+    end
     return true
 end
 
