@@ -1,4 +1,5 @@
 local pets = require('pets')
+local helpers = require('upgrades.options_helpers')
 
 local function dispatch(state, eventName, ctx)
     if state and state.augments and state.augments.dispatch then
@@ -19,66 +20,14 @@ return function(upgrades)
                 added[key] = true
             end
         end
-    
-        local function isOwned(itemType, itemKey)
-            if itemType == 'weapon' then return state.inventory.weapons[itemKey] ~= nil end
-    
-            if itemType == 'mod' then return state.profile and state.profile.ownedMods and state.profile.ownedMods[itemKey] == true end
-            if itemType == 'augment' then return state.inventory.augments and state.inventory.augments[itemKey] ~= nil end
-            if itemType == 'pet' then
-                local pet = pets.getActive(state)
-                return pet and pet.key == itemKey
-            end
-            if itemType == 'pet_module' then
-                local pet = pets.getActive(state)
-                if not pet then return false end
-                local def = state.catalog and state.catalog[itemKey]
-                local modId = def and def.moduleId
-                if not modId then return false end
-                return (pet.module or 'default') == modId
-            end
-            if itemType == 'pet_upgrade' then
-                local ps = state and state.pets or nil
-                local ups = ps and ps.upgrades or nil
-                return ups and (ups[itemKey] or 0) > 0
-            end
-            return false
-        end
-    
+
         local augmentCap = state.maxAugmentsPerRun or 4
-        local function countAugments()
-            local n = 0
-            for _, lvl in pairs(state.inventory.augments or {}) do
-                if (lvl or 0) > 0 then n = n + 1 end
-            end
-            return n
-        end
-    
-        local function countWeapons()
-            return upgrades.countWeapons(state)
-        end
-    
-        local allowedTypes = request and request.allowedTypes
-        local allowPets = false
-        if type(allowedTypes) == 'table' then
-            if allowedTypes.pet then allowPets = true end
-            for _, v in ipairs(allowedTypes) do
-                if v == 'pet' then allowPets = true break end
-            end
-        end
-        local function typeAllowed(t)
-            if type(allowedTypes) ~= 'table' then return true end
-            if next(allowedTypes) == nil then return true end
-            if allowedTypes[t] then return true end
-            for _, v in ipairs(allowedTypes) do
-                if v == t then return true end
-            end
-            return false
-        end
-    
+
+        local allowedTypes, allowPets, typeAllowed = helpers.buildAllowedTypes(request)
+
         local allowInRunMods = state and state.allowInRunMods
         if allowInRunMods == nil then allowInRunMods = false end
-    
+
         for key, item in pairs(state.catalog) do
             if item and item.type == 'pet' and not allowPets then
                 goto continue_catalog
@@ -102,12 +51,12 @@ return function(upgrades)
             if item and item.type and not typeAllowed(item.type) then
                 goto continue_catalog
             end
-    
+
             -- Skip hidden/deprecated items (VS-style passives, etc.)
             if item.hidden or item.deprecated then
                 goto continue_catalog
             end
-    
+
             -- evolved-only武器不进入随机池；已经进化后隐藏基础武器
             local skip = false
             if item.evolvedOnly then
@@ -115,7 +64,7 @@ return function(upgrades)
             elseif item.type == 'weapon' and item.evolveInfo and state.inventory.weapons[item.evolveInfo.target] then
                 skip = true
             end
-    
+
             if not skip then
                 -- Mods are loadout-only by default; when enabled, allow drawing owned-but-unequipped mods in-run.
                 if item.type == 'mod' then
@@ -128,13 +77,13 @@ return function(upgrades)
                     end
                 end
                 if item.type == 'augment' and not (state.inventory.augments and state.inventory.augments[key]) then
-                    if countAugments() >= augmentCap then
+                    if helpers.countAugments(state) >= augmentCap then
                         goto continue_catalog
                     end
                 end
                 local currentLevel = 0
                 if item.type == 'weapon' and state.inventory.weapons[key] then currentLevel = state.inventory.weapons[key].level end
-    
+
                 if item.type == 'mod' then
                     local profile = state.profile
                     local r = profile and profile.modRanks and profile.modRanks[key]
@@ -168,79 +117,38 @@ return function(upgrades)
                 end
                 if currentLevel < item.maxLevel then
                     local opt = {key=key, type=item.type, name=item.name, desc=item.desc, def=item}
-                    if isOwned(item.type, key) then
+                    if helpers.isOwned(state, item.type, key) then
                         addOption(poolExisting, opt)
                     else
                         addOption(poolNew, opt)
                     end
                 end
             end
-    
-    
+
             ::continue_catalog::
         end
-    
+
         state.upgradeOptions = {}
         -- 若有进化候选，优先保底塞入 1 个
         local function takeRandom(list)
-            if #list == 0 then return nil end
-            local idx = math.random(#list)
-            local opt = list[idx]
-            table.remove(list, idx)
-            return opt
+            return helpers.takeRandom(list)
         end
-        
+
         -- Class weight system: items with classWeight field are weighted by player's class
-        local function getClassWeight(def)
-            if not def or not def.classWeight then return 1.0 end
-            local classKey = state.player and state.player.class or 'warrior'
-            return def.classWeight[classKey] or 1.0
-        end
-        
         local function takeWeighted(list)
-            if #list == 0 then return nil end
-            local total = 0
-            for _, opt in ipairs(list) do
-                local w = getClassWeight(opt.def)
-                total = total + w
-            end
-            if total <= 0 then return takeRandom(list) end
-            local r = math.random() * total
-            for i, opt in ipairs(list) do
-                local w = getClassWeight(opt.def)
-                r = r - w
-                if r <= 0 then
-                    table.remove(list, i)
-                    return opt
-                end
-            end
-            return table.remove(list, #list)
+            return helpers.takeWeighted(state, list)
         end
-    
+
         local function hasType(options, wanted)
-            for _, opt in ipairs(options or {}) do
-                if opt and opt.type == wanted then return true end
-            end
-            return false
+            return helpers.hasType(options, wanted)
         end
-    
+
         local function takeRandomOfType(list, wanted)
-            if #list == 0 then return nil end
-            local candidates = {}
-            for i, opt in ipairs(list) do
-                if opt and opt.type == wanted then
-                    table.insert(candidates, i)
-                end
-            end
-            if #candidates == 0 then return nil end
-            local pick = candidates[math.random(#candidates)]
-            local opt = list[pick]
-            table.remove(list, pick)
-            return opt
+            return helpers.takeRandomOfType(list, wanted)
         end
-    
+
         -- Removed Evolution Pool Logic due to WF system migration
-        
+
         -- Starting guarantee: first 2 upgrades prioritize class-preferred items
         local upgradeCount = state.upgradeCount or 0
         if upgradeCount < 2 then
@@ -266,7 +174,7 @@ return function(upgrades)
                 end
             end
         end
-    
+
         local runLevel = 1
         if state and state.runMode == 'rooms' and state.rooms then
             runLevel = tonumber(state.rooms.roomIndex) or 1
@@ -280,13 +188,13 @@ return function(upgrades)
         elseif runLevel <= 12 then
             preferExistingChance = 0.55
         end
-    
+
         local maxWeapons = upgrades.getMaxWeapons(state)
-        local weaponsOwned = countWeapons()
+        local weaponsOwned = upgrades.countWeapons(state)
         if maxWeapons > 0 and weaponsOwned >= maxWeapons then
             preferExistingChance = math.min(0.92, preferExistingChance + 0.25)
         end
-    
+
         -- Early feel: ensure at least one "new route" option (weapon/augment) when possible.
         if #state.upgradeOptions < 3 then
             if typeAllowed('weapon') and weaponsOwned < math.min(2, math.max(1, maxWeapons)) and not hasType(state.upgradeOptions, 'weapon') then
@@ -297,14 +205,14 @@ return function(upgrades)
             end
         end
         if #state.upgradeOptions < 3 and runLevel <= 6 then
-            if typeAllowed('augment') and countAugments() == 0 and not hasType(state.upgradeOptions, 'augment') then
+            if typeAllowed('augment') and helpers.countAugments(state) == 0 and not hasType(state.upgradeOptions, 'augment') then
                 local forcedAug = takeRandomOfType(poolNew, 'augment')
                 if forcedAug then
                     table.insert(state.upgradeOptions, forcedAug)
                 end
             end
         end
-    
+
         for i = #state.upgradeOptions + 1, 3 do
             local choice = nil
             -- 现有/新选项混合：偏向现有，但保留一定随机新路线
@@ -320,7 +228,7 @@ return function(upgrades)
             if not choice then break end
             table.insert(state.upgradeOptions, choice)
         end
-    
+
         if runLevel <= 6
             and (typeAllowed('weapon') or typeAllowed('augment'))
             and not (hasType(state.upgradeOptions, 'weapon') or hasType(state.upgradeOptions, 'augment')) then
@@ -329,16 +237,15 @@ return function(upgrades)
                 state.upgradeOptions[#state.upgradeOptions] = forced
             end
         end
-    
+
         if #state.upgradeOptions == 0 and allowFallback and type(allowedTypes) == 'table' and next(allowedTypes) ~= nil then
             return upgrades.generateUpgradeOptions(state, nil, false)
         end
-    
+
         local ctx = {options = state.upgradeOptions, player = state.player, request = request}
         dispatch(state, 'onUpgradeOptions', ctx)
         if ctx.options and ctx.options ~= state.upgradeOptions then
             state.upgradeOptions = ctx.options
         end
     end
-    
 end
