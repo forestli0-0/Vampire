@@ -208,12 +208,14 @@ function player.updateMelee(state, dt)
                     else
                         melee.attackType = 'heavy'
                     end
-                    melee.swingTimer = HEAVY_SWING_TIME
+                    local speedMult = (p.attackSpeedBuffMult or 1) * ((p.stats and p.stats.meleeSpeed) or 1)
+                    melee.swingTimer = HEAVY_SWING_TIME / math.max(0.01, speedMult)
                 else
                     -- Light attack
                     melee.attackType = 'light'
                     melee.comboCount = melee.comboCount + 1
-                    melee.swingTimer = LIGHT_SWING_TIME
+                    local speedMult = (p.attackSpeedBuffMult or 1) * ((p.stats and p.stats.meleeSpeed) or 1)
+                    melee.swingTimer = LIGHT_SWING_TIME / math.max(0.01, speedMult)
                 end
                 
                 melee.phase = 'swing'
@@ -230,7 +232,8 @@ function player.updateMelee(state, dt)
         melee.swingTimer = melee.swingTimer - dt
         if melee.swingTimer <= 0 then
             melee.phase = 'recovery'
-            melee.recoveryTimer = RECOVERY_TIME
+            local speedMult = (p.attackSpeedBuffMult or 1) * ((p.stats and p.stats.meleeSpeed) or 1)
+            melee.recoveryTimer = RECOVERY_TIME / math.max(0.01, speedMult)
         end
         
     elseif melee.phase == 'recovery' then
@@ -619,7 +622,7 @@ function player.updateMovement(state, dt)
         local hasEnergy = (p.energy or 0) > 0
         local isSliding = input.isDown('slide') and p.stats.moveSpeed > 0 and hasEnergy
         
-        local speed = p.stats.moveSpeed
+        local speed = (p.stats.moveSpeed or 0) * (p.moveSpeedBuffMult or 1)
         if isSliding then
             -- Drain energy over time
             p.energy = math.max(0, p.energy - SLIDE_ENERGY_DRAIN * dt)

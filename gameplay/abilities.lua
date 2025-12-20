@@ -11,6 +11,18 @@ local defData = defs.build({
 abilities.catalog = defData.catalog
 abilities.passives = defData.passives
 
+local function restoreCastMoveSpeed(p)
+    if not p then return end
+    local mult = p.castSlowMult
+    if mult and mult ~= 0 then
+        p.stats = p.stats or {}
+        local current = p.stats.moveSpeed or p.castOriginalSpeed or 0
+        p.stats.moveSpeed = current / mult
+    end
+    p.castOriginalSpeed = nil
+    p.castSlowMult = nil
+end
+
 
 
 -- Simple helper to get ability definition
@@ -201,7 +213,8 @@ function abilities.tryActivate(state, abilityIndex)
         end
         
         -- Slow movement during cast (50% speed)
-        p.stats.moveSpeed = p.castOriginalSpeed * 0.5
+        p.castSlowMult = 0.5
+        p.stats.moveSpeed = p.castOriginalSpeed * p.castSlowMult
         
         -- Visual feedback: casting started
         if state.texts then
@@ -242,11 +255,8 @@ function abilities.interruptCast(state, reason)
         p.energy = math.min(p.maxEnergy or 100, (p.energy or 0) + refund)
     end
     
-    -- Restore movement speed
-    if p.castOriginalSpeed then
-        p.stats.moveSpeed = p.castOriginalSpeed
-        p.castOriginalSpeed = nil
-    end
+    -- Restore movement speed (only undo cast slow)
+    restoreCastMoveSpeed(p)
     
     -- Visual feedback
     if state.texts then
@@ -338,10 +348,7 @@ function abilities.update(state, dt)
                 p.abilityCooldowns = p.abilityCooldowns or {}
                 p.abilityCooldowns[p.castAbilityIndex] = p.castDef.cd
             end
-            if p.castOriginalSpeed then
-                p.stats.moveSpeed = p.castOriginalSpeed
-                p.castOriginalSpeed = nil
-            end
+            restoreCastMoveSpeed(p)
             p.isCasting, p.castTimer, p.castDef, p.castAbilityKey, p.castProgress = false, nil, nil, nil, nil
         end
     end

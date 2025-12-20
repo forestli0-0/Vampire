@@ -181,11 +181,11 @@ local function build(helpers)
                         id = "mage_accelerant",
                         timer = 12 * dur,
                         onApply = function(s) 
-                            s.player.stats.moveSpeed = (s.player.stats.moveSpeed or 170) * (1 + moveBonus)
+                            s.player.moveSpeedBuffMult = (s.player.moveSpeedBuffMult or 1) * (1 + moveBonus)
                             s.player.stats.abilityStrength = (s.player.stats.abilityStrength or 1.0) + powerBonus
                         end,
                         onExpire = function(s)
-                            s.player.stats.moveSpeed = (s.player.stats.moveSpeed or 170) / (1 + moveBonus)
+                            s.player.moveSpeedBuffMult = (s.player.moveSpeedBuffMult or 1) / (1 + moveBonus)
                             s.player.stats.abilityStrength = (s.player.stats.abilityStrength or 1.0) - powerBonus
                         end
                     })
@@ -412,7 +412,7 @@ local function build(helpers)
             {
                 name = "极速", -- Speed (TEMPORARY buff!)
                 cost = 50,
-                castTime = 0.4,  -- Quick buff animation
+                castTime = 0,  -- Instant cast
                 effect = function(state)
                     local p = state.player
                     local str = p.stats.abilityStrength or 1.0
@@ -426,13 +426,15 @@ local function build(helpers)
                         timer = 10 * dur,
                         onApply = function(s)
                             s.player.speedBuffActive = true
-                            s.player.stats.moveSpeed = (s.player.stats.moveSpeed or 170) * speedMult
-                            s.player.stats.attackSpeedMult = (s.player.stats.attackSpeedMult or 1.0) * atkSpeedMult
+                            s.player.moveSpeedBuffMult = (s.player.moveSpeedBuffMult or 1) * speedMult
+                            s.player.attackSpeedBuffMult = (s.player.attackSpeedBuffMult or 1) * atkSpeedMult
+                            s.player.speedAuraRadius = 90 * (s.player.stats.abilityRange or 1.0)
                         end,
                         onExpire = function(s)
                             s.player.speedBuffActive = false
-                            s.player.stats.moveSpeed = (s.player.stats.moveSpeed or 170) / speedMult
-                            s.player.stats.attackSpeedMult = (s.player.stats.attackSpeedMult or 1.0) / atkSpeedMult
+                            s.player.moveSpeedBuffMult = (s.player.moveSpeedBuffMult or 1) / speedMult
+                            s.player.attackSpeedBuffMult = (s.player.attackSpeedBuffMult or 1) / atkSpeedMult
+                            s.player.speedAuraRadius = nil
                         end
                     })
                 

@@ -950,6 +950,13 @@ function weapons.update(state, dt)
                 local sx, sy = shooter.x, shooter.y
                 local computedStats = weapons.calculateStats(state, key) or w.stats
                 local actualCD = (computedStats.cd or w.stats.cd) * (state.player.stats.cooldown or 1)
+                local atkMult = (state.player and state.player.attackSpeedBuffMult) or 1
+                if state.player and state.player.stats and state.player.stats.attackSpeedMult then
+                    atkMult = atkMult * state.player.stats.attackSpeedMult
+                end
+                if atkMult > 0 then
+                    actualCD = actualCD / atkMult
+                end
                 
                 -- Strategy Lookup
                 local def = state.catalog[key]

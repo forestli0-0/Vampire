@@ -25,6 +25,7 @@ local isOpen = false
 local currentTab = 'warframe'  -- 'warframe', 'weapons', 'companion'
 local selectedWeaponKey = nil
 local inventoryScroll = 0  -- Scroll offset for inventory
+local statsValueWidgets = nil
 
 -- Layout constants
 local SCREEN_W = scaling.LOGICAL_WIDTH   -- 640
@@ -203,6 +204,20 @@ end
 function ingameMenu.update(dt)
     if not isOpen then return end
     core.update(dt)
+
+    if statsValueWidgets then
+        local statLines = menuModel.buildStatsLines(state, currentTab, selectedWeaponKey)
+        if #statLines ~= #statsValueWidgets then
+            ingameMenu.buildUI()
+            return
+        end
+        for i, line in ipairs(statLines) do
+            local valueText = statsValueWidgets[i]
+            if valueText and valueText.setText then
+                valueText:setText(line.value)
+            end
+        end
+    end
 end
 
 function ingameMenu.draw()
@@ -338,6 +353,7 @@ function ingameMenu.buildStatsPanel(parent)
     
     local statsY = panelY + 12
     local statLines = menuModel.buildStatsLines(state, currentTab, selectedWeaponKey)
+    statsValueWidgets = {}
     
     -- Use small font for stats
     local smallFont = theme.getFont('small')
@@ -357,6 +373,7 @@ function ingameMenu.buildStatsPanel(parent)
             font = smallFont
         })
         parent:addChild(valueText)
+        statsValueWidgets[i] = valueText
         
         statsY = statsY + LAYOUT.statsLineH
     end
