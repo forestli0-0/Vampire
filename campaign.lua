@@ -1,6 +1,7 @@
 local world = require('world')
 local mission = require('mission')
 local biomes = require('biomes')
+local defs = require('data.defs.campaign')
 
 local campaign = {}
 
@@ -66,9 +67,15 @@ local function centerCameraOnPlayer(state)
 end
 
 local function getWorldOptsForStage(stageType, biomeDef)
-    local ts = 32
-    local nav = (stageType == 'boss') and 0.25 or 0.35
-    local roomCount = (stageType == 'boss') and 1 or math.random(3, 5)
+    local worldDefs = defs.world or {}
+    local stageDefs = worldDefs.stage or {}
+    local stageDef = stageDefs[stageType] or {}
+    local ts = worldDefs.tileSize or 32
+    local nav = stageDef.navRefresh or ((stageType == 'boss') and 0.25 or 0.35)
+    local roomMin = stageDef.roomCountMin or ((stageType == 'boss') and 1 or 3)
+    local roomMax = stageDef.roomCountMax or roomMin
+    if roomMax < roomMin then roomMax = roomMin end
+    local roomCount = math.random(roomMin, roomMax)
 
     local base = {tileSize = ts, roomCount = roomCount, navRefresh = nav}
     local src = nil
@@ -76,22 +83,24 @@ local function getWorldOptsForStage(stageType, biomeDef)
         src = (stageType == 'boss') and biomeDef.worldBoss or biomeDef.worldExplore
     end
     src = src or {}
+    local fallback = stageDef.fallback or {}
 
-    base.w = src.w or ((stageType == 'boss') and 70 or 90)
-    base.h = src.h or ((stageType == 'boss') and 70 or 90)
-    base.roomMin = src.roomMin or ((stageType == 'boss') and 28 or 8)
-    base.roomMax = src.roomMax or ((stageType == 'boss') and 36 or 14)
-    base.corridorWidth = src.corridorWidth or 2
+    base.w = src.w or fallback.w or ((stageType == 'boss') and 70 or 90)
+    base.h = src.h or fallback.h or ((stageType == 'boss') and 70 or 90)
+    base.roomMin = src.roomMin or fallback.roomMin or ((stageType == 'boss') and 28 or 8)
+    base.roomMax = src.roomMax or fallback.roomMax or ((stageType == 'boss') and 36 or 14)
+    base.corridorWidth = src.corridorWidth or fallback.corridorWidth or 2
     return base
 end
 
 function campaign.startRun(state, opts)
     opts = opts or {}
+    local defaults = defs.defaults or {}
     state.campaign = {
         biome = 1,
         stageInBiome = 1,
-        biomesTotal = math.max(1, math.floor(opts.biomesTotal or 3)),
-        stagesPerBiome = math.max(1, math.floor(opts.stagesPerBiome or 3)),
+        biomesTotal = math.max(1, math.floor(opts.biomesTotal or defaults.biomesTotal or 3)),
+        stagesPerBiome = math.max(1, math.floor(opts.stagesPerBiome or defaults.stagesPerBiome or 3)),
         stageType = 'explore',
         biomeDef = biomes.get(1)
     }

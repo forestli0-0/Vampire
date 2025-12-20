@@ -1,5 +1,6 @@
 local enemies = require('enemies')
 local biomes = require('biomes')
+local defs = require('data.defs.mission')
 
 local mission = {}
 
@@ -73,6 +74,7 @@ end
 local function computeZonePreSpawnRangePx(state)
     local world = state.world
     local ts = (world and world.tileSize) or 32
+    local cfg = defs.spawn and defs.spawn.preSpawnRange or {}
 
     local sw, sh = 800, 600
     if love and love.graphics and love.graphics.getWidth then
@@ -80,26 +82,28 @@ local function computeZonePreSpawnRangePx(state)
     end
     local screenMin = math.min(sw or 800, sh or 600)
 
-    local base = ts * 6
-    local byScreen = screenMin * 0.55
-    return clamp(math.max(base, byScreen), ts * 4, ts * 14)
+    local base = ts * (cfg.baseTileMult or 6)
+    local byScreen = screenMin * (cfg.screenMult or 0.55)
+    return clamp(math.max(base, byScreen), ts * (cfg.minTileMult or 4), ts * (cfg.maxTileMult or 14))
 end
 
 local function computeSpawnMinDistPx(state, room)
     local world = state.world
     local ts = (world and world.tileSize) or 32
+    local cfg = defs.spawn and defs.spawn.minDist or {}
     local rw = math.max(1, ((room.x2 or 0) - (room.x1 or 0) + 1)) * ts
     local rh = math.max(1, ((room.y2 or 0) - (room.y1 or 0) + 1)) * ts
-    local base = math.min(220, math.max(90, math.min(rw, rh) * 0.35))
+    local base = math.min(cfg.baseMax or 220, math.max(cfg.baseMin or 90, math.min(rw, rh) * (cfg.roomScale or 0.35)))
     local playerR = ((state.player and state.player.size) or 20) * 0.5
-    return math.max(base, playerR + 26)
+    return math.max(base, playerR + (cfg.playerPad or 26))
 end
 
 local function sampleSpawnFarFromPlayer(state, room, attempts)
     local world = state.world
     if not (world and world.enabled and world.isWalkableCell and world.cellToWorld) then return nil end
+    local cfg = defs.spawn and defs.spawn.sample or {}
 
-    attempts = math.max(12, math.floor(attempts or 64))
+    attempts = math.max(cfg.minAttempts or 12, math.floor(attempts or cfg.defaultAttempts or 64))
     local minDist = computeSpawnMinDistPx(state, room)
     local minDistSq = minDist * minDist
     local px = (state.player and state.player.x) or 0
@@ -155,7 +159,7 @@ local function sampleSpawnFarFromPlayer(state, room, attempts)
     local ccx = math.floor((minCx + maxCx) * 0.5)
     local ccy = math.floor((minCy + maxCy) * 0.5)
     if world.findNearestWalkable then
-        local fx, fy = world:findNearestWalkable(ccx, ccy, 24)
+        local fx, fy = world:findNearestWalkable(ccx, ccy, cfg.nearestFallback or 24)
         if fx then return world:cellToWorld(fx, fy) end
     end
 
@@ -183,18 +187,23 @@ local function buildSpawnQueuePack(state, zoneId, room, opts)
     opts = opts or {}
     local world = state.world
     if not (world and world.enabled) then return nil end
+    local spawnCfg = defs.spawn or {}
+    local packCfg = spawnCfg.pack or {}
+    local sampleCfg = spawnCfg.sample or {}
 
-    local count = math.max(1, math.floor(opts.count or 6))
-    local eliteChance = math.max(0, math.min(1, tonumber(opts.eliteChance) or 0))
+    local count = math.max(1, math.floor(opts.count or packCfg.defaultCount or 6))
+    local eliteChance = math.max(0, math.min(1, tonumber(opts.eliteChance) or packCfg.eliteChance or 0))
     local telegraph = (opts.telegraph == true)
     local baseDelay = tonumber(opts.baseDelay)
-    if baseDelay == nil then baseDelay = 0.0 end
+    if baseDelay == nil then baseDelay = packCfg.baseDelay or 0.0 end
     local delayJitter = tonumber(opts.delayJitter)
-    if delayJitter == nil then delayJitter = 0.0 end
+    if delayJitter == nil then delayJitter = packCfg.delayJitter or 0.0 end
 
     local pool = buildEnemyPool(state)
     local q = {}
     local used = {}
+    local pickTries = sampleCfg.pickTries or 6
+    local sampleAttempts = packCfg.sampleAttempts or 80
 
     for i = 1, count do
         local kind = pool[math.random(#pool)]
@@ -204,8 +213,8 @@ local function buildSpawnQueuePack(state, zoneId, room, opts)
         end
 
         local sx, sy
-        for _ = 1, 6 do
-            local tx, ty = sampleSpawnFarFromPlayer(state, room, 80)
+        for _ = 1, pickTries do
+            local tx, ty = sampleSpawnFarFromPlayer(state, room, sampleAttempts)
             if not tx then break end
             if world.worldToCell then
                 local cx, cy = world:worldToCell(tx, ty)
@@ -226,7 +235,7 @@ local function buildSpawnQueuePack(state, zoneId, room, opts)
             if delayJitter > 0 then delay = delay + math.random() * delayJitter end
             q[#q + 1] = {kind = kind, isElite = isElite, x = sx, y = sy, t = delay}
             if telegraph and state.spawnTelegraphCircle then
-                state.spawnTelegraphCircle(sx, sy, 22, delay, {kind = 'danger', intensity = 1.0})
+                state.spawnTelegraphCircle(sx, sy, packCfg.telegraphRadius or 22, delay, {kind = 'danger', intensity = packCfg.telegraphIntensity or 1.0})
             end
         end
     end
@@ -237,11 +246,12 @@ end
 local function buildSpawnQueueBoss(state, zoneId, room)
     local world = state.world
     if not (world and world.enabled) then return nil end
-    local sx, sy = sampleSpawnFarFromPlayer(state, room, 120)
+    local bossCfg = (defs.spawn and defs.spawn.boss) or {}
+    local sx, sy = sampleSpawnFarFromPlayer(state, room, bossCfg.sampleAttempts or 120)
     if not (sx and sy) then return nil end
-    local delay = 0.95
+    local delay = bossCfg.delay or 0.95
     if state.spawnTelegraphCircle then
-        state.spawnTelegraphCircle(sx, sy, 54, delay, {kind = 'danger', intensity = 1.25})
+        state.spawnTelegraphCircle(sx, sy, bossCfg.telegraphRadius or 54, delay, {kind = 'danger', intensity = bossCfg.telegraphIntensity or 1.25})
     end
     local c = state and state.campaign
     local bossKey = (c and c.biomeDef and c.biomeDef.boss) or 'boss_treant'
@@ -265,7 +275,7 @@ local function processSpawnQueues(state, dt)
                     local spawned = enemies.spawnEnemy(state, s.kind, s.isElite, s.x, s.y, {suppressSpawnText = true})
                     if spawned then
                         spawned.zoneId = z.id
-                        spawned.noContactDamageTimer = 0.65
+                        spawned.noContactDamageTimer = (defs.spawn and defs.spawn.noContactDamageTimer) or 0.65
                     end
                     table.remove(q, i)
                 end
@@ -351,7 +361,8 @@ function mission.start(state)
         zones[startId].exitChestSpawned = true
         state.chests = state.chests or {}
         local wx, wy = world:cellToWorld((zones[startId].room and zones[startId].room.cx) or world.spawnCx or 1, (zones[startId].room and zones[startId].room.cy) or world.spawnCy or 1)
-        table.insert(state.chests, {x = wx, y = wy, w = 26, h = 26, kind = 'stage_exit'})
+        local size = (defs.chest and defs.chest.exitSize) or 26
+        table.insert(state.chests, {x = wx, y = wy, w = size, h = size, kind = 'stage_exit'})
     end
 end
 
@@ -398,20 +409,22 @@ function mission.update(state, dt)
 
     -- "无感刷新"：玩家接近房间时就预先刷怪（通常发生在走廊里，看不到房间内部）。
     local preSpawnRange = computeZonePreSpawnRangePx(state)
+    local zoneCfg = defs.spawn and defs.spawn.zone or {}
+    local packCfg = defs.spawn and defs.spawn.pack or {}
     for id, zone in ipairs(m.zones or {}) do
         if zone and not zone.spawned and not zone.cleared and not zone.isStart and not zone.isBoss then
             local d = distanceToRoomRectPx(world, zone.room, px, py)
             if d <= preSpawnRange then
                 zone.spawned = true
-                local base = 6 + math.min(6, math.floor((state.gameTimer or 0) / 60))
-                local count = base + math.random(0, 2)
-                local eliteChance = (m.clearedCount >= 3) and 0.18 or 0.0
+                local base = (zoneCfg.baseCount or 6) + math.min(zoneCfg.timeBonusMax or 6, math.floor((state.gameTimer or 0) / (zoneCfg.timeBonusStep or 60)))
+                local count = base + math.random(zoneCfg.extraCountMin or 0, zoneCfg.extraCountMax or 2)
+                local eliteChance = (m.clearedCount >= (zoneCfg.eliteClearCount or 3)) and (zoneCfg.eliteChance or 0.18) or 0.0
                 zone.spawnQueue = buildSpawnQueuePack(state, id, zone.room, {
                     count = count,
                     eliteChance = eliteChance,
                     telegraph = false,
-                    baseDelay = 0,
-                    delayJitter = 0
+                    baseDelay = packCfg.baseDelay or 0,
+                    delayJitter = packCfg.delayJitter or 0
                 })
             end
         end
@@ -440,7 +453,8 @@ function mission.update(state, dt)
                     zone.exitChestSpawned = true
                     state.chests = state.chests or {}
                     local wx, wy = world:cellToWorld((zone.room and zone.room.cx) or 1, (zone.room and zone.room.cy) or 1)
-                    table.insert(state.chests, {x = wx, y = wy, w = 26, h = 26, kind = 'stage_exit'})
+                    local size = (defs.chest and defs.chest.exitSize) or 26
+                    table.insert(state.chests, {x = wx, y = wy, w = size, h = size, kind = 'stage_exit'})
                     if state.texts and m.currentZoneId == id then
                         table.insert(state.texts, {x = wx, y = wy - 90, text = "EXTRACTION READY", color = {0.85, 0.95, 1.0}, life = 2.0})
                     end
