@@ -1,34 +1,19 @@
 -- Love2D 主入口，协调状态、渲染与更新循环
 local state = require('state')
-local player = require('player')
 local weapons = require('weapons')
-local projectiles = require('projectiles')
-local enemies = require('enemies')
-local pickups = require('pickups')
-local upgrades = require('upgrades')
-local director = require('director')
 local draw = require('draw')
 local debugmenu = require('debugmenu')
 local augments = require('augments')
 local logger = require('logger')
-local benchmark = require('benchmark')
 local arsenal = require('arsenal')
 local bloom = require('bloom')
 local vfx = require('vfx')
-local rooms = require('rooms')
 local testmode = require('testmode')
 local testScenarios = require('test_scenarios')
-local abilities = require('abilities')
 local pets = require('pets')
-local world = require('world')
-local mission = require('mission')
 local ui = require('ui')
 local hud = require('ui.screens.hud')
-local levelupScreen = require('ui.screens.levelup')
-local shopScreen = require('ui.screens.shop')
-local gameoverScreen = require('ui.screens.gameover')
-local orbiterScreen = require('ui.screens.orbiter')
-local ingameMenu = require('ui.screens.ingame_menu')
+local scenes = require('scenes')
 
 -- Enable new HUD
 draw.useNewHUD = true
@@ -75,199 +60,41 @@ function love.load()
         state.pendingScenarioId = nil
         state.pendingScenarioSeed = nil
     end
+
+    scenes.init(state)
 end
 
 function love.update(dt)
-    -- HUD update
-    if state.gameState == 'PLAYING' then
-        -- Pause game when in-game menu is open
-        if ingameMenu.isActive() then
-            ingameMenu.update(dt)
-            return
-        end
-        hud.update(state, dt)
-    end
-    
-    -- Update UI system
-    ui.update(dt)
-    
-    if state.gameState == 'ARSENAL' then
-        arsenal.update(state, dt)
-        return
-    end
-
-    if bloom and bloom.update then bloom.update(dt) end
-    if bloom and bloom.setParams then
-        local desired = (state.runMode == 'explore') and 0.10 or 0.0
-        if state._vignetteStrength ~= desired then
-            state._vignetteStrength = desired
-            bloom.setParams({vignette_strength = desired})
-        end
-    end
-    
-    -- Room transition fade (must update even in SHOP/LEVEL_UP to avoid permanent black screen)
-    if state.roomTransitionFade and state.roomTransitionFade > 0 then
-        state.roomTransitionFade = state.roomTransitionFade - dt * 3  -- Fade out over ~0.33 seconds
-        if state.roomTransitionFade < 0 then state.roomTransitionFade = 0 end
-    end
-    
-    -- 升级/死亡界面下暂停主循环
-    if state.gameState == 'LEVEL_UP' then
-        if not levelupScreen.isActive() then
-            levelupScreen.init(state)
-        end
-        return
-    end
-    if state.gameState == 'SHOP' then
-        if not shopScreen.isActive() then
-            shopScreen.init(state)
-        end
-        return
-    end
-    if state.gameState == 'ORBITER' then
-        orbiterScreen.update(dt)
-        -- Also update rooms to detect when orbiter exits
-        if state.runMode == 'rooms' then
-            rooms.update(state, dt)
-        end
-        return
-    end
-    if state.gameState == 'GAME_OVER' or state.gameState == 'GAME_CLEAR' then
-        if not gameoverScreen.isActive() then
-             gameoverScreen.init(state)
-        end
-        return
-    end
-
-    -- 逐帧衰减屏幕震动
-    if state.shakeAmount > 0 then
-        state.shakeAmount = math.max(0, state.shakeAmount - dt * 10)
-    end
-
-    -- 全局计时与场景效果
-    state.gameTimer = state.gameTimer + dt
-    -- pickups.updateMagnetSpawns removed
-    if state.updateEffects then state.updateEffects(dt) end
-
-    -- 核心更新顺序：玩家 → 武器 → 子弹 → 刷怪
-    player.updateFiring(state) -- Update attack/aim state
-    player.updateMelee(state, dt) -- Update melee state machine
-    abilities.update(state, dt) -- Update ability cooldowns and energy regen
-    player.updateMovement(state, dt)
-    world.update(state, dt)
-    pets.update(state, dt)
-    if state.augments and state.augments.update then
-        state.augments.update(state, dt)
-    end
-    weapons.update(state, dt)
-    weapons.updateReload(state, dt) -- Tick reload timers
-    projectiles.updatePlayerBullets(state, dt)
-    projectiles.updateEnemyBullets(state, dt)
-    if state.runMode == 'rooms' and not state.testArena and not state.scenarioNoDirector and not state.benchmarkMode then
-        rooms.update(state, dt)
-    elseif state.runMode == 'explore' and not state.testArena and not state.scenarioNoDirector and not state.benchmarkMode then
-        mission.update(state, dt)
-    else
-        director.update(state, dt)
-    end
-    enemies.update(state, dt)
-    -- 根据移动状态控制玩家动画
-    if state.playerAnim then
-        if state.player.isMoving then
-            if not state.playerAnim.playing then state.playerAnim:play(false) end
-            state.playerAnim:update(dt)
-        else
-            if state.playerAnim.playing then state.playerAnim:stop() end
-        end
-    end
-    player.tickInvincibility(state, dt)
-    player.tickRegen(state, dt)
-    player.tickShields(state, dt)
-    pickups.updateGems(state, dt)
-    pickups.updateChests(state, dt)
-    pickups.updateFloorPickups(state, dt)
-    player.tickTexts(state, dt)
-    benchmark.update(state, dt)
+    scenes.sync(state)
+    scenes.update(state, dt)
 end
 
 function love.draw()
-    if state.gameState == 'ARSENAL' then
-        arsenal.draw(state)
-        testmode.draw(state)
-        return
-    end
-    if state.gameState == 'ORBITER' then
-        orbiterScreen.draw()
-        return
-    end
-    
-    bloom.preDraw()
-    -- 渲染世界并叠加调试菜单
-    draw.render(state)
-    bloom.postDraw(state)
-
-    benchmark.draw(state)
-    debugmenu.draw(state)
-    testmode.draw(state)
-    
-    -- Draw UI overlay (on top of everything)
-    ui.draw()
+    scenes.draw(state)
 end
 
 function love.resize(w, h)
-    bloom.resize(w, h)
-    ui.resize(w, h)
+    scenes.resize(state, w, h)
 end
 
 function love.mousemoved(x, y, dx, dy)
-    if state.gameState == 'PLAYING' and ingameMenu.isActive() then
-        ingameMenu.mousemoved(x, y, dx, dy)
-        return
-    end
-    if state.gameState == 'ORBITER' then
-        orbiterScreen.mousemoved(x, y, dx, dy)
-        return  -- Don't also call ui.mousemoved since orbiter uses same core
-    end
-    ui.mousemoved(x, y, dx, dy)
+    scenes.mousemoved(state, x, y, dx, dy)
 end
 
 function love.mousepressed(x, y, button)
-    if state.gameState == 'PLAYING' and ingameMenu.isActive() then
-        ingameMenu.mousepressed(x, y, button)
-        return
-    end
-    if state.gameState == 'ORBITER' then
-        orbiterScreen.mousepressed(x, y, button)
-        return  -- Don't also call ui.mousepressed since orbiter uses same core
-    end
-    if ui.mousepressed(x, y, button) then return end
-    -- Other mouse press handling can go here
+    scenes.mousepressed(state, x, y, button)
 end
 
 function love.mousereleased(x, y, button)
-    if state.gameState == 'PLAYING' and ingameMenu.isActive() then
-        ingameMenu.mousereleased(x, y, button)
-        return
-    end
-    if state.gameState == 'ORBITER' then
-        orbiterScreen.mousereleased(x, y, button)
-        return  -- Don't also call ui.mousereleased since orbiter uses same core
-    end
-    ui.mousereleased(x, y, button)
+    scenes.mousereleased(state, x, y, button)
 end
 
 function love.textinput(text)
-    ui.textinput(text)
+    scenes.textinput(state, text)
 end
 
 function love.wheelmoved(x, y)
-    if state.gameState == 'PLAYING' and ingameMenu.isActive() then
-        if ingameMenu.wheelmoved then
-            ingameMenu.wheelmoved(x, y)
-        end
-        return
-    end
-    ui.wheelmoved(x, y)
+    scenes.wheelmoved(state, x, y)
 end
 
 
@@ -276,66 +103,6 @@ function love.quit()
     if logger.flushIfActive then logger.flushIfActive(state, 'quit') end
 end
 
-local uiDemo = require('ui.demo')
-
-function love.keypressed(key)
-    -- UI Demo toggle (F8)
-    if uiDemo.keypressed(key) then return end
-    -- UI system key handling
-    -- Only process UI input during gameplay to avoid blocking Arsenal/Menu inputs
-    if state.gameState == 'PLAYING' then
-        -- Tab toggles in-game menu
-        if key == 'tab' then
-            ingameMenu.toggle(state)
-            return
-        end
-        
-        -- When menu is open, let it handle all input
-        if ingameMenu.isActive() then
-            if ingameMenu.keypressed(key) then return end
-            return  -- Block all other input while menu is open
-        end
-        
-        if ui.keypressed(key) then return end
-        
-        -- Press ESC to pause/return to Arsenal
-        if key == 'escape' then
-            -- Reset game state so Arsenal changes can be applied properly
-            state.init()
-            arsenal.init(state)
-            state.gameState = 'ARSENAL'
-            arsenal.show(state)
-            return
-        end
-    end
-    
-    if testmode.keypressed(state, key) then return end
-    if state.gameState == 'ARSENAL' then
-        if arsenal.keypressed(state, key) then return end
-        return
-    end
-
-    if state.gameState == 'SHOP' then
-        if shopScreen.keypressed(key) then return end
-        return
-    end
-    if state.gameState == 'ORBITER' then
-        if orbiterScreen.keypressed(key) then return end
-        return
-    end
-    if state.gameState == 'GAME_OVER' or state.gameState == 'GAME_CLEAR' then
-        if gameoverScreen.keypressed(key) then return end
-        return
-    end
-    if key == 'f5' then benchmark.toggle(state) end
-    if key == 'v' then vfx.toggle() end
-
-    if player.keypressed and player.keypressed(state, key) then return end
-
-    -- 等级界面：按数字选择升级
-    if debugmenu.keypressed(state, key) then return end
-    if state.gameState == 'LEVEL_UP' then
-        if levelupScreen.keypressed(key) then return end
-        return
-    end
+function love.keypressed(key, scancode, isrepeat)
+    scenes.keypressed(state, key, scancode, isrepeat)
 end
