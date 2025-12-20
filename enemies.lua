@@ -2,11 +2,14 @@ local player = require('player')
 local enemyDefs = require('data.defs.enemies')
 local logger = require('logger')
 local pets = require('pets')
+local dropRates = require('data.defs.drop_rates')
 
 local enemies = {}
 
 local SHIELD_REGEN_DELAY = 2.5
 local SHIELD_REGEN_RATE = 0.25 -- fraction of max shield per second
+
+local enemyDropDefs = (dropRates and dropRates.enemy) or {}
 
 local _calculator = nil
 local function getCalculator()
@@ -2261,25 +2264,30 @@ function enemies.update(state, dt)
                             -- WF drop rates: very low base, slight pity boost when critical
                             -- Normal: health 3%, energy 2%, ammo 3%
                             -- Pity (low resources): health 6%, energy 5%, ammo 5%
-                            local healthChance = (hRatio < 0.3) and 0.06 or 0.03
-                            local energyChance = (eRatio < 0.25) and 0.05 or 0.02
-                            local ammoChance = 0.03
+                            local drop = enemyDropDefs
+                            local pity = drop.pity or {}
+                            local healthChance = (hRatio < (pity.hpThreshold or 0.3)) and (pity.healthLow or 0.06) or (pity.health or 0.03)
+                            local energyChance = (eRatio < (pity.energyThreshold or 0.25)) and (pity.energyLow or 0.05) or (pity.energy or 0.02)
+                            local ammoChance = drop.ammoChance or 0.03
+                            local exploreDef = drop.explore or {}
+                            local eliteDef = exploreDef.elite or {}
+                            local normalDef = exploreDef.normal or {}
                             
                             if e.isElite then
                                 -- Elite drops: higher but not guaranteed (WF eximus style)
-                                if math.random() < 0.20 then
+                                if math.random() < (eliteDef.healthOrb or 0.20) then
                                     table.insert(state.floorPickups, {x=e.x + 15, y=e.y, size=12, kind='health_orb', amount=25})
                                 end
-                                if math.random() < 0.15 then
+                                if math.random() < (eliteDef.energyOrb or 0.15) then
                                     table.insert(state.floorPickups, {x=e.x - 15, y=e.y, size=12, kind='energy_orb', amount=35})
                                 end
-                                if math.random() < 0.12 then
+                                if math.random() < (eliteDef.ammo or 0.12) then
                                     table.insert(state.floorPickups, {x=e.x, y=e.y + 15, size=12, kind='ammo', amount=30})
                                 end
                                 -- Pet module chip
                                 local pet = pets.getActive(state)
                                 if pet and not pet.downed and (pet.module or 'default') == 'default' then
-                                    if math.random() < 0.15 then
+                                    if math.random() < (eliteDef.petModule or 0.15) then
                                         table.insert(state.floorPickups, {x = e.x + 26, y = e.y + 8, size = 14, kind = 'pet_module_chip'})
                                     end
                                 end
@@ -2297,20 +2305,26 @@ function enemies.update(state, dt)
                             end
                             
                             -- MOD DROP for exploreMode (floor pickup)
-                            local modDropChance = e.isElite and 0.80 or 0.25
+                            local modDropChance = e.isElite and (eliteDef.modDrop or 0.80) or (normalDef.modDrop or 0.25)
                             if math.random() < modDropChance then
                                 table.insert(state.floorPickups, {
                                     x = e.x,
                                     y = e.y,
                                     size = 12,
                                     kind = 'mod_card',
-                                    bonusRareChance = e.isElite and 0.5 or 0
+                                    bonusRareChance = e.isElite and (eliteDef.bonusRare or 0.5) or 0
                                 })
                             end
                         else
                             local roomsMode = (state.runMode == 'rooms')
                             -- WF-style drops: health orb, energy orb, resources, rare MOD
                             state.floorPickups = state.floorPickups or {}  -- IMPORTANT: Ensure floorPickups is initialized!
+                            local drop = enemyDropDefs
+                            local pity = drop.pity or {}
+                            local ammoChance = drop.ammoChance or 0.03
+                            local roomsDef = drop.rooms or {}
+                            local eliteDef = roomsDef.elite or {}
+                            local normalDef = roomsDef.normal or {}
                             
                             if e.isElite then
                                 -- Elite drops: WF eximus style (higher but not guaranteed)
@@ -2323,21 +2337,21 @@ function enemies.update(state, dt)
                                 end
                                 
                                 -- Health orb (20% chance - WF style)
-                                if math.random() < 0.20 then
+                                if math.random() < (eliteDef.healthOrb or 0.20) then
                                     table.insert(state.floorPickups, {x=e.x + 15, y=e.y, size=12, kind='health_orb'})
                                 end
                                 -- Energy orb (15% chance - WF style)
-                                if math.random() < 0.15 then
+                                if math.random() < (eliteDef.energyOrb or 0.15) then
                                     table.insert(state.floorPickups, {x=e.x - 15, y=e.y, size=12, kind='energy_orb'})
                                 end
                                 -- MOD drop (lower rate - 40% for elite)
-                                if math.random() < 0.40 then
+                                if math.random() < (eliteDef.modDrop or 0.40) then
                                     table.insert(state.floorPickups, {
                                         x = e.x,
                                         y = e.y,
                                         size = 12,
                                         kind = 'mod_card',
-                                        bonusRareChance = 0.5
+                                        bonusRareChance = eliteDef.bonusRare or 0.5
                                     })
                                 end
                             else
@@ -2347,10 +2361,9 @@ function enemies.update(state, dt)
                                 local hRatio = (p and p.hp or 0) / (p and p.maxHp or 100)
                                 
                                 -- WF drop rates: very low base, slight pity boost
-                                local healthChance = (hRatio < 0.3) and 0.06 or 0.03
-                                local energyChance = (eRatio < 0.25) and 0.05 or 0.02
-                                local ammoChance = 0.03
-                                local creditChance = 0.08
+                                local healthChance = (hRatio < (pity.hpThreshold or 0.3)) and (pity.healthLow or 0.06) or (pity.health or 0.03)
+                                local energyChance = (eRatio < (pity.energyThreshold or 0.25)) and (pity.energyLow or 0.05) or (pity.energy or 0.02)
+                                local creditChance = normalDef.credit or 0.08
 
                                 local roll = math.random()
                                 if roll < healthChance then
@@ -2373,7 +2386,7 @@ function enemies.update(state, dt)
                                     table.insert(state.floorPickups, {x=e.x + 5, y=e.y - 5, size=10, kind='ammo'})
                                 end
                                 -- Normal enemy MOD drop (25% chance - DEBUG HIGH RATE)
-                                if math.random() < 0.25 then
+                                if math.random() < (normalDef.modDrop or 0.25) then
                                     table.insert(state.floorPickups, {
                                         x = e.x,
                                         y = e.y,

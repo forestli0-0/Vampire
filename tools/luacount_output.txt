@@ -4,7 +4,6 @@ C:\Users\15291\Desktop\Vampire\ui\screens\gameover.lua: 176 / 28 / 18
 C:\Users\15291\Desktop\Vampire\ui\screens\hud.lua: 594 / 76 / 60
 C:\Users\15291\Desktop\Vampire\ui\screens\ingame_menu.lua: 802 / 124 / 65
 C:\Users\15291\Desktop\Vampire\ui\screens\levelup.lua: 348 / 55 / 37
-C:\Users\15291\Desktop\Vampire\ui\screens\orbiter.lua: 924 / 133 / 58
 C:\Users\15291\Desktop\Vampire\ui\screens\shop.lua: 366 / 66 / 37
 C:\Users\15291\Desktop\Vampire\ui\widgets\bar.lua: 331 / 60 / 41
 C:\Users\15291\Desktop\Vampire\ui\widgets\button.lua: 235 / 45 / 36
