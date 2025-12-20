@@ -1,10 +1,10 @@
 local ui = require('ui')
 local theme = require('ui.theme')
 local scaling = require('ui.scaling')
+local hudModel = require('ui.hud_model')
 
 local hud = {}
 local root = nil
-local state = nil
 
 -- References to active widgets for updating
 local widgets = {
@@ -65,12 +65,13 @@ local HUD_LABEL_COLOR = {0.7, 0.75, 0.85, 0.85}
 -- Builders
 -------------------------------------------
 
-local function buildPlayerFrame(gameState, parent)
+local function buildPlayerFrame(data, parent)
     local x, y = LAYOUT.playerX, LAYOUT.playerY
     
     -- Name / Level
-    local name = gameState.player and gameState.player.class or "Tenno"
-    local level = gameState.player and gameState.player.level or 1
+    local p = data.player or {}
+    local name = p.class or "Tenno"
+    local level = p.level or 1
     
     local nameText = ui.Text.new({
         x = x, y = y,
@@ -221,7 +222,7 @@ local function buildPlayerFrame(gameState, parent)
     parent:addChild(widgets.goldText)
 end
 
-local function buildCombatFrame(gameState, parent)
+local function buildCombatFrame(parent)
     local endX = LAYOUT.combatX
     local endY = LAYOUT.combatY
     
@@ -365,7 +366,7 @@ local function buildCombatFrame(gameState, parent)
     end
 end
 
-local function buildObjectiveFrame(gameState, parent)
+local function buildObjectiveFrame(parent)
     -- Objective panel below the wave/room info (draw.lua shows room at Y=40)
     local panelW = 320
     local panelH = 20
@@ -398,8 +399,6 @@ function hud.init(gameState)
 end
 
 function hud.rebuild(gameState)
-    state = gameState
-    
     root = ui.Widget.new({x = 0, y = 0, w = 640, h = 360})
     root.transparent = true 
     
@@ -409,118 +408,99 @@ function hud.rebuild(gameState)
         return false
     end 
     
-    buildPlayerFrame(gameState, root)
-    buildCombatFrame(gameState, root)
-    buildObjectiveFrame(gameState, root)
+    local data = hudModel.build(gameState)
+    buildPlayerFrame(data, root)
+    buildCombatFrame(root)
+    buildObjectiveFrame(root)
     
     ui.core.setRoot(root)
 end
 
 function hud.update(gameState, dt)
     if not root then return end
-    
-    if gameState.player then
-        local p = gameState.player
-        local stats = p.stats or {}
-        
+    local data = hudModel.build(gameState)
+
+    if gameState and gameState.player then
+        local p = data.player or {}
+
         -- HP/Shield/XP/Energy
         if widgets.hpBar then
             widgets.hpBar.value = p.hp or 0
-            -- Use p.maxHp as fallback if stats.maxHp is not defined
-            widgets.hpBar.maxValue = stats.maxHp or p.maxHp or 100
+            widgets.hpBar.maxValue = p.maxHp or 100
         end
         if widgets.hpText then
             local cur = math.floor(p.hp or 0)
-            local max = math.floor(stats.maxHp or p.maxHp or 100)
+            local max = math.floor(p.maxHp or 100)
             widgets.hpText:setText(string.format("%d/%d", cur, max))
         end
         if widgets.shieldBar then
             widgets.shieldBar.value = p.shield or 0
-            widgets.shieldBar.maxValue = stats.maxShield or p.maxShield or 100
+            widgets.shieldBar.maxValue = p.maxShield or 100
         end
         if widgets.shieldText then
             local cur = math.floor(p.shield or 0)
-            local max = math.floor(stats.maxShield or p.maxShield or 100)
+            local max = math.floor(p.maxShield or 100)
             widgets.shieldText:setText(string.format("%d/%d", cur, max))
         end
         if widgets.xpBar then
             widgets.xpBar.value = p.xp or 0
-            widgets.xpBar.maxValue = p.xpToNextLevel or 100
+            widgets.xpBar.maxValue = p.xpToNext or 100
         end
         if widgets.xpText then
             local cur = math.floor(p.xp or 0)
-            local max = math.floor(p.xpToNextLevel or 100)
+            local max = math.floor(p.xpToNext or 100)
             widgets.xpText:setText(string.format("%d/%d", cur, max))
         end
         if widgets.energyBar then
             widgets.energyBar.value = p.energy or 0
-            widgets.energyBar.maxValue = stats.maxEnergy or p.maxEnergy or 100
+            widgets.energyBar.maxValue = p.maxEnergy or 100
         end
         if widgets.energyText then
             local cur = math.floor(p.energy or 0)
-            local max = math.floor(stats.maxEnergy or p.maxEnergy or 100)
+            local max = math.floor(p.maxEnergy or 100)
             widgets.energyText:setText(string.format("%d/%d", cur, max))
         end
-        
+
         -- Level Text
         if widgets.levelText then
             widgets.levelText:setText(string.upper(p.class or "Tenno") .. " Lv" .. tostring(p.level or 1))
         end
-        
+
         -- Gold
         if widgets.goldText then
-            widgets.goldText:setText(string.format("GOLD %d", math.floor(gameState.runCurrency or 0)))
+            widgets.goldText:setText(string.format("GOLD %d", data.resources.gold or 0))
         end
-        
+
         -- Dash
         if widgets.dashBar then
-            local dash = p.dash or {}
-            local max = (stats and stats.dashCharges) or dash.maxCharges or 3
-            local current = dash.charges or 0
-            if current < max then
-                -- Show recharge progress for next charge
-                local cd = (stats and stats.dashCooldown) or 1
-                local t = dash.rechargeTimer or 0
-                local ratio = 1 - (t / cd) -- Timer counts down usually? Or up?
-                -- draw.lua 1476: t = dash.rechargeTimer. ratio = t/cd.
-                
-                -- Recharge timer counts UP from 0 to cd (see player.tickDashRecharge)
-                local ratio = t / cd
-
-                -- Map to partial bar? Complex. Just show total %?
-                -- Let's show current charges as chunks? Bar widget doesn't support chunks yet.
-                -- Just show total fill.
-                local totalVal = current + ratio
-                widgets.dashBar.value = totalVal
-                widgets.dashBar.maxValue = max
-            else
-                widgets.dashBar.value = max
-                widgets.dashBar.maxValue = max
-            end
+            local dash = data.dash or {}
+            widgets.dashBar.value = dash.totalValue or 0
+            widgets.dashBar.maxValue = dash.max or 0
             if widgets.dashValue then
-                widgets.dashValue:setText(string.format("%d/%d", current, max))
+                widgets.dashValue:setText(string.format("%d/%d", dash.current or 0, dash.max or 0))
             end
         end
-        
+
         -- Static Charge Bar (Volt only)
         if widgets.staticChargeBar and widgets.staticChargeText then
-            if p.class == 'volt' then
+            local static = data.staticCharge or {}
+            if static.enabled then
                 widgets.staticChargeBar.visible = true
                 widgets.staticChargeText.visible = true
                 if widgets.staticChargeValue then
                     widgets.staticChargeValue.visible = true
                 end
-                widgets.staticChargeBar.value = p.staticCharge or 0
-                widgets.staticChargeBar.maxValue = 100
-                
+                widgets.staticChargeBar.value = static.current or 0
+                widgets.staticChargeBar.maxValue = static.max or 100
+
                 -- Color changes based on charge level
-                local charge = p.staticCharge or 0
+                local charge = static.current or 0
                 if charge >= 80 then
-                    widgets.staticChargeBar.fillColor = {0.6, 1, 1, 1}  -- Bright cyan when near full
+                    widgets.staticChargeBar.fillColor = {0.6, 1, 1, 1}
                 elseif charge >= 40 then
-                    widgets.staticChargeBar.fillColor = {0.4, 0.8, 1, 1}  -- Normal blue
+                    widgets.staticChargeBar.fillColor = {0.4, 0.8, 1, 1}
                 else
-                    widgets.staticChargeBar.fillColor = {0.3, 0.5, 0.8, 0.8}  -- Dim when low
+                    widgets.staticChargeBar.fillColor = {0.3, 0.5, 0.8, 0.8}
                 end
                 if widgets.staticChargeValue then
                     widgets.staticChargeValue:setText(string.format("%d/100", math.floor(charge)))
@@ -533,126 +513,101 @@ function hud.update(gameState, dt)
                 end
             end
         end
-        
+
         -- Ability Slots (updated for index 1-4, WF-style no-CD system)
-        local abilitiesLib = require('abilities')
         for i, slot in pairs(widgets.abilitySlots) do
-            local def = abilitiesLib.getAbilityDef(gameState, i)
-            local cd = p.abilityCooldowns and p.abilityCooldowns[i] or 0
-            local canUse = abilitiesLib.canUse(gameState, i)
-            
-            -- WF-style: most abilities have no CD, check explicit CD only
-            if def and def.cd and def.cd > 0 and cd > 0 then
-                slot.cooldownRatio = math.max(0, math.min(1, cd / def.cd))
-            else
-                slot.cooldownRatio = 0  -- No CD overlay for WF-style abilities
-            end
-            
-            -- Color based on canUse (energy-based, not CD-based)
-            if canUse then
+            local ability = data.abilities and data.abilities[i] or nil
+            slot.cooldownRatio = ability and ability.cooldownRatio or 0
+            if ability and ability.canUse then
                 slot.iconColor = {1, 1, 1, 1}
             else
                 slot.iconColor = {0.5, 0.5, 0.5, 0.5}
             end
         end
-        
+
         -- Weapon Slots
-        local inv = gameState.inventory or {}
-        local activeSlot = inv.activeSlot or 'ranged'
-        
+        local weaponData = data.weapons or {}
         for i, slotData in pairs(widgets.weaponSlots) do
-            local slotKey = 'ranged'
-            if i == 2 then slotKey = 'melee' end
-            if i == 3 then slotKey = 'extra' end
-            
-            local isActive = (slotKey == activeSlot)
-            
-            -- Highlight active
-            if isActive then
-                slotData.panel.borderColor = {0.3, 0.6, 0.9, 1}
-                slotData.panel.bgColor = {0.2, 0.3, 0.5, 0.8}
+            local slot = weaponData.slots and weaponData.slots[i] or nil
+            if not slot then
+                slotData.name:setText("Empty")
+                slotData.ammo:setText("")
+                if slotData.reserve then
+                    slotData.reserve:setText("")
+                end
+                if slotData.reloadBar then
+                    slotData.reloadBar.visible = false
+                end
+                if slotData.reloadText then
+                    slotData.reloadText.visible = false
+                end
             else
-                slotData.panel.borderColor = {0.3, 0.3, 0.3, 1}
-                slotData.panel.bgColor = {0.1, 0.1, 0.1, 0.6}
-            end
-            
-            -- Update Info
-            local weaponInst = inv.weaponSlots and inv.weaponSlots[slotKey]
-            local weaponData = nil
-            if weaponInst and inv.weapons then
-                weaponData = inv.weapons[weaponInst.key]
-            end
-            
-            if weaponInst then
-                local def = gameState.catalog and gameState.catalog[weaponInst.key]
-                slotData.name:setText(def and def.name or weaponInst.key)
-                
-                -- Check reload state from the actual weapon data
-                local isReloading = weaponData and weaponData.isReloading
-                local reloadTimer = weaponData and weaponData.reloadTimer or 0
-                local reloadTime = (weaponData and weaponData.reloadTime) or (def and def.base and def.base.reloadTime) or 1.5
-                
-                if isReloading and slotData.reloadBar then
-                    -- Show reload progress
-                    local progress = 1 - (reloadTimer / reloadTime)
-                    slotData.reloadBar.value = progress * 100
-                    slotData.reloadBar.maxValue = 100
-                    slotData.reloadBar.visible = true
-                    if slotData.reloadText then
-                        slotData.reloadText.visible = true
-                    end
-                    -- Dim the ammo text
-                    slotData.ammo.color = {0.5, 0.5, 0.5, 0.6}
+                if slot.isActive then
+                    slotData.panel.borderColor = {0.3, 0.6, 0.9, 1}
+                    slotData.panel.bgColor = {0.2, 0.3, 0.5, 0.8}
                 else
+                    slotData.panel.borderColor = {0.3, 0.3, 0.3, 1}
+                    slotData.panel.bgColor = {0.1, 0.1, 0.1, 0.6}
+                end
+
+                if slot.hasWeapon then
+                    slotData.name:setText(slot.name or "")
+
+                    if slot.isReloading and slotData.reloadBar then
+                        local progress = slot.reloadProgress or 0
+                        slotData.reloadBar.value = progress * 100
+                        slotData.reloadBar.maxValue = 100
+                        slotData.reloadBar.visible = true
+                        if slotData.reloadText then
+                            slotData.reloadText.visible = true
+                        end
+                        slotData.ammo.color = {0.5, 0.5, 0.5, 0.6}
+                    else
+                        if slotData.reloadBar then
+                            slotData.reloadBar.visible = false
+                        end
+                        if slotData.reloadText then
+                            slotData.reloadText.visible = false
+                        end
+                        slotData.ammo.color = theme.colors.text_dim
+                    end
+
+                    if slot.ammoInfinite then
+                        slotData.ammo:setText("∞")
+                        if slotData.reserve then
+                            slotData.reserve:setText("")
+                        end
+                    else
+                        local mag = slot.mag or 0
+                        local maxMag = slot.maxMag or mag
+                        slotData.ammo:setText(string.format("%d / %d", mag, maxMag))
+                        if slotData.reserve then
+                            slotData.reserve:setText(string.format("%d", slot.reserve or 0))
+                        end
+                    end
+                else
+                    slotData.name:setText("Empty")
+                    slotData.ammo:setText("")
+                    if slotData.reserve then
+                        slotData.reserve:setText("")
+                    end
                     if slotData.reloadBar then
                         slotData.reloadBar.visible = false
                     end
                     if slotData.reloadText then
                         slotData.reloadText.visible = false
                     end
-                    slotData.ammo.color = theme.colors.text_dim
                 end
-                
-                -- Ammo: Magazine on first line, Reserve below
-                local mag = weaponData and weaponData.magazine
-                local maxMag = (weaponData and weaponData.maxMagazine) or (def and def.base and def.base.maxMagazine)
-                local reserve = weaponData and weaponData.reserve
-                
-                if mag then
-                    slotData.ammo:setText(string.format("%d / %d", mag, maxMag or mag))
-                    if slotData.reserve then
-                        slotData.reserve:setText(string.format("%d", reserve or 0))
-                    end
-                else
-                    slotData.ammo:setText("∞")
-                    if slotData.reserve then
-                        slotData.reserve:setText("")
-                    end
-                end
-            else
-                 slotData.name:setText("Empty")
-                 slotData.ammo:setText("")
-                 if slotData.reserve then
-                     slotData.reserve:setText("")
-                 end
-                 if slotData.reloadBar then
-                     slotData.reloadBar.visible = false
-                 end
-                 if slotData.reloadText then
-                     slotData.reloadText.visible = false
-                 end
             end
         end
     end
     
     -- Mission Objective (based on rooms mode mission type)
     if widgets.objectiveText and widgets.objectivePanel then
-        local r = gameState.rooms or {}
-        local missionType = r.missionType or 'exterminate'
-        local phase = r.phase or 'init'
-        
-        -- Only show objective during active gameplay phases
-        if phase == 'doors' or phase == 'between_rooms' or phase == 'init' then
+        local obj = data.objective or {}
+        local missionType = obj.missionType or 'exterminate'
+
+        if not obj.visible then
             widgets.objectivePanel.visible = false
         else
             widgets.objectivePanel.visible = true
@@ -661,26 +616,18 @@ function hud.update(gameState, dt)
             local objColor = {1, 1, 1, 0.9}
             
             if missionType == 'exterminate' then
-                local alive = 0
-                for _, e in ipairs(gameState.enemies or {}) do
-                    if e and (e.health or e.hp or 0) > 0 and not e.isDummy then
-                        alive = alive + 1
-                    end
-                end
-                objText = string.format("歼灭: 消灭所有敌人 (%d)", alive)
+                objText = string.format("歼灭: 消灭所有敌人 (%d)", obj.alive or 0)
                 objColor = {1.0, 0.6, 0.5, 1}
             elseif missionType == 'defense' then
-                local obj = r.defenseObjective
-                if obj then
-                    local hpPct = math.floor((obj.hp / obj.maxHp) * 100)
-                    objText = string.format("防御: 保护目标 (HP: %d%%)", hpPct)
+                if obj.defenseHasObjective and obj.defenseHpPct then
+                    objText = string.format("防御: 保护目标 (HP: %d%%)", obj.defenseHpPct)
                 else
                     objText = "防御: 保护目标"
                 end
                 objColor = {0.5, 0.85, 1.0, 1}
             elseif missionType == 'survival' then
-                local remaining = math.max(0, (r.survivalTarget or 60) - (r.survivalTimer or 0))
-                local lifeSupport = r.lifeSupport or 100
+                local remaining = obj.survivalRemaining or 0
+                local lifeSupport = obj.lifeSupport or 100
                 objText = string.format("生存: %d秒 | 生命支援: %.0f%%", math.ceil(remaining), lifeSupport)
                 objColor = {0.5, 1.0, 0.6, 1}
             end
