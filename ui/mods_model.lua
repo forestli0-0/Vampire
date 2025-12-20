@@ -4,11 +4,26 @@ local model = {}
 
 local STAT_ABBREVS = {
     maxHp = "HP", armor = "AR", maxShield = "SH", maxEnergy = "EN",
-    speed = "SP", abilityStrength = "STR", abilityEfficiency = "EFF",
+    moveSpeed = "MOV", speed = "SP", abilityStrength = "STR", abilityEfficiency = "EFF",
     abilityDuration = "DUR", abilityRange = "RNG", energyRegen = "REG",
     damage = "DMG", critChance = "CC", critMult = "CD", fireRate = "FR",
     multishot = "MS", statusChance = "SC", magSize = "MAG", reloadSpeed = "RLD",
-    meleeDamage = "MEL", healthLink = "HLK", armorLink = "ALK"
+    meleeDamage = "MEL", healthLink = "HLK", armorLink = "ALK",
+    dashCooldown = "DCD", dashDistance = "DST", dashInvincible = "IFR",
+    range = "RNG", pierce = "PRC", element = "ELM"
+}
+
+local ELEMENT_ABBREVS = {
+    HEAT = "HT",
+    COLD = "CL",
+    ELECTRIC = "EL",
+    TOXIN = "TX",
+    MAGNETIC = "MG",
+    CORROSIVE = "CR",
+    VIRAL = "VI",
+    BLAST = "BL",
+    GAS = "GS",
+    RADIATION = "RD"
 }
 
 function model.getColor(rarity)
@@ -52,7 +67,11 @@ end
 function model.getStatAbbrev(category, modKey)
     local catalog = category and mods.getCatalog(category)
     if catalog and catalog[modKey] then
-        local stat = catalog[modKey].stat
+        local def = catalog[modKey]
+        local stat = def.stat
+        if stat == 'element' and def.element then
+            return ELEMENT_ABBREVS[def.element] or STAT_ABBREVS[stat] or "+"
+        end
         return STAT_ABBREVS[stat] or "+"
     end
     return "+"

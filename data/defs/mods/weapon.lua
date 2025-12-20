@@ -53,6 +53,30 @@ local catalog = {
         weaponType = 'ranged',
         cost = {4,5,6,7,8,9}, value = {0.10,0.20,0.30,0.40,0.50,0.60}
     },
+    hellfire = {
+        name = "炽焰弹头", desc = "火焰伤害",
+        stat = 'element', type = 'add',
+        element = 'HEAT',
+        cost = {4,5,6,7,8,9}, value = {0.15,0.30,0.45,0.60,0.75,0.90}
+    },
+    cryo_rounds = {
+        name = "寒霜弹头", desc = "冰冻伤害",
+        stat = 'element', type = 'add',
+        element = 'COLD',
+        cost = {4,5,6,7,8,9}, value = {0.15,0.30,0.45,0.60,0.75,0.90}
+    },
+    stormbringer = {
+        name = "风暴使者", desc = "电击伤害",
+        stat = 'element', type = 'add',
+        element = 'ELECTRIC',
+        cost = {4,5,6,7,8,9}, value = {0.15,0.30,0.45,0.60,0.75,0.90}
+    },
+    infected_clip = {
+        name = "感染弹匣", desc = "毒素伤害",
+        stat = 'element', type = 'add',
+        element = 'TOXIN',
+        cost = {4,5,6,7,8,9}, value = {0.15,0.30,0.45,0.60,0.75,0.90}
+    },
     pressure_point = {
         name = "压力点", desc = "近战伤害",
         stat = 'damage', type = 'mult',
@@ -76,6 +100,44 @@ local catalog = {
         stat = 'bloom', type = 'mult',
         weaponType = 'ranged',
         cost = {4,5,6,7,8,9}, value = {0.10, 0.20, 0.30, 0.40, 0.50, 0.60}
+    },
+    eagle_eye = {
+        name = "鹰眼", desc = "射程",
+        stat = 'range', type = 'mult',
+        weaponType = 'ranged',
+        cost = {3,4,5,6,7,8}, value = {0.10,0.20,0.30,0.40,0.50,0.60}
+    },
+    terminal_velocity = {
+        name = "终端速度", desc = "弹速",
+        stat = 'speed', type = 'mult',
+        weaponType = 'ranged',
+        cost = {3,4,5,6,7,8}, value = {0.10,0.20,0.30,0.40,0.50,0.60}
+    },
+    reach = {
+        name = "延伸", desc = "近战范围",
+        stat = 'range', type = 'mult',
+        weaponType = 'melee',
+        cost = {4,5,6,7,8,9}, value = {0.10,0.20,0.30,0.40,0.50,0.60}
+    },
+    vile_acceleration = {
+        name = "恶性加速", desc = "射速↑ 伤害↓",
+        stat = 'fireRate', type = 'mult',
+        weaponType = 'ranged',
+        cost = {6,7,8,9,10,11}, value = {0.10,0.20,0.30,0.40,0.50,0.60},
+        stats = {
+            {stat = 'fireRate', type = 'mult', value = {0.10,0.20,0.30,0.40,0.50,0.60}},
+            {stat = 'damage', type = 'mult', value = {-0.04,-0.08,-0.12,-0.16,-0.20,-0.24}}
+        }
+    },
+    shred = {
+        name = "撕裂", desc = "穿透↑ 射速↑",
+        stat = 'pierce', type = 'add',
+        weaponType = 'ranged',
+        cost = {5,6,7,8,9,10}, value = {1,1,2,2,3,3},
+        stats = {
+            {stat = 'pierce', type = 'add', value = {1,1,2,2,3,3}},
+            {stat = 'fireRate', type = 'mult', value = {0.05,0.10,0.15,0.20,0.25,0.30}}
+        }
     }
 }
 

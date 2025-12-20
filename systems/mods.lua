@@ -165,28 +165,90 @@ end
 -- APPLY BONUSES
 -- =============================================================================
 
+local function getRankValue(value, rank)
+    if type(value) == 'table' then
+        return value[rank + 1] or 0
+    end
+    return value or 0
+end
+
+local function buildOrderedSlots(slots)
+    if type(slots) ~= 'table' then return {} end
+    local ordered = {}
+    local hasNumeric = false
+    for k, _ in pairs(slots) do
+        if type(k) == 'number' then
+            hasNumeric = true
+            break
+        end
+    end
+    if hasNumeric then
+        for i = 1, MAX_SLOTS do
+            local mod = slots[i]
+            if mod then table.insert(ordered, mod) end
+        end
+    else
+        for _, mod in pairs(slots) do
+            table.insert(ordered, mod)
+        end
+    end
+    return ordered
+end
+
 -- Apply mods to stats
 function mods.applyToStats(baseStats, slots, catalog)
     local stats = {}
     for k, v in pairs(baseStats or {}) do
-        stats[k] = v
+        if k ~= '_elementBonuses' and k ~= '_elementBonusOrder' then
+            stats[k] = v
+        end
     end
+    stats._elementBonuses = nil
+    stats._elementBonusOrder = nil
     
     local multBonuses = {}
     local addBonuses = {}
+    local elementBonuses = nil
+    local elementOrder = nil
+
+    local function addElementBonus(element, bonus)
+        if not element or not bonus or bonus == 0 then return end
+        local key = string.upper(element)
+        elementBonuses = elementBonuses or {}
+        elementBonuses[key] = (elementBonuses[key] or 0) + bonus
+        elementOrder = elementOrder or {}
+        table.insert(elementOrder, {element = key, bonus = bonus})
+    end
     
-    for _, mod in pairs(slots or {}) do
+    local function applyEntry(entry, rank, def)
+        if not entry then return end
+        local stat = entry.stat
+        local kind = entry.type or (def and def.type)
+        local element = entry.element or (def and def.element)
+        local bonus = getRankValue(entry.value, rank)
+        if stat == 'element' or element then
+            addElementBonus(element, bonus)
+            return
+        end
+        if not stat then return end
+        if kind == 'mult' then
+            multBonuses[stat] = (multBonuses[stat] or 0) + bonus
+        else
+            addBonuses[stat] = (addBonuses[stat] or 0) + bonus
+        end
+    end
+    
+    for _, mod in ipairs(buildOrderedSlots(slots or {})) do
         if mod and mod.key then
             local def = catalog[mod.key]
-            if def and def.value then
+            if def then
                 local rank = math.max(0, math.min(5, mod.rank or 0))
-                local bonus = def.value[rank + 1] or 0
-                local stat = def.stat
-                
-                if def.type == 'mult' then
-                    multBonuses[stat] = (multBonuses[stat] or 0) + bonus
-                else
-                    addBonuses[stat] = (addBonuses[stat] or 0) + bonus
+                if def.stats then
+                    for _, entry in ipairs(def.stats) do
+                        applyEntry(entry, rank, def)
+                    end
+                elseif def.value and def.stat then
+                    applyEntry(def, rank, def)
                 end
             end
         end
@@ -205,8 +267,128 @@ function mods.applyToStats(baseStats, slots, catalog)
     for stat, bonus in pairs(addBonuses) do
         stats[stat] = (stats[stat] or 0) + bonus
     end
+
+    if stats._elementBaseDamage ~= nil then
+        local dmgMult = multBonuses.damage or 0
+        if dmgMult ~= 0 then
+            stats._elementBaseDamage = stats._elementBaseDamage * (1 + dmgMult)
+        end
+        local dmgAdd = addBonuses.damage or 0
+        if dmgAdd ~= 0 then
+            stats._elementBaseDamage = stats._elementBaseDamage + dmgAdd
+        end
+    end
+
+    if elementBonuses and next(elementBonuses) ~= nil then
+        stats._elementBonuses = elementBonuses
+        stats._elementBonusOrder = elementOrder or {}
+    end
     
     return stats
+end
+
+local function applyElementBonusesToWeaponStats(stats)
+    if not stats or not stats._elementBonuses or next(stats._elementBonuses) == nil then
+        return
+    end
+
+    local totalMap = {}
+    if stats._elementBonusTotal then
+        for elem, bonus in pairs(stats._elementBonusTotal) do
+            totalMap[elem] = (totalMap[elem] or 0) + bonus
+        end
+    end
+    for elem, bonus in pairs(stats._elementBonuses) do
+        local key = string.upper(elem)
+        totalMap[key] = (totalMap[key] or 0) + bonus
+    end
+
+    local orderTotal = stats._elementBonusOrderTotal or {}
+    local orderSet = {}
+    for _, elem in ipairs(orderTotal) do orderSet[elem] = true end
+    for _, entry in ipairs(stats._elementBonusOrder or {}) do
+        local key = string.upper(entry.element)
+        if not orderSet[key] then
+            table.insert(orderTotal, key)
+            orderSet[key] = true
+        end
+    end
+    stats._elementBonusOrderTotal = orderTotal
+
+    local baseElements = stats._elementBaseElements
+    local baseBreakdown = stats._elementBaseBreakdown
+    local baseWeightSum = stats._elementBaseWeightSum
+
+    if not baseElements then
+        baseElements = {}
+        for _, e in ipairs(stats.elements or {}) do
+            table.insert(baseElements, string.upper(e))
+        end
+        baseBreakdown = {}
+        for k, v in pairs(stats.damageBreakdown or {}) do
+            baseBreakdown[string.upper(k)] = v
+        end
+        baseWeightSum = 0
+        for _, e in ipairs(baseElements) do
+            local w = baseBreakdown[e]
+            if w == nil then w = 1 end
+            if w < 0 then w = 0 end
+            baseWeightSum = baseWeightSum + w
+        end
+        if baseWeightSum <= 0 then baseWeightSum = 1 end
+        stats._elementBaseElements = baseElements
+        stats._elementBaseBreakdown = baseBreakdown
+        stats._elementBaseWeightSum = baseWeightSum
+        if stats._elementBaseDamage == nil then
+            stats._elementBaseDamage = stats.damage or 0
+        end
+    end
+
+    local baseDamage = stats._elementBaseDamage or stats.damage or 0
+    local baseElementSet = {}
+    for _, e in ipairs(baseElements or {}) do baseElementSet[e] = true end
+
+    local elements = {}
+    local elementSet = {}
+    for _, e in ipairs(baseElements or {}) do
+        elementSet[e] = true
+        table.insert(elements, e)
+    end
+    for _, elem in ipairs(orderTotal) do
+        if not elementSet[elem] then
+            table.insert(elements, elem)
+            elementSet[elem] = true
+        end
+    end
+
+    local totalBonusSum = 0
+    for _, bonus in pairs(totalMap) do
+        totalBonusSum = totalBonusSum + bonus
+    end
+
+    local breakdown = {}
+    for k, v in pairs(baseBreakdown or {}) do
+        breakdown[k] = v
+    end
+
+    for elem, bonus in pairs(totalMap) do
+        if bonus ~= 0 then
+            local baseWeight = 0
+            if baseElementSet[elem] then
+                baseWeight = breakdown[elem]
+                if baseWeight == nil then baseWeight = 1 end
+            end
+            breakdown[elem] = baseWeight + (baseWeightSum or 1) * bonus
+        end
+    end
+
+    stats.elements = elements
+    stats.damageBreakdown = breakdown
+    stats.damage = baseDamage * (1 + totalBonusSum)
+    stats._elementBonusTotal = totalMap
+    stats._elementBonusTotalSum = totalBonusSum
+    stats._elementBonuses = nil
+    stats._elementBonusOrder = nil
 end
 
 -- Convenience: Apply weapon mods with attribute name mapping
@@ -255,9 +437,15 @@ function mods.applyWeaponMods(state, weaponKey, baseStats)
     
     -- meleeDamage (mult) maps to damage
     if stats.meleeDamage then
-        stats.damage = (stats.damage or 0) * (1 + stats.meleeDamage)
+        local mult = 1 + stats.meleeDamage
+        stats.damage = (stats.damage or 0) * mult
+        if stats._elementBaseDamage ~= nil then
+            stats._elementBaseDamage = stats._elementBaseDamage * mult
+        end
         -- stats.meleeDamage = nil -- Keep for UI
     end
+
+    applyElementBonusesToWeaponStats(stats)
     
     return stats
 end
@@ -327,19 +515,25 @@ local function getModRarity(modKey)
         -- Warframe - Uncommon
         flow = 'UNCOMMON', streamline = 'UNCOMMON', continuity = 'UNCOMMON', stretch = 'UNCOMMON',
         -- Warframe - Rare
-        intensify = 'RARE', quick_thinking = 'RARE',
+        intensify = 'RARE', quick_thinking = 'RARE', blind_rage = 'RARE',
+        fleeting_expertise = 'RARE', narrow_minded = 'RARE',
+        -- Warframe - Uncommon
+        tactical_dodge = 'UNCOMMON', momentum = 'UNCOMMON',
         -- Weapon - Common
         serration = 'COMMON', point_strike = 'COMMON', speed_trigger = 'COMMON', fast_hands = 'COMMON',
+        eagle_eye = 'COMMON', terminal_velocity = 'COMMON',
+        hellfire = 'COMMON', cryo_rounds = 'COMMON', stormbringer = 'COMMON', infected_clip = 'COMMON',
         -- Weapon - Uncommon
         split_chamber = 'UNCOMMON', vital_sense = 'UNCOMMON', magazine_warp = 'UNCOMMON', status_matrix = 'UNCOMMON',
+        reach = 'UNCOMMON',
         -- Weapon - Rare
-        heavy_caliber = 'RARE', pressure_point = 'RARE',
+        heavy_caliber = 'RARE', pressure_point = 'RARE', shred = 'RARE', vile_acceleration = 'RARE',
         -- Companion - Common
         link_health = 'COMMON', link_armor = 'COMMON',
         -- Companion - Uncommon
-        maul = 'UNCOMMON', bite = 'UNCOMMON',
+        maul = 'UNCOMMON', bite = 'UNCOMMON', bonded_guard = 'UNCOMMON',
         -- Companion - Rare
-        pack_leader = 'RARE'
+        pack_leader = 'RARE', savage_bite = 'RARE'
     }
     return rarities[modKey] or 'COMMON'
 end
@@ -359,22 +553,38 @@ mods.REWARD_GROUP = {
     link_health = 'base',
     link_armor = 'base',
     bite = 'base',
+    hellfire = 'base',
+    cryo_rounds = 'base',
+    stormbringer = 'base',
+    infected_clip = 'base',
+    blind_rage = 'augment',
+    fleeting_expertise = 'augment',
+    narrow_minded = 'augment',
 
     rush = 'utility',
     streamline = 'utility',
     continuity = 'utility',
     stretch = 'utility',
+    tactical_dodge = 'utility',
+    momentum = 'utility',
     speed_trigger = 'utility',
     magazine_warp = 'utility',
     fast_hands = 'utility',
     status_matrix = 'utility',
     stabilizer = 'utility',
+    eagle_eye = 'utility',
+    terminal_velocity = 'utility',
+    reach = 'utility',
+    bonded_guard = 'utility',
 
     quick_thinking = 'augment',
     split_chamber = 'augment',
     metal_auger = 'augment',
     guided_ordnance = 'augment',
-    pack_leader = 'augment'
+    pack_leader = 'augment',
+    shred = 'augment',
+    vile_acceleration = 'augment',
+    savage_bite = 'augment'
 }
 
 function mods.getRewardGroup(modKey, def)
@@ -645,9 +855,15 @@ function mods.applyRunWeaponMods(state, weaponKey, baseStats)
     
     -- meleeDamage (mult) maps to damage
     if stats.meleeDamage then
-        stats.damage = (stats.damage or 0) * (1 + stats.meleeDamage)
+        local mult = 1 + stats.meleeDamage
+        stats.damage = (stats.damage or 0) * mult
+        if stats._elementBaseDamage ~= nil then
+            stats._elementBaseDamage = stats._elementBaseDamage * mult
+        end
         -- stats.meleeDamage = nil
     end
+
+    applyElementBonusesToWeaponStats(stats)
     
     return stats
 end
