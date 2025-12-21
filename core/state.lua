@@ -359,7 +359,7 @@ function state.init()
         facing = 1,
         isMoving = false,
         hp = 100, maxHp = 100,
-        shield = 100, maxShield = 100,
+        shield = 50, maxShield = 50,  -- Reduced from 100 for more danger
         energy = 100, maxEnergy = 100,
         level = 0, xp = 0, xpToNextLevel = xpBase,
         invincibleTimer = 0,
@@ -459,10 +459,10 @@ function state.init()
             desc = "电系战甲。高护盾/能量，技能强化电击。Q: Shock (链电)",
             baseStats = {
                 maxHp = 85,
-                armor = 25,
+                armor = 15,  -- Reduced from 25 for more danger
                 moveSpeed = 155,           -- Volt is still fastest
                 might = 1.0,
-                maxShield = 180,           -- High shields
+                maxShield = 80,  -- Reduced from 180 for more danger
                 maxEnergy = 200,           -- High energy for ability spam
                 dashCharges = 1,
                 abilityStrength = 1.15,    -- +15% ability damage

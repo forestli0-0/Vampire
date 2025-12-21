@@ -1,8 +1,8 @@
 local defs = {
     rankUp = {
-        maxHp = 10,
-        maxShield = 10,
-        maxEnergy = 5,
+        maxHp = 5,        -- Reduced from 10
+        maxShield = 5,    -- Reduced from 10
+        maxEnergy = 3,    -- Reduced from 5
         modCapacity = 1
     },
     modCapacityBase = 30,

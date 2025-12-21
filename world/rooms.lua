@@ -222,6 +222,13 @@ local function startRoom(state, r)
     end
     
     r.roomCenterX, r.roomCenterY = state.player.x, state.player.y
+    
+    -- Start analytics tracking for this room
+    local ok, analytics = pcall(require, 'systems.analytics')
+    if ok and analytics and analytics.startRoom then
+        analytics.startRoom(r.roomIndex, r.missionType, state)
+    end
+    
     r.waveIndex = 1
     r.wavesTotal = 2
     if r.roomIndex >= 3 then r.wavesTotal = 3 end
@@ -345,6 +352,12 @@ local function spawnRewardChest(state, r)
     -- Pet per-run growth: clear a combat room -> pet run level up.
     if pets and pets.bumpRunLevel then
         pets.bumpRunLevel(state, 1)
+    end
+    
+    -- End analytics tracking for this room
+    local ok, analytics = pcall(require, 'systems.analytics')
+    if ok and analytics and analytics.endRoom then
+        analytics.endRoom(state)
     end
 
     local cx = r.roomCenterX or state.player.x

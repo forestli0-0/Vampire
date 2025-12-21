@@ -448,10 +448,15 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY, opts)
         x, y = world:adjustToWalkable(x, y, 16)
     end
 
-    local hpScale = 1 + math.min((state.gameTimer or 0), 300) / 300 -- cap at ~2x at 5min
-    if hpScale > 2.5 then hpScale = 2.5 end
-    hp = hp * hpScale
-    shield = shield * hpScale
+
+    -- Scaling: time + room-based progression
+    local timeScale = 1 + math.min((state.gameTimer or 0), 300) / 300  -- up to 2x in 5 min
+    local roomIndex = (state.rooms and state.rooms.roomIndex) or 0
+    local roomScale = 1 + roomIndex * 0.25  -- 25% per room
+    local combinedScale = math.max(timeScale, roomScale)  -- use whichever is higher
+    
+    hp = hp * combinedScale
+    shield = shield * combinedScale
 
     if isElite then
         hp = hp * 5
@@ -462,32 +467,31 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY, opts)
         local mods = {}
         table.insert(mods, {key = 'swift', w = 3})
         table.insert(mods, {key = 'brutal', w = 3})
-        if shield > 0 then table.insert(mods, {key = 'warded', w = 2}) end
-        if def.shootInterval or (def.attacks and def.attacks.burst) then
-            table.insert(mods, {key = 'sniper', w = 2})
-        end
-        local pick = chooseWeighted(mods)
-        eliteMod = pick and pick.key or 'brutal'
-
+        table.insert(mods, {key = 'shielded', w = 2})
+        table.insert(mods, {key = 'armored', w = 2})
+        local pick = mods[math.random(#mods)]
+        local eliteMod = pick.key
+        local eliteBulletSpeedMult = 1
         if eliteMod == 'swift' then
-            speed = speed * 1.35
-            eliteWindupMult = 0.9
-            eliteDamageMult = 1.05
-            color = {0.25, 1.0, 0.95}
-        elseif eliteMod == 'warded' then
-            shield = shield * 1.6 + 40
-            eliteDamageMult = 1.10
-            shieldRegenDelay = SHIELD_REGEN_DELAY * 0.8
-            shieldRegenRate = SHIELD_REGEN_RATE * 1.35
-            color = {0.35, 0.65, 1.0}
-        elseif eliteMod == 'sniper' then
-            eliteDamageMult = 1.15
-            eliteBulletSpeedMult = 1.35
-            if shootInterval then shootInterval = shootInterval * 0.75 end
+            speed = speed * 1.6
+            eliteBulletSpeedMult = 1.3
+            color = {0.5, 1.0, 0.5}
+        elseif eliteMod == 'shielded' then
+            shield = shield * 2.5
+            color = {0.4, 0.85, 1.0}
+        elseif eliteMod == 'armored' then
+            armor = armor + 150
+            color = {1.0, 0.7, 0.15}
+        end
+
+        if math.random() < 0.5 then
+            eliteMod = 'swift'
+            speed = speed * 1.6
+            eliteBulletSpeedMult = 1.3
             color = {0.85, 0.35, 1.0}
         else
             eliteMod = 'brutal'
-            eliteDamageMult = 1.35
+            eliteDamageMult = 1.35 * (1 + roomIndex * 0.1)  -- Elite damage scales with room
             color = {1.0, 0.25, 0.15}
         end
     end
@@ -2220,6 +2224,8 @@ function enemies.update(state, dt)
                             newModName = (newModKey and state.catalog and state.catalog[newModKey] and state.catalog[newModKey].name) or nil
                         }
                         state.gameState = 'GAME_CLEAR'
+                        -- Analytics: save run on victory
+                        pcall(function() require('systems.analytics').endRun() end)
                         state.directorState = state.directorState or {}
                         state.directorState.bossDefeated = true
                         logger.kill(state, e)

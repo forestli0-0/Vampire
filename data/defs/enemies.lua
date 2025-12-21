@@ -25,8 +25,8 @@ local enemyDefs = {
         color = {0.8, 0.8, 0.8},
         healthType = 'FLESH',
         attacks = {
-            melee = {range = 45, windup = 0.4, cooldown = 1.8, damage = 12, w = 6},  -- 8 → 12
-            throw = {range = 200, rangeMin = 60, windup = 0.5, cooldown = 3.0, damage = 10, bulletSpeed = 365, bulletLife = 2, bulletSize = 8, w = 3}  -- 6 → 10
+            melee = {range = 45, windup = 0.4, cooldown = 1.2, damage = 18, w = 6},  -- +50% dmg
+            throw = {range = 200, rangeMin = 60, windup = 0.5, cooldown = 2.0, damage = 15, bulletSpeed = 365, bulletLife = 2, bulletSize = 8, w = 3}  -- +50% dmg
         }
     },
     bat = {
@@ -36,8 +36,8 @@ local enemyDefs = {
         color = {0.6, 0, 1},
         healthType = 'FLESH',
         attacks = {
-            melee = {range = 35, windup = 0.25, cooldown = 1.0, damage = 8, w = 5},  -- 5 → 8
-            leap = {range = 150, rangeMin = 50, windup = 0.3, distance = 100, speed = 600, cooldown = 2.0, damage = 12, w = 4}  -- 7 → 12
+            melee = {range = 35, windup = 0.25, cooldown = 0.6, damage = 12, w = 5},  -- +50% dmg
+            leap = {range = 150, rangeMin = 50, windup = 0.3, distance = 100, speed = 600, cooldown = 1.4, damage = 18, w = 4}  -- +50% dmg
         }
     },
     plant = {
@@ -47,7 +47,7 @@ local enemyDefs = {
         color = {0, 0.7, 0.2},
         healthType = 'INFESTED',
         attacks = {
-            burst = {range = 400, rangeMin = 80, windup = 0.6, count = 3, spread = 0.4, bulletSpeed = 340, bulletDamage = 12, bulletLife = 4, bulletSize = 10, cooldown = 3.5, w = 10}  -- 8 → 12
+            burst = {range = 400, rangeMin = 80, windup = 0.6, count = 3, spread = 0.4, bulletSpeed = 340, bulletDamage = 18, bulletLife = 4, bulletSize = 10, cooldown = 3.5, w = 10}  -- +50% dmg
         }
     },
     charger = {
@@ -57,8 +57,8 @@ local enemyDefs = {
         color = {0.95, 0.55, 0.15},
         healthType = 'INFESTED',
         attacks = {
-            charge = {range = 320, rangeMin = 80, windup = 0.55, distance = 260, speed = 500, cooldown = 2.4, damage = 28, telegraphWidth = 40, w = 8},  -- 18 → 28
-            slam = {range = 80, windup = 0.6, radius = 60, cooldown = 2.0, damage = 18, w = 5}  -- 12 → 18
+            charge = {range = 320, rangeMin = 80, windup = 0.55, distance = 260, speed = 500, cooldown = 1.6, damage = 40, telegraphWidth = 40, w = 8},  -- +43% dmg
+            slam = {range = 80, windup = 0.6, radius = 60, cooldown = 1.4, damage = 25, w = 5}  -- +39% dmg
         }
     },
     spore_mortar = {
@@ -189,8 +189,8 @@ local enemyDefs = {
         color = {0.6, 0.6, 0.7},
         healthType = 'CLONED_FLESH',
         attacks = {
-            shoot = {range = 350, rangeMin = 100, windup = 0.6, cooldown = 1.8, 
-                     count = 1, spread = 0.05, bulletSpeed = 585, bulletDamage = 15,  -- 10 → 15
+            shoot = {range = 350, rangeMin = 100, windup = 0.6, cooldown = 1.2, 
+                     count = 1, spread = 0.05, bulletSpeed = 585, bulletDamage = 15,  -- cooldown 1.8 → 1.2
                      bulletLife = 3, bulletSize = 6, w = 10}
         }
     },
