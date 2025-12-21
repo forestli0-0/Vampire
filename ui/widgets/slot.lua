@@ -243,6 +243,63 @@ function Slot:drawSelf()
     love.graphics.setColor(1, 1, 1, 1)
 end
 
+function Slot:drawEmissiveSelf()
+    if self.locked then return end
+
+    local gx, gy = self:getGlobalPosition()
+    local w, h = self.w, self.h
+    if w <= 0 or h <= 0 then return end
+
+    local glowT = math.max(self.hoverT or 0, self.selectT or 0, (self.focused and 1 or 0))
+    if glowT > 0.001 then
+        local borderCol = self.borderColor
+        if self.selected then
+            borderCol = theme.lerpColor(self.borderColor, self.selectedBorderColor, self.selectT)
+        end
+        if self.focused then
+            borderCol = theme.colors.accent
+        end
+
+        local alpha = 0.10 + 0.35 * glowT
+        love.graphics.setBlendMode('add')
+        love.graphics.setColor(borderCol[1], borderCol[2], borderCol[3], alpha)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle('line', gx - 1, gy - 1, w + 2, h + 2, self.cornerRadius + 1, self.cornerRadius + 1)
+        love.graphics.setLineWidth(1)
+        love.graphics.setBlendMode('alpha')
+    end
+
+    if self.selected and self.pulseT > 0 then
+        local pulse = (math.sin(self.pulseT) + 1) * 0.5
+        love.graphics.setBlendMode('add')
+        love.graphics.setColor(
+            self.selectedBorderColor[1],
+            self.selectedBorderColor[2],
+            self.selectedBorderColor[3],
+            0.08 + 0.12 * pulse
+        )
+        love.graphics.rectangle('fill', gx, gy, w, h, self.cornerRadius, self.cornerRadius)
+        love.graphics.setBlendMode('alpha')
+    end
+
+    if self.dropHighlight then
+        local core = require('ui.core')
+        local canAccept = true
+        if core.dragData and self.canAcceptDrop then
+            canAccept = self:canAcceptDrop(core.dragData, core.dragging)
+        end
+        local highlightColor = canAccept and self.dropHighlightColor or self.dropRejectColor
+        love.graphics.setBlendMode('add')
+        love.graphics.setColor(highlightColor[1], highlightColor[2], highlightColor[3], 0.35)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle('line', gx - 2, gy - 2, w + 4, h + 4, self.cornerRadius + 2, self.cornerRadius + 2)
+        love.graphics.setLineWidth(1)
+        love.graphics.setBlendMode('alpha')
+    end
+
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
 function Slot:drawContent(gx, gy, w, h)
     local pad = self.iconPadding
     local iconW = w - pad * 2

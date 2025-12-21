@@ -151,6 +151,20 @@ function Widget:draw()
     end
 end
 
+function Widget:drawEmissive()
+    if not self.visible then return end
+
+    if self.drawEmissiveSelf then
+        self:drawEmissiveSelf()
+    end
+
+    for _, child in ipairs(self.children) do
+        if child.visible and child.drawEmissive then
+            child:drawEmissive()
+        end
+    end
+end
+
 function Widget:drawSelf()
     -- Override in subclasses
     

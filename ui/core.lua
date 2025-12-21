@@ -203,6 +203,21 @@ function core.draw()
     scaling.pop()
 end
 
+function core.drawEmissive()
+    if not core.enabled then return end
+    if not core.root then return end
+
+    -- Push scaling transform
+    scaling.push()
+
+    if core.root.drawEmissive then
+        core.root:drawEmissive()
+    end
+
+    -- Pop scaling transform
+    scaling.pop()
+end
+
 function core.drawDragPreview()
     if not core.dragging then return end
     

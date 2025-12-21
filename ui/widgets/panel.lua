@@ -26,6 +26,11 @@ function Panel.new(opts)
     self.shadow = opts.shadow or false
     self.shadowOffset = opts.shadowOffset or 2
     self.shadowColor = opts.shadowColor or {0, 0, 0, 0.3}
+
+    -- Emissive glow (optional)
+    self.glowColor = opts.glowColor
+    self.glowAlpha = opts.glowAlpha or 0.35
+    self.glowWidth = opts.glowWidth or 2
     
     -- Animation support
     self.alpha = opts.alpha or 1.0
@@ -89,6 +94,30 @@ function Panel:drawSelf()
         love.graphics.setLineWidth(1)
     end
     
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+function Panel:drawEmissiveSelf()
+    if not self.glowColor then return end
+    local gx, gy = self:getGlobalPosition()
+    local w, h = self.w, self.h
+    if w <= 0 or h <= 0 then return end
+
+    love.graphics.setBlendMode('add')
+    love.graphics.setColor(
+        self.glowColor[1],
+        self.glowColor[2],
+        self.glowColor[3],
+        (self.glowColor[4] or 1) * self.glowAlpha * self.alpha
+    )
+    love.graphics.setLineWidth(self.glowWidth)
+    if self.cornerRadius > 0 then
+        love.graphics.rectangle('line', gx, gy, w, h, self.cornerRadius, self.cornerRadius)
+    else
+        love.graphics.rectangle('line', gx, gy, w, h)
+    end
+    love.graphics.setLineWidth(1)
+    love.graphics.setBlendMode('alpha')
     love.graphics.setColor(1, 1, 1, 1)
 end
 

@@ -6,6 +6,19 @@ local inited = false
 local emissiveCanvas = nil
 local debugView = 'final'
 local debugViews = {'final', 'base', 'emissive', 'bloom'}
+local statsCanvas = nil
+local statsEnabled = false
+local statsFrame = 0
+local statsSampleEvery = 10
+local statsThreshold = 0.08
+local emissiveStats = {
+    coverage = 0,
+    avg = 0,
+    max = 0,
+    sampleW = 0,
+    sampleH = 0,
+    lastTime = 0
+}
 
 pipeline.emissiveFallback = false
 
@@ -16,6 +29,9 @@ function pipeline.init(w, h)
         bloom.init(w, h)
     end
     emissiveCanvas = love.graphics.newCanvas(w, h)
+    local sw = math.max(1, math.floor(w / 10))
+    local sh = math.max(1, math.floor(h / 10))
+    statsCanvas = love.graphics.newCanvas(sw, sh)
 end
 
 function pipeline.resize(w, h)
@@ -23,6 +39,9 @@ function pipeline.resize(w, h)
         bloom.resize(w, h)
     end
     emissiveCanvas = love.graphics.newCanvas(w, h)
+    local sw = math.max(1, math.floor(w / 10))
+    local sh = math.max(1, math.floor(h / 10))
+    statsCanvas = love.graphics.newCanvas(sw, sh)
 end
 
 function pipeline.beginFrame()
@@ -57,6 +76,20 @@ function pipeline.drawEmissive(drawFn)
 
     love.graphics.setBlendMode(prevMode, prevAlphaMode)
     love.graphics.setCanvas()
+
+    if statsEnabled and statsCanvas then
+        local prevCanvas = love.graphics.getCanvas()
+        local pm, pa = love.graphics.getBlendMode()
+        love.graphics.setCanvas(statsCanvas)
+        love.graphics.clear(0, 0, 0, 0)
+        love.graphics.setBlendMode('alpha')
+        love.graphics.setColor(1, 1, 1, 1)
+        local sx = statsCanvas:getWidth() / emissiveCanvas:getWidth()
+        local sy = statsCanvas:getHeight() / emissiveCanvas:getHeight()
+        love.graphics.draw(emissiveCanvas, 0, 0, 0, sx, sy)
+        love.graphics.setBlendMode(pm, pa)
+        love.graphics.setCanvas(prevCanvas)
+    end
 end
 
 function pipeline.present(state)
@@ -126,6 +159,87 @@ function pipeline.nextDebugView()
     end
     debugView = debugViews[1]
     return debugView
+end
+
+local function updateEmissiveStats()
+    if not statsEnabled or not statsCanvas then return end
+    statsFrame = statsFrame + 1
+    if statsFrame % statsSampleEvery ~= 0 then return end
+
+    local ok, imgData = pcall(function()
+        return statsCanvas:newImageData()
+    end)
+    if not ok or not imgData then return end
+
+    local w, h = imgData:getDimensions()
+    local count = w * h
+    if count <= 0 then return end
+
+    local sum = 0
+    local maxVal = 0
+    local bright = 0
+
+    for y = 0, h - 1 do
+        for x = 0, w - 1 do
+            local r, g, b, a = imgData:getPixel(x, y)
+            local lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) * a
+            sum = sum + lum
+            if lum > statsThreshold then bright = bright + 1 end
+            if lum > maxVal then maxVal = lum end
+        end
+    end
+
+    emissiveStats.coverage = bright / count
+    emissiveStats.avg = sum / count
+    emissiveStats.max = maxVal
+    emissiveStats.sampleW = w
+    emissiveStats.sampleH = h
+    emissiveStats.lastTime = love.timer.getTime()
+end
+
+function pipeline.getEmissiveStats()
+    updateEmissiveStats()
+    return emissiveStats
+end
+
+function pipeline.setEmissiveStatsEnabled(enabled)
+    statsEnabled = enabled == true
+    statsFrame = 0
+    return statsEnabled
+end
+
+function pipeline.toggleEmissiveStats()
+    statsEnabled = not statsEnabled
+    statsFrame = 0
+    return statsEnabled
+end
+
+function pipeline.drawEmissiveStatsOverlay(font)
+    if not statsEnabled then return end
+    updateEmissiveStats()
+
+    local prevFont = love.graphics.getFont()
+    if font then love.graphics.setFont(font) end
+
+    local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
+    local boxW, boxH = 240, 72
+    local x = sw - boxW - 10
+    local y = 10
+
+    love.graphics.setColor(0, 0, 0, 0.6)
+    love.graphics.rectangle('fill', x, y, boxW, boxH, 6, 6)
+
+    local coverPct = emissiveStats.coverage * 100
+    local avg = emissiveStats.avg
+    local maxVal = emissiveStats.max
+
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.print(string.format("Emissive cover: %.1f%%", coverPct), x + 10, y + 10)
+    love.graphics.print(string.format("Emissive avg: %.3f", avg), x + 10, y + 28)
+    love.graphics.print(string.format("Emissive max: %.3f", maxVal), x + 10, y + 46)
+
+    love.graphics.setFont(prevFont)
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 return pipeline

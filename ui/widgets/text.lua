@@ -34,6 +34,11 @@ function Text.new(opts)
     self.shadow = opts.shadow or false
     self.shadowColor = opts.shadowColor or {0, 0, 0, 0.6}
     self.shadowOffset = opts.shadowOffset or 1
+
+    -- Emissive glow (optional)
+    self.glow = opts.glow or false
+    self.glowColor = opts.glowColor or nil
+    self.glowAlpha = opts.glowAlpha or 0.35
     
     -- Typing animation
     self.typing = false
@@ -139,6 +144,36 @@ function Text:drawSelf()
     
     love.graphics.setColor(1, 1, 1, 1)
     
+    if self.font then
+        love.graphics.setFont(prevFont)
+    end
+end
+
+function Text:drawEmissiveSelf()
+    if not self.glow then return end
+    if self.displayText == "" then return end
+
+    local gx, gy = self:getGlobalPosition()
+    local w = self.w > 0 and self.w or nil
+
+    local prevFont = love.graphics.getFont()
+    if self.font then
+        love.graphics.setFont(self.font)
+    end
+
+    local col = self.glowColor or self.color
+    love.graphics.setBlendMode('add')
+    love.graphics.setColor(col[1], col[2], col[3], (col[4] or 1) * self.glowAlpha)
+
+    if w then
+        love.graphics.printf(self.displayText, gx, gy, w, self.align)
+    else
+        love.graphics.print(self.displayText, gx, gy)
+    end
+
+    love.graphics.setBlendMode('alpha')
+    love.graphics.setColor(1, 1, 1, 1)
+
     if self.font then
         love.graphics.setFont(prevFont)
     end

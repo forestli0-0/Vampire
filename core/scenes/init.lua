@@ -142,9 +142,14 @@ local function drawWorld(state)
         draw.renderBase(state)
     end)
     pipeline.drawEmissive(function()
-        return draw.renderEmissive(state)
+        draw.renderEmissive(state)
+        if ui.drawEmissive then
+            ui.drawEmissive()
+        end
+        return true
     end)
     pipeline.present(state)
+    pipeline.drawEmissiveStatsOverlay(state.font)
 
     benchmark.draw(state)
     debugmenu.draw(state)
@@ -276,6 +281,10 @@ function scenes.keypressed(state, key, scancode, isrepeat)
     if key == 'v' then vfx.toggle() end
     if key == 'f7' then
         pipeline.nextDebugView()
+        return true
+    end
+    if key == 'f9' then
+        pipeline.toggleEmissiveStats()
         return true
     end
 

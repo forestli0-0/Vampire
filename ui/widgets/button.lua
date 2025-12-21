@@ -181,6 +181,37 @@ function Button:drawSelf()
     love.graphics.setColor(1, 1, 1, 1)
 end
 
+function Button:drawEmissiveSelf()
+    if not self.enabled then return end
+
+    local glowT = math.max(self.hoverT or 0, self.pressT or 0, (self.focused and 1 or 0))
+    if glowT <= 0.001 then return end
+
+    local gx, gy = self:getGlobalPosition()
+    local w, h = self.w, self.h
+    if w <= 0 or h <= 0 then return end
+
+    local scale = self.scaleAnim or 1
+    local sw = w * scale
+    local sh = h * scale
+    local sx = gx + (w - sw) / 2
+    local sy = gy + (h - sh) / 2
+
+    local borderCol = theme.lerpColor(self.borderColor, self.borderHoverColor, self.hoverT or 0)
+    if self.focused then borderCol = theme.colors.accent end
+
+    local alpha = 0.12 + 0.38 * glowT
+    local expand = 1.5
+
+    love.graphics.setBlendMode('add')
+    love.graphics.setColor(borderCol[1], borderCol[2], borderCol[3], alpha)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle('line', sx - expand, sy - expand, sw + expand * 2, sh + expand * 2, self.cornerRadius + 1, self.cornerRadius + 1)
+    love.graphics.setLineWidth(1)
+    love.graphics.setBlendMode('alpha')
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
 -------------------------------------------
 -- Events
 -------------------------------------------

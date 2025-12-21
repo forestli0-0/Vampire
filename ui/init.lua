@@ -39,6 +39,13 @@ function ui.draw()
     ui.core.draw()
 end
 
+--- Draw emissive UI highlights only
+function ui.drawEmissive()
+    if ui.core.drawEmissive then
+        ui.core.drawEmissive()
+    end
+end
+
 --- Set the root widget
 ---@param widget table Root widget
 function ui.setRoot(widget)
