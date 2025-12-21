@@ -52,7 +52,10 @@ function gameoverScreen.rebuild(gameState)
         color = titleColor,
         align = 'center',
         font = theme.getFont('title'),
-        outline = true
+        outline = true,
+        glow = true,
+        glowColor = titleColor,
+        glowAlpha = 0.28
     })
     root:addChild(title)
     

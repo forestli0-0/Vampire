@@ -157,7 +157,9 @@ function levelupScreen.rebuild(gameState)
         color = theme.colors.title,
         align = 'center',
         font = theme.getFont('title'),
-        outline = true
+        outline = true,
+        glow = true,
+        glowAlpha = 0.28
     })
     root:addChild(title)
     

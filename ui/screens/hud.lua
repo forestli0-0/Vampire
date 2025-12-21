@@ -217,7 +217,10 @@ local function buildPlayerFrame(data, parent)
         text = "GOLD 0",
         color = LAYOUT.goldColor,
         shadow = true,
-        font = theme.getFont('small')
+        font = theme.getFont('small'),
+        glow = true,
+        glowColor = LAYOUT.goldColor,
+        glowAlpha = 0.25
     })
     parent:addChild(widgets.goldText)
 end
@@ -374,7 +377,10 @@ local function buildObjectiveFrame(parent)
         x = LAYOUT.objX - panelW/2, y = 60,  -- Below wave info
         w = panelW, h = panelH,
         bgColor = {0, 0, 0, 0.4},  -- Slight background for readability
-        cornerRadius = 4
+        cornerRadius = 4,
+        glowColor = theme.colors.accent,
+        glowAlpha = 0.18,
+        glowWidth = 2
     })
     parent:addChild(panel)
     
@@ -384,7 +390,10 @@ local function buildObjectiveFrame(parent)
         align = 'center',
         color = {1, 1, 1, 0.9},
         shadow = true,
-        font = theme.getFont('small')
+        font = theme.getFont('small'),
+        glow = true,
+        glowColor = theme.colors.accent,
+        glowAlpha = 0.18
     })
     panel:addChild(widgets.objectiveText)
     widgets.objectivePanel = panel

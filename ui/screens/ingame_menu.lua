@@ -247,7 +247,10 @@ function ingameMenu.buildUI()
     local title = Text.new({
         x = SCREEN_W / 2 - 40, y = 6,
         text = "⏸ 暂停",
-        color = {0.9, 0.95, 1.0, 1}
+        color = {0.9, 0.95, 1.0, 1},
+        glow = true,
+        glowColor = theme.colors.accent,
+        glowAlpha = 0.25
     })
     root:addChild(title)
     

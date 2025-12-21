@@ -663,7 +663,10 @@ function arsenalScreen.rebuild(gameState)
         text = "军 械 库",
         color = theme.colors.accent,
         align = 'center',
-        outline = true
+        outline = true,
+        glow = true,
+        glowColor = theme.colors.accent,
+        glowAlpha = 0.25
     })
     root:addChild(title)
     

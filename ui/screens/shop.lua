@@ -197,7 +197,10 @@ function shopScreen.rebuild(gameState)
         color = theme.colors.gold,
         align = 'center',
         font = theme.getFont('title'),
-        outline = true
+        outline = true,
+        glow = true,
+        glowColor = theme.colors.gold,
+        glowAlpha = 0.28
     })
     root:addChild(title)
     
@@ -215,7 +218,10 @@ function shopScreen.rebuild(gameState)
         x = 0, y = 4, w = 120,
         text = "💰 " .. gold,
         color = theme.colors.gold,
-        align = 'center'
+        align = 'center',
+        glow = true,
+        glowColor = theme.colors.gold,
+        glowAlpha = 0.22
     })
     goldPanel:addChild(goldText)
     
