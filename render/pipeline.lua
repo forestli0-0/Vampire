@@ -5,7 +5,7 @@ local pipeline = {}
 local inited = false
 local emissiveCanvas = nil
 
-pipeline.emissiveFallback = true
+pipeline.emissiveFallback = false
 
 function pipeline.init(w, h)
     if inited then return end

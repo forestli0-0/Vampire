@@ -534,8 +534,9 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY, opts)
     })
     if state.loadMoveAnimationFromFolder then
         local animKey = def.animKey or def.animName or type
-        local anim = state.loadMoveAnimationFromFolder(animKey, 4, 8)
+        local anim, animEmit = state.loadMoveAnimationFromFolder(animKey, 4, 8)
         if anim then state.enemies[#state.enemies].anim = anim end
+        if animEmit then state.enemies[#state.enemies].animEmissive = animEmit end
     end
     local spawned = state.enemies[#state.enemies]
     ensureStatus(spawned)

@@ -129,6 +129,14 @@ local function updateGameOver(state, dt)
 end
 
 local function drawWorld(state)
+    if state.shakeAmount and state.shakeAmount > 0 then
+        state._shakeOffsetX = love.math.random() * state.shakeAmount
+        state._shakeOffsetY = love.math.random() * state.shakeAmount
+    else
+        state._shakeOffsetX = nil
+        state._shakeOffsetY = nil
+    end
+
     pipeline.beginFrame()
     pipeline.drawBase(function()
         draw.renderBase(state)

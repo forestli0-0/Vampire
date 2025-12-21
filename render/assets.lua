@@ -34,13 +34,25 @@ local function loadImage(path)
     return nil
 end
 
-local function buildSheetFromFrames(paths)
+local function withSuffix(path, suffix)
+    if not suffix or suffix == '' then return path end
+    local updated = path:gsub("(%.[^%.]+)$", suffix .. "%1")
+    if updated == path then
+        return path .. suffix
+    end
+    return updated
+end
+
+local function buildSheetFromFrames(paths, requireAll)
     local frames = {}
+    local total = 0
     for _, p in ipairs(paths) do
+        total = total + 1
         local ok, data = pcall(love.image.newImageData, p)
         if ok and data then table.insert(frames, data) end
     end
     if #frames == 0 then return nil end
+    if requireAll and #frames ~= total then return nil end
     local fw, fh = frames[1]:getWidth(), frames[1]:getHeight()
     local sheetData = love.image.newImageData(fw * #frames, fh)
     for i, data in ipairs(frames) do
@@ -86,13 +98,24 @@ end
 local function loadMoveAnimationFromFolder(name, frameCount, fps)
     frameCount = frameCount or 4
     local paths = {}
+    local emitPaths = {}
     for i = 1, frameCount do
         paths[i] = string.format('assets/characters/%s/move_%d.png', name, i)
+        emitPaths[i] = withSuffix(paths[i], '_emit')
     end
     local sheet, fw, fh = buildSheetFromFrames(paths)
     if not sheet then return nil end
     local frames = animation.newFramesFromGrid(sheet, fw, fh)
-    return animation.newAnimation(sheet, frames, {fps = fps or 8, loop = true})
+    local anim = animation.newAnimation(sheet, frames, {fps = fps or 8, loop = true})
+
+    local emitAnim = nil
+    local emitSheet, efw, efh = buildSheetFromFrames(emitPaths, true)
+    if emitSheet and efw and efh then
+        local emitFrames = animation.newFramesFromGrid(emitSheet, efw, efh)
+        emitAnim = animation.newAnimation(emitSheet, emitFrames, {fps = fps or 8, loop = true})
+    end
+
+    return anim, emitAnim
 end
 
 function assets.init(state)
@@ -198,9 +221,10 @@ function assets.init(state)
     end
 
     -- Player animation: load from assets or generate a placeholder sheet.
-    local playerAnim = loadMoveAnimationFromFolder('player', 4, 8)
+    local playerAnim, playerAnimEmit = loadMoveAnimationFromFolder('player', 4, 8)
     if playerAnim then
         state.playerAnim = playerAnim
+        state.playerAnimEmissive = playerAnimEmit
     else
         local frameW, frameH = 32, 32
         local animDuration = 0.8
@@ -242,6 +266,7 @@ function assets.init(state)
         local sheet = love.graphics.newImage(sheetData)
         sheet:setFilter('nearest', 'nearest')
         state.playerAnim = animation.newAnimation(sheet, frameW, frameH, animDuration)
+        state.playerAnimEmissive = nil
     end
 
     local weaponKeys = {
@@ -258,14 +283,21 @@ function assets.init(state)
     }
 
     state.weaponSprites = {}
+    state.weaponSpritesEmissive = {}
     state.weaponSpriteScale = {}
     for _, key in ipairs(weaponKeys) do
-        local img = loadImage(string.format('assets/weapons/%s.png', key))
+        local basePath = string.format('assets/weapons/%s.png', key)
+        local img = loadImage(basePath)
         if img then
             img:setFilter('nearest', 'nearest')
             state.weaponSprites[key] = img
             local tune = (state.projectileTuning and state.projectileTuning[key]) or (state.projectileTuning and state.projectileTuning.default)
             state.weaponSpriteScale[key] = (tune and tune.spriteScale) or 5
+            local emitImg = loadImage(withSuffix(basePath, '_emit'))
+            if emitImg then
+                emitImg:setFilter('nearest', 'nearest')
+                state.weaponSpritesEmissive[key] = emitImg
+            end
         end
     end
 

@@ -533,7 +533,9 @@ function draw.renderWorld(state)
     love.graphics.setFont(state.font)
     love.graphics.push()
     if state.shakeAmount and state.shakeAmount > 0 then
-        love.graphics.translate(love.math.random() * state.shakeAmount, love.math.random() * state.shakeAmount)
+        local shakeX = state._shakeOffsetX or (love.math.random() * state.shakeAmount)
+        local shakeY = state._shakeOffsetY or (love.math.random() * state.shakeAmount)
+        love.graphics.translate(shakeX, shakeY)
     end
     love.graphics.translate(-state.camera.x, -state.camera.y)
 
@@ -2150,9 +2152,451 @@ function draw.renderBase(state)
 end
 
 function draw.renderEmissive(state)
-    -- Placeholder: no emissive-only layers yet.
-    -- Returning false triggers pipeline fallback to base for bloom.
-    return false
+    if not state then return false end
+
+    love.graphics.push()
+    if state.shakeAmount and state.shakeAmount > 0 then
+        local shakeX = state._shakeOffsetX or (love.math.random() * state.shakeAmount)
+        local shakeY = state._shakeOffsetY or (love.math.random() * state.shakeAmount)
+        love.graphics.translate(shakeX, shakeY)
+    end
+    if state.camera then
+        love.graphics.translate(-state.camera.x, -state.camera.y)
+    end
+
+    -- Area fields (player-centered)
+    if state.inventory and state.inventory.weapons and (state.inventory.weapons.garlic or state.inventory.weapons.soul_eater) then
+        local key = state.inventory.weapons.soul_eater and 'soul_eater' or 'garlic'
+        local gStats = weapons.calculateStats(state, key) or state.inventory.weapons[key].stats
+        local r = (gStats.radius or 0) * (gStats.area or 1) * (state.player.stats.area or 1)
+        local pulse = 0
+        if key == 'soul_eater' then
+            pulse = (math.sin(love.timer.getTime() * 5) + 1) * 0.5
+        end
+        vfx.drawAreaField(key, state.player.x, state.player.y, r, 1 + pulse * 0.35, { alpha = 1 })
+    end
+
+    if state.areaFields then
+        for _, a in ipairs(state.areaFields) do
+            local dur = a.duration or 2.0
+            local p = (dur > 0) and math.max(0, math.min(1, (a.t or 0) / dur)) or 1
+            local fade = 1 - p
+            local alpha = 0.35 + 0.65 * fade
+            local intensity = (a.intensity or 1) * (0.85 + 0.35 * fade)
+            vfx.drawAreaField(a.kind or 'oil', a.x, a.y, a.radius or 0, intensity, { alpha = alpha })
+        end
+    end
+
+    if state.telegraphs then
+        for _, tg in ipairs(state.telegraphs) do
+            local dur = tg.duration or 0.6
+            local p = (dur > 0) and math.max(0, math.min(1, (tg.t or 0) / dur)) or 1
+            local intensity = (tg.intensity or 1) * (0.65 + 0.75 * p)
+            if tg.shape == 'circle' then
+                local r = tg.radius or 0
+                if r > 0 then
+                    local kind = tg.kind or 'telegraph'
+                    vfx.drawAreaField(kind, tg.x, tg.y, r, intensity, { alpha = 0.06 + 0.18 * p, alphaCap = 0.55, edgeSoft = 0.52 })
+                end
+            elseif tg.shape == 'line' then
+                local x1, y1, x2, y2 = tg.x1, tg.y1, tg.x2, tg.y2
+                local dx = (x2 or 0) - (x1 or 0)
+                local dy = (y2 or 0) - (y1 or 0)
+                local len = math.sqrt(dx * dx + dy * dy)
+                if len > 0.001 then
+                    local ang = math.atan2(dy, dx)
+                    local w = tg.width or 28
+                    local col = tg.color or {1, 0.22, 0.22}
+                    local lineA = 0.16 + 0.36 * p
+                    love.graphics.setBlendMode('add')
+                    love.graphics.push()
+                    love.graphics.translate(x1, y1)
+                    love.graphics.rotate(ang)
+                    love.graphics.setColor(col[1], col[2], col[3], lineA)
+                    love.graphics.setLineWidth(2)
+                    love.graphics.rectangle('line', 0, -w / 2, len, w, w * 0.35, w * 0.35)
+                    love.graphics.pop()
+                    love.graphics.setLineWidth(1)
+                    love.graphics.setBlendMode('alpha')
+                end
+            end
+        end
+    end
+
+    -- Enemy attack windup/dash indicators (emissive overlay)
+    for _, e in ipairs(state.enemies or {}) do
+        local atk = e.attack
+        if atk and atk.phase == 'windup' then
+            local pulse = 0.5 + 0.5 * math.sin(love.timer.getTime() * 12)
+            local size = (e.size or 24) / 2 + 4
+            love.graphics.setBlendMode('add')
+            love.graphics.setColor(1, 0.2, 0.2, 0.22 + 0.22 * pulse)
+            love.graphics.setLineWidth(2)
+            love.graphics.circle('line', e.x, e.y, size + 4 * pulse)
+            love.graphics.setLineWidth(1)
+            love.graphics.setBlendMode('alpha')
+        end
+        if atk and (atk.phase == 'dash' or atk.phase == 'leaping') then
+            local size = (e.size or 24) / 2 + 6
+            love.graphics.setBlendMode('add')
+            love.graphics.setColor(1, 0.5, 0.1, 0.30)
+            love.graphics.setLineWidth(3)
+            love.graphics.circle('line', e.x, e.y, size)
+            love.graphics.setLineWidth(1)
+            love.graphics.setBlendMode('alpha')
+        end
+    end
+
+    -- Enemy status glows
+    for _, e in ipairs(state.enemies or {}) do
+        if e.status and e.status.static then
+            local r = (e.size or 16) * 0.75
+            vfx.drawElectricAura(e.x, e.y, r, 0.9)
+        end
+        if e.status and e.status.gasTimer and e.status.gasTimer > 0 then
+            local r = e.status.gasRadius or 100
+            vfx.drawGas(e.x, e.y, r, 1)
+        end
+        if e.status and e.status.toxinTimer and e.status.toxinTimer > 0 then
+            local r = math.max((e.size or 16) * 1.05, 16)
+            vfx.drawAreaField('toxin', e.x, e.y, r, 1, { alpha = 0.75 })
+        end
+    end
+
+    -- Emissive sprite layers
+    for _, e in ipairs(state.enemies or {}) do
+        if e.animEmissive then
+            local sx = e.facing or 1
+            e.animEmissive:draw(e.x, e.y, 0, sx, 1)
+        end
+    end
+    if state.playerAnimEmissive and state.player then
+        state.playerAnimEmissive:draw(state.player.x, state.player.y, 0, state.player.facing, 1)
+    end
+
+    -- Lightning chains / arcs
+    if state.chainLinks then
+        for _, link in ipairs(state.chainLinks) do
+            vfx.drawLightningSegment(link.x1, link.y1, link.x2, link.y2, 14, 0.95)
+        end
+    end
+    if state.lightningLinks then
+        for _, link in ipairs(state.lightningLinks) do
+            vfx.drawLightningSegment(link.x1, link.y1, link.x2, link.y2, link.width or 14, link.alpha or 0.95)
+        end
+    end
+    if state.voltLightningChains then
+        for _, chain in ipairs(state.voltLightningChains) do
+            for _, seg in ipairs(chain.segments or {}) do
+                vfx.drawLightningSegment(seg.x1, seg.y1, seg.x2, seg.y2, seg.width or 14, chain.alpha or 1)
+            end
+        end
+    end
+
+    -- Player aura (Volt speed buff)
+    local p = state.player
+    if p and p.speedBuffActive and p.speedAuraRadius then
+        local pulse = 0.7 + 0.3 * math.sin(love.timer.getTime() * 8)
+        local r = p.speedAuraRadius * pulse
+        vfx.drawElectricAura(p.x, p.y, r, 0.5)
+        love.graphics.setBlendMode('add')
+        love.graphics.setColor(0.4, 0.8, 1, 0.18)
+        love.graphics.setLineWidth(2)
+        love.graphics.circle('line', p.x, p.y, r * 1.2)
+        love.graphics.setLineWidth(1)
+        love.graphics.setBlendMode('alpha')
+    end
+
+    -- Mag magnetize ring (emissive overlay)
+    if state.magMagnetizeFields then
+        for _, f in ipairs(state.magMagnetizeFields) do
+            local pulse = 0.8 + 0.2 * math.sin(love.timer.getTime() * 6)
+            love.graphics.setBlendMode('add')
+            love.graphics.setColor(0.7, 0.4, 1, 0.25 * pulse)
+            love.graphics.setLineWidth(2)
+            love.graphics.circle('line', f.x, f.y, (f.r or 0) * pulse)
+            love.graphics.setLineWidth(1)
+            love.graphics.setBlendMode('alpha')
+        end
+    end
+
+    -- Volt electric shield (additive arcs)
+    if p and p.electricShield and p.electricShield.active then
+        local shield = p.electricShield
+        local px, py = p.x, p.y
+        local angle = shield.angle or 0
+        local arcRadius = shield.distance or 60
+        local arcWidth = shield.arcWidth or 1.2
+
+        love.graphics.setBlendMode('add')
+        local pulse = 0.6 + 0.4 * math.sin(love.timer.getTime() * 6)
+
+        love.graphics.setColor(0.3, 0.7, 1, 0.25 * pulse)
+        love.graphics.setLineWidth(12)
+        love.graphics.arc('line', 'open', px, py, arcRadius + 5, angle - arcWidth/2, angle + arcWidth/2)
+
+        love.graphics.setColor(0.5, 0.85, 1, 0.5 * pulse)
+        love.graphics.setLineWidth(6)
+        love.graphics.arc('line', 'open', px, py, arcRadius, angle - arcWidth/2, angle + arcWidth/2)
+
+        love.graphics.setColor(0.8, 0.95, 1, 0.9 * pulse)
+        love.graphics.setLineWidth(2)
+        love.graphics.arc('line', 'open', px, py, arcRadius, angle - arcWidth/2, angle + arcWidth/2)
+
+        local sparkCount = 5
+        for i = 1, sparkCount do
+            local sparkAngle = angle - arcWidth/2 + (i - 0.5) * arcWidth / sparkCount
+            local sparkOffset = math.sin(love.timer.getTime() * 8 + i * 1.5) * 3
+            local sx = px + math.cos(sparkAngle) * (arcRadius + sparkOffset)
+            local sy = py + math.sin(sparkAngle) * (arcRadius + sparkOffset)
+            love.graphics.setColor(0.9, 1, 1, 0.7 * pulse)
+            love.graphics.circle('fill', sx, sy, 2 + math.sin(love.timer.getTime() * 12 + i) * 1)
+        end
+
+        love.graphics.setLineWidth(1)
+        love.graphics.setBlendMode('alpha')
+    end
+
+    -- Volt discharge wave
+    if state.voltDischargeWaves then
+        for _, wave in ipairs(state.voltDischargeWaves) do
+            local r = wave.currentRadius or 0
+            local alpha = wave.alpha or 1
+            if r > 0 then
+                love.graphics.setBlendMode('add')
+                local ringWidth = 20
+                love.graphics.setColor(0.3, 0.7, 1, 0.3 * alpha)
+                love.graphics.setLineWidth(ringWidth)
+                love.graphics.circle('line', wave.x, wave.y, r)
+                love.graphics.setColor(0.6, 0.9, 1, 0.6 * alpha)
+                love.graphics.setLineWidth(ringWidth / 2)
+                love.graphics.circle('line', wave.x, wave.y, r)
+                love.graphics.setColor(0.9, 1, 1, 0.9 * alpha)
+                love.graphics.setLineWidth(2)
+                love.graphics.circle('line', wave.x, wave.y, r)
+
+                local arcCount = math.floor(r / 50) + 4
+                for i = 1, arcCount do
+                    local ang = (love.timer.getTime() * 2 + i * (2 * math.pi / arcCount)) % (2 * math.pi)
+                    local x1 = wave.x + math.cos(ang) * (r - 10)
+                    local y1 = wave.y + math.sin(ang) * (r - 10)
+                    local x2 = wave.x + math.cos(ang) * (r + 15)
+                    local y2 = wave.y + math.sin(ang) * (r + 15)
+                    vfx.drawLightningSegment(x1, y1, x2, y2, 6, 0.5 * alpha)
+                end
+
+                love.graphics.setLineWidth(1)
+                love.graphics.setBlendMode('alpha')
+            end
+        end
+    end
+
+    if state.teslaArcs and #state.teslaArcs > 0 then
+        for _, arc in ipairs(state.teslaArcs) do
+            vfx.drawLightningSegment(arc.x1, arc.y1, arc.x2, arc.y2, 10, arc.alpha or 0.8)
+        end
+    end
+
+    for _, e in ipairs(state.enemies or {}) do
+        if e and e.teslaNode and e.teslaNode.active then
+            local node = e.teslaNode
+            local pulse = 0.6 + 0.4 * math.sin(love.timer.getTime() * 8)
+            love.graphics.setBlendMode('add')
+            love.graphics.setColor(0.3, 0.7, 1, 0.3 * pulse)
+            love.graphics.circle('fill', e.x, e.y, (e.size or 20) * 0.8)
+            love.graphics.setColor(0.5, 0.9, 1, 0.6 * pulse)
+            love.graphics.setLineWidth(2)
+            love.graphics.circle('line', e.x, e.y, (e.size or 20) * 0.9)
+            if node.timer and node.timer > 0 then
+                local maxTime = 4
+                local ratio = math.min(1, node.timer / maxTime)
+                love.graphics.setColor(0.7, 0.95, 1, 0.8)
+                love.graphics.arc('line', 'open', e.x, e.y - (e.size or 20) * 0.7, 8,
+                    -math.pi/2, -math.pi/2 + ratio * 2 * math.pi)
+            end
+            love.graphics.setLineWidth(1)
+            love.graphics.setBlendMode('alpha')
+        end
+    end
+
+    -- Hit effects (additive)
+    if state.hitEffects then
+        love.graphics.setBlendMode("add")
+        for _, eff in ipairs(state.hitEffects) do
+            local def = state.effectSprites and state.effectSprites[eff.key]
+            if def then
+                local frac = math.max(0, math.min(0.999, eff.t / (eff.duration or 0.3)))
+                local frameIdx = math.floor(frac * (def.frameCount or 1)) + 1
+                local img = def.frames and def.frames[frameIdx] or def.frames[#def.frames]
+                local scale = eff.scale or def.defaultScale or 1
+                love.graphics.setColor(1,1,1)
+                love.graphics.draw(img, eff.x, eff.y, 0, scale, scale, def.frameW / 2, def.frameH / 2)
+            else
+                local frac = math.max(0, math.min(0.999, eff.t / (eff.duration or 0.18)))
+                vfx.drawHitEffect(eff.key, eff.x, eff.y, frac, eff.scale or 1, 1)
+                love.graphics.setBlendMode("add")
+            end
+        end
+        love.graphics.setBlendMode("alpha")
+    end
+
+    -- Ice ring glow
+    if state.inventory and state.inventory.weapons and state.inventory.weapons.ice_ring then
+        local iStats = weapons.calculateStats(state, 'ice_ring') or state.inventory.weapons.ice_ring.stats
+        local r = (iStats.radius or 0) * (iStats.area or 1) * (state.player.stats.area or 1)
+        vfx.drawAreaField('ice', state.player.x, state.player.y, r, 1, { alpha = 1 })
+    end
+
+    -- Dash afterimages (glow)
+    do
+        local list = state.dashAfterimages
+        if list and #list > 0 then
+            local sh = getDashTrailShader()
+            if sh then
+                love.graphics.setBlendMode("add")
+                love.graphics.setShader(sh)
+                sh:send('time', love.timer.getTime())
+                sh:send('tint', {0.45, 0.90, 1.00})
+                sh:send('warp', 0.010)
+
+                for _, a in ipairs(list) do
+                    local dur = a.duration or 0.22
+                    local p = (dur > 0) and math.max(0, math.min(1, (a.t or 0) / dur)) or 1
+                    local fade = 1 - p
+                    local aa = (a.alpha or 0.22) * fade
+                    if aa > 0.001 then
+                        sh:send('alpha', aa)
+                        love.graphics.setColor(1, 1, 1, 1)
+                        if state.playerAnim then
+                            state.playerAnim:draw(a.x, a.y, 0, a.facing or state.player.facing, 1)
+                        else
+                            local size = state.player.size or 20
+                            love.graphics.rectangle('fill', a.x - (size / 2), a.y - (size / 2), size, size)
+                        end
+                    end
+                end
+
+                love.graphics.setShader()
+                love.graphics.setBlendMode("alpha")
+                love.graphics.setColor(1, 1, 1, 1)
+            end
+        end
+    end
+
+    -- Glow pickups (sprites only)
+    local glowKinds = {
+        magnet = true,
+        chicken = true,
+        chest_xp = true,
+        chest_reward = true,
+        pet_contract = true,
+        pet_revive = true,
+        shop_terminal = true,
+        pet_module_chip = true,
+        pet_upgrade_chip = true,
+        health_orb = true,
+        energy_orb = true,
+        mod_card = true
+    }
+    for _, item in ipairs(state.floorPickups or {}) do
+        if glowKinds[item.kind] then
+            local sprite = state.pickupSprites and state.pickupSprites[item.kind]
+            if sprite then
+                local sw, sh = sprite:getWidth(), sprite:getHeight()
+                local size = (item.size or 16)
+                local scale = (size / sw) * 2
+                love.graphics.setBlendMode("add")
+                love.graphics.setColor(1, 1, 1, 1)
+                love.graphics.draw(sprite, item.x, item.y, 0, scale, scale, sw/2, sh/2)
+                love.graphics.setBlendMode("alpha")
+            end
+        end
+    end
+
+    -- Gems (legacy)
+    for _, g in ipairs(state.gems or {}) do
+        local sprite = state.pickupSprites and state.pickupSprites['gem']
+        if sprite then
+            local sw, sh = sprite:getWidth(), sprite:getHeight()
+            local baseSize = 8
+            local scale = (state.pickupSpriteScale and state.pickupSpriteScale['gem']) or (baseSize / sw)
+            love.graphics.setBlendMode("add")
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.draw(sprite, g.x, g.y, 0, scale, scale, sw/2, sh/2)
+            love.graphics.setBlendMode("alpha")
+        end
+    end
+
+    -- Glowing bullets
+    for _, b in ipairs(state.bullets or {}) do
+        local isGlow = (b.type == 'absolute_zero' or b.type == 'fire_wand' or b.type == 'hellfire' or b.type == 'static_orb' or b.type == 'thunder_loop' or b.type == 'wand' or b.type == 'holy_wand' or b.type == 'death_spiral' or b.type == 'thousand_edge')
+        if isGlow then
+            if b.type == 'absolute_zero' then
+                local r = b.radius or b.size or 0
+                vfx.drawAreaField('absolute_zero', b.x, b.y, r, 1, { alpha = 1 })
+            else
+                local sprite = (state.weaponSpritesEmissive and state.weaponSpritesEmissive[b.type]) or (state.weaponSprites and state.weaponSprites[b.type])
+                if sprite then
+                    local sw, sh = sprite:getWidth(), sprite:getHeight()
+                    local scale = ((b.size or sw) / sw) * ((state.weaponSpriteScale and state.weaponSpriteScale[b.type]) or 1)
+                    local sx = scale
+                    local sy = scale
+                    love.graphics.setBlendMode("add")
+                    love.graphics.setColor(1, 1, 1, 1)
+                    love.graphics.push()
+                    love.graphics.translate(b.x, b.y)
+                    local rot = b.rotation
+                    if b.type == 'oil_bottle' then
+                        rot = 0
+                    elseif b.type == 'heavy_hammer' and (b.vx or 0) < 0 then
+                        rot = (rot or 0) + math.pi
+                        sx = -sx
+                    end
+                    if rot then love.graphics.rotate(rot) end
+                    love.graphics.draw(sprite, 0, 0, 0, sx, sy, sw/2, sh/2)
+                    love.graphics.pop()
+                    love.graphics.setBlendMode("alpha")
+                end
+            end
+        end
+    end
+
+    -- Melee swing arc (emissive overlay)
+    do
+        local melee = p and p.meleeState
+        if melee and melee.phase == 'swing' then
+            local px, py = p.x, p.y
+            local range = 90
+            local arcWidth = 1.4
+            local aimAngle = p.aimAngle or 0
+            local r, g, b, a = 1, 1, 1, 0.22
+            if melee.attackType == 'light' then
+                r, g, b = 0.9, 0.95, 1
+            elseif melee.attackType == 'heavy' then
+                r, g, b = 1, 0.7, 0.3
+            elseif melee.attackType == 'finisher' then
+                r, g, b = 1, 0.4, 0.2
+                a = 0.30
+            end
+
+            love.graphics.setBlendMode('add')
+            love.graphics.setColor(r, g, b, a)
+            love.graphics.setLineWidth(3)
+            local startAng = aimAngle - arcWidth / 2
+            local endAng = aimAngle + arcWidth / 2
+            love.graphics.arc('line', 'open', px, py, range, startAng, endAng)
+            love.graphics.line(px, py, px + math.cos(startAng) * range, py + math.sin(startAng) * range)
+            love.graphics.line(px, py, px + math.cos(endAng) * range, py + math.sin(endAng) * range)
+            love.graphics.setLineWidth(1)
+            love.graphics.setBlendMode('alpha')
+        end
+    end
+
+    love.graphics.setBlendMode("alpha")
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.pop()
+
+    return true
 end
 
 -- Backward compatible entry point
