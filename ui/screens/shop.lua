@@ -155,6 +155,36 @@ function ShopCard:drawSelf()
     love.graphics.setColor(1, 1, 1, 1)
 end
 
+function ShopCard:drawEmissiveSelf()
+    local glowT = math.max(self.hoverT or 0, self.selectedT or 0, (self.focused and 1 or 0))
+    if glowT <= 0.001 then return end
+
+    local gx, gy = self:getGlobalPosition()
+    local w, h = self.w, self.h
+    if w <= 0 or h <= 0 then return end
+
+    local borderColor
+    if self.selectedT > 0.01 then
+        borderColor = theme.lerpColor(LAYOUT.cardBorder, LAYOUT.cardBorderSelected, self.selectedT)
+    elseif self.hoverT > 0.01 and self.active then
+        borderColor = theme.lerpColor(LAYOUT.cardBorder, LAYOUT.cardBorderHover, self.hoverT)
+    else
+        borderColor = LAYOUT.cardBorder
+    end
+
+    local baseAlpha = self.active and 0.12 or 0.07
+    local alpha = baseAlpha + 0.36 * glowT
+    local expand = self.selected and 2 or 1
+
+    love.graphics.setBlendMode('add')
+    love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], alpha)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle('line', gx - expand, gy - expand, w + expand * 2, h + expand * 2, 5, 5)
+    love.graphics.setLineWidth(1)
+    love.graphics.setBlendMode('alpha')
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
 function ShopCard:onActivate()
     if self.active then
         self:emit('purchase', self.index)

@@ -303,6 +303,26 @@ function ModCard:drawSelf()
     love.graphics.setColor(1, 1, 1, 1)
 end
 
+function ModCard:drawEmissiveSelf()
+    local glowT = math.max(self.hoverT or 0, self.selectedT or 0, (self.focused and 1 or 0))
+    if glowT <= 0.001 then return end
+
+    local gx, gy = self:getGlobalPosition()
+    local w, h = self.w, self.h
+    if w <= 0 or h <= 0 then return end
+
+    local col = {0.4, 0.8, 1, 1}
+    local alpha = 0.1 + 0.35 * glowT
+
+    love.graphics.setBlendMode('add')
+    love.graphics.setColor(col[1], col[2], col[3], alpha)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle('line', gx - 1, gy - 1, w + 2, h + 2, 4, 4)
+    love.graphics.setLineWidth(1)
+    love.graphics.setBlendMode('alpha')
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
 function ModCard:getDragData()
     if not self.owned then return false end
     return {

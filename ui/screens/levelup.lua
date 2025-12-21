@@ -36,6 +36,9 @@ function UpgradeCard.new(opts)
     opts.borderColor = {0.3, 0.3, 0.3, 1}
     opts.borderWidth = 1
     opts.cornerRadius = 4
+    opts.glowColor = opts.glowColor or theme.colors.accent
+    opts.glowAlpha = opts.glowAlpha or 0.22
+    opts.glowWidth = opts.glowWidth or 2
     
     local self = setmetatable(ui.Panel.new(opts), UpgradeCard)
     
@@ -119,6 +122,29 @@ function UpgradeCard:update(dt)
         self.borderColor = {0.3, 0.3, 0.3, 1}
         self.bgColor = {0.1, 0.1, 0.12, 0.95}
     end
+end
+
+function UpgradeCard:drawEmissiveSelf()
+    local glowT = math.max(self.hoverT or 0, (self.focused and 1 or 0), (self.selected and 1 or 0))
+    if glowT <= 0.001 then return end
+
+    local gx, gy = self:getGlobalPosition()
+    local w, h = self.w, self.h
+    if w <= 0 or h <= 0 then return end
+
+    local col = self.glowColor or theme.colors.accent
+    local alpha = (col[4] or 1) * (self.glowAlpha or 0.22) * (self.alpha or 1) * glowT
+    local width = self.glowWidth or 2
+    local corner = self.cornerRadius or 0
+    local expand = 1.5
+
+    love.graphics.setBlendMode('add')
+    love.graphics.setColor(col[1], col[2], col[3], alpha)
+    love.graphics.setLineWidth(width)
+    love.graphics.rectangle('line', gx - expand, gy - expand, w + expand * 2, h + expand * 2, corner + 1, corner + 1)
+    love.graphics.setLineWidth(1)
+    love.graphics.setBlendMode('alpha')
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 
