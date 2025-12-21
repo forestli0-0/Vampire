@@ -5,7 +5,7 @@ local pipeline = {}
 local inited = false
 local emissiveCanvas = nil
 local debugView = 'final'
-local debugViews = {'final', 'base', 'emissive', 'bloom'}
+local debugViews = {'final', 'base', 'emissive', 'bloom', 'lights'}
 local statsCanvas = nil
 local statsEnabled = false
 local statsFrame = 0
@@ -22,6 +22,34 @@ local emissiveStats = {
 
 pipeline.emissiveFallback = false
 
+-- Dynamic light system
+local lightCanvas = nil
+local lights = {}  -- {x, y, radius, color, intensity}
+local lightShader = nil
+local MAX_LIGHTS = 16
+local AMBIENT_COLOR = {0.85, 0.85, 0.88}  -- Much brighter, subtle effect
+
+-- Light shader for smooth radial falloff
+local function getLightShader()
+    if lightShader then return lightShader end
+    lightShader = love.graphics.newShader[[
+        extern vec2 center;
+        extern number radius;
+        extern vec3 color;
+        extern number intensity;
+        
+        vec4 effect(vec4 vertColor, Image tex, vec2 uv, vec2 sc) {
+            vec2 p = sc - center;
+            number d = length(p) / radius;
+            number falloff = 1.0 - smoothstep(0.0, 1.0, d);
+            falloff = falloff * falloff;  // Quadratic falloff for softer edges
+            vec3 col = color * intensity * falloff;
+            return vec4(col, falloff * intensity);
+        }
+    ]]
+    return lightShader
+end
+
 function pipeline.init(w, h)
     if inited then return end
     inited = true
@@ -29,6 +57,11 @@ function pipeline.init(w, h)
         bloom.init(w, h)
     end
     emissiveCanvas = love.graphics.newCanvas(w, h)
+    -- Light canvas at half resolution for performance
+    lightCanvas = love.graphics.newCanvas(
+        math.max(1, math.floor(w / 2)),
+        math.max(1, math.floor(h / 2))
+    )
     local sw = math.max(1, math.floor(w / 10))
     local sh = math.max(1, math.floor(h / 10))
     statsCanvas = love.graphics.newCanvas(sw, sh)
@@ -39,6 +72,10 @@ function pipeline.resize(w, h)
         bloom.resize(w, h)
     end
     emissiveCanvas = love.graphics.newCanvas(w, h)
+    lightCanvas = love.graphics.newCanvas(
+        math.max(1, math.floor(w / 2)),
+        math.max(1, math.floor(h / 2))
+    )
     local sw = math.max(1, math.floor(w / 10))
     local sh = math.max(1, math.floor(h / 10))
     statsCanvas = love.graphics.newCanvas(sw, sh)
@@ -109,6 +146,8 @@ function pipeline.present(state)
         canvas = emissiveCanvas
     elseif debugView == 'bloom' and bloom.getBloomCanvas then
         canvas = bloom.getBloomCanvas()
+    elseif debugView == 'lights' then
+        canvas = lightCanvas
     end
 
     love.graphics.setCanvas()
@@ -132,6 +171,76 @@ end
 
 function pipeline.getEmissiveCanvas()
     return emissiveCanvas
+end
+
+function pipeline.getLightCanvas()
+    return lightCanvas
+end
+
+-- Add a dynamic light for this frame
+function pipeline.addLight(x, y, radius, color, intensity)
+    if #lights >= MAX_LIGHTS then return end
+    table.insert(lights, {
+        x = x or 0,
+        y = y or 0,
+        radius = radius or 100,
+        color = color or {1, 1, 1},
+        intensity = intensity or 1
+    })
+end
+
+-- Clear all lights (call at start of each frame)
+function pipeline.clearLights()
+    lights = {}
+end
+
+-- Get current light count (for debug)
+function pipeline.getLightCount()
+    return #lights
+end
+
+-- Draw lights to light canvas
+function pipeline.drawLights(cameraX, cameraY)
+    if not lightCanvas then return end
+    
+    cameraX = cameraX or 0
+    cameraY = cameraY or 0
+    
+    local screenW = love.graphics.getWidth()
+    local screenH = love.graphics.getHeight()
+    local scale = lightCanvas:getWidth() / screenW
+    
+    love.graphics.setCanvas(lightCanvas)
+    -- Fill with ambient color
+    love.graphics.clear(AMBIENT_COLOR[1], AMBIENT_COLOR[2], AMBIENT_COLOR[3], 1)
+    
+    love.graphics.setBlendMode("add")
+    
+    -- Draw each light as a radial gradient
+    for i, light in ipairs(lights) do
+        if i > MAX_LIGHTS then break end
+        
+        local sx = (light.x - cameraX) * scale
+        local sy = (light.y - cameraY) * scale
+        local r = light.radius * scale
+        local c = light.color
+        local intensity = light.intensity
+        
+        -- Draw multiple circles for smooth gradient (more steps = smoother)
+        local steps = 16
+        for step = steps, 1, -1 do
+            local t = step / steps
+            -- Smoother cubic falloff
+            local falloff = t * t * t
+            local alpha = intensity * falloff * 0.08
+            love.graphics.setColor(c[1], c[2], c[3], alpha)
+            love.graphics.circle('fill', sx, sy, r * t)
+        end
+    end
+    
+    love.graphics.setBlendMode("alpha")
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setCanvas()
 end
 
 function pipeline.setDebugView(view)

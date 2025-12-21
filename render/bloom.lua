@@ -13,19 +13,19 @@ local shader_warp
 local down_w
 local down_h
 
-local bloom_threshold = 0.78
-local bloom_knee = 0.22
-local bloom_intensity = 1.0
+local bloom_threshold = 0.70
+local bloom_knee = 0.25
+local bloom_intensity = 1.2
 
 local tonemap_exposure = 1.15
-local tonemap_amount = 0.0
-local vignette_strength = 0.0
+local tonemap_amount = 0.15
+local vignette_strength = 0.18
 local vignette_power = 1.7
 
--- Filmic polish (all default off): grain + subtle chromatic aberration
-local film_grain_amount = 0.0
+-- Filmic polish: subtle grain + chromatic aberration for neon arcade feel
+local film_grain_amount = 0.025
 local film_grain_size = 2.0 -- pixels per noise cell
-local chroma_amount = 0.0
+local chroma_amount = 0.004
 local chroma_pixels = 0.85 -- max pixel offset at edge when chroma_amount=1
 local chroma_edge_power = 2.2
 
@@ -464,6 +464,18 @@ function bloom.postDraw(state, emissiveCanvas, opts)
         love.graphics.draw(src, 0, 0)
 
         love.graphics.setShader()
+        
+        -- Overlay light canvas if available
+        local pipeline = require('render.pipeline')
+        local lightCanvas = pipeline.getLightCanvas()
+        if lightCanvas then
+            love.graphics.setBlendMode("multiply", "premultiplied")
+            local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
+            local lw, lh = lightCanvas:getWidth(), lightCanvas:getHeight()
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.draw(lightCanvas, 0, 0, 0, sw / lw, sh / lh)
+            love.graphics.setBlendMode("alpha")
+        end
     else
         love.graphics.setCanvas()
         love.graphics.setBlendMode("alpha")

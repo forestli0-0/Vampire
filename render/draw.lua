@@ -1,6 +1,7 @@
 local weapons = require('gameplay.weapons')
 local enemies = require('gameplay.enemies')
 local vfx = require('render.vfx')
+local pipeline = require('render.pipeline')
 
 local draw = {}
 
@@ -2153,6 +2154,59 @@ end
 
 function draw.renderEmissive(state)
     if not state then return false end
+
+    -- Collect dynamic lights for this frame
+    pipeline.clearLights()
+    
+    -- Player light (very subtle)
+    if state.player then
+        pipeline.addLight(state.player.x, state.player.y, 80, {0.4, 0.7, 1.0}, 0.25)
+    end
+    
+    -- Bullet lights (subtle glow)
+    for _, b in ipairs(state.bullets or {}) do
+        local color = {1.0, 0.9, 0.6}  -- Default warm
+        local radius = 25
+        local intensity = 0.2
+        if b.type == 'absolute_zero' then 
+            color = {0.4, 0.85, 1.0}
+            radius = 35
+        elseif b.type == 'fire_wand' or b.type == 'hellfire' then 
+            color = {1.0, 0.6, 0.3}
+            radius = 30
+        elseif b.type == 'static_orb' or b.type == 'thunder_loop' then
+            color = {0.6, 0.8, 1.0}
+            radius = 30
+        elseif b.type == 'wand' or b.type == 'holy_wand' then
+            color = {0.95, 0.95, 1.0}
+            radius = 20
+            intensity = 0.15
+        end
+        pipeline.addLight(b.x, b.y, radius, color, intensity)
+    end
+    
+    -- Pickup lights (subtle hints)
+    for _, item in ipairs(state.floorPickups or {}) do
+        local color = {1.0, 1.0, 0.85}  -- Default gold
+        local radius = 20
+        local intensity = 0.18
+        if item.kind == 'health_orb' then 
+            color = {1.0, 0.45, 0.45}
+        elseif item.kind == 'energy_orb' then 
+            color = {0.45, 0.6, 1.0}
+        elseif item.kind == 'mod_card' then
+            color = {0.85, 0.65, 1.0}
+            radius = 25
+        elseif item.kind == 'chicken' then
+            color = {1.0, 0.85, 0.6}
+        end
+        pipeline.addLight(item.x, item.y, radius, color, intensity)
+    end
+    
+    -- Chest lights (subtle)
+    for _, c in ipairs(state.chests or {}) do
+        pipeline.addLight(c.x, c.y, 35, {1.0, 0.9, 0.6}, 0.25)
+    end
 
     love.graphics.push()
     if state.shakeAmount and state.shakeAmount > 0 then

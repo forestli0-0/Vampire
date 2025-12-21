@@ -148,6 +148,12 @@ local function drawWorld(state)
         end
         return true
     end)
+    
+    -- Draw dynamic lights (collected during renderEmissive)
+    local camX = state.camera and state.camera.x or 0
+    local camY = state.camera and state.camera.y or 0
+    pipeline.drawLights(camX, camY)
+    
     pipeline.present(state)
     pipeline.drawEmissiveStatsOverlay(state.font)
 
