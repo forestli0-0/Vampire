@@ -324,6 +324,7 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
     elseif effect == 'STATIC' then
         local dur = math.max((effectData and effectData.duration) or 3.0, 0)
         local radius = (effectData and (effectData.radius or effectData.range)) or 140
+        local hadStatic = (e.status.staticTimer or 0) > 0
         e.status.static = true
         e.status.staticTimer = math.max(e.status.staticTimer or 0, dur)
         local base = baseDamage or ((e.maxHealth or e.maxHp or e.health or e.hp or 0) * 0.05 * might)
@@ -345,6 +346,10 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
             e.status.shockLockout = 0.9
         end
         if state.spawnEffect then state.spawnEffect('static', e.x, e.y) end
+        if not hadStatic and state and state.playSfx and (state._staticSfxCooldown or 0) <= 0 then
+            state.playSfx('static')
+            state._staticSfxCooldown = 0.9
+        end
     elseif effect == 'MAGNETIC' then
         local dur = (effectData and effectData.duration) or 6.0
         e.status.magneticStacks = math.min(10, (e.status.magneticStacks or 0) + 1)
@@ -904,10 +909,6 @@ function enemies.update(state, dt)
 
         if e.status.static and e.status.staticTimer and e.status.staticTimer > 0 then
             e.status.staticTimer = e.status.staticTimer - dt
-            if state._staticSfxCooldown <= 0 then
-                if state.playSfx then state.playSfx('static') end
-                state._staticSfxCooldown = 0.35
-            end
             if e.health > 0 then
                 e.status.staticAcc = (e.status.staticAcc or 0) + (e.status.staticDps or 0) * dt
                 if e.status.staticAcc >= 1 then
@@ -916,7 +917,7 @@ function enemies.update(state, dt)
                     if tick > 0 then
                         local radius = e.status.staticRadius or 140
                         local r2 = radius * radius
-                        applyDotTick(state, e, 'ELECTRIC', tick)
+                        applyDotTick(state, e, 'ELECTRIC', tick, {noSfx=true})
                         local shown = 0
                         local world = state.world
                         local useLos = world and world.enabled and world.segmentHitsWall
@@ -934,7 +935,7 @@ function enemies.update(state, dt)
                                         ensureStatus(o)
                                         local applied = false
                                         if (o.status.staticSplashCd or 0) <= 0 then
-                                            applyDotTick(state, o, 'ELECTRIC', tick, {noText=true})
+                                            applyDotTick(state, o, 'ELECTRIC', tick, {noText=true, noSfx=true})
                                             o.status.staticSplashCd = 0.25
                                             applied = true
                                         end
