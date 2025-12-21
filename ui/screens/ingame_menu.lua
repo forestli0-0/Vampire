@@ -442,6 +442,7 @@ function ingameMenu.buildEquippedMods(parent)
                 
                 if dragData.slotType == 'inventory' then
                     -- Equip from inventory
+                    local replacedMod = slotsData[slotIdx]
                     local success = mods.equipToRunSlot(state, category, key, slotIdx, modData.key, modData.rank)
                     if success then
                         for j, m in ipairs(state.runMods.inventory) do
@@ -449,6 +450,9 @@ function ingameMenu.buildEquippedMods(parent)
                                 table.remove(state.runMods.inventory, j)
                                 break
                             end
+                        end
+                        if replacedMod then
+                            mods.addToRunInventory(state, replacedMod.key, category, replacedMod.rank, replacedMod.rarity)
                         end
                         mods.refreshActiveStats(state)
                         if state.playSfx then state.playSfx('gem') end
@@ -559,9 +563,13 @@ function ingameMenu.buildInventory(parent)
             end
             
             if targetSlot then
+                local replacedMod = slotsData[targetSlot]
                 local success = mods.equipToRunSlot(state, category, key, targetSlot, capturedModData.key, capturedModData.rank)
                 if success then
                     table.remove(state.runMods.inventory, capturedIdx)
+                    if replacedMod then
+                        mods.addToRunInventory(state, replacedMod.key, category, replacedMod.rank, replacedMod.rarity)
+                    end
                     mods.refreshActiveStats(state)
                     if state.playSfx then state.playSfx('gem') end
                 end
