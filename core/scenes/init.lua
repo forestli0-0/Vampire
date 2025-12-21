@@ -274,6 +274,10 @@ function scenes.keypressed(state, key, scancode, isrepeat)
     end
     if key == 'f5' then benchmark.toggle(state) end
     if key == 'v' then vfx.toggle() end
+    if key == 'f7' then
+        pipeline.nextDebugView()
+        return true
+    end
 
     if player.keypressed and player.keypressed(state, key) then return true end
 

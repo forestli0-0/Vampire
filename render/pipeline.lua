@@ -4,6 +4,8 @@ local pipeline = {}
 
 local inited = false
 local emissiveCanvas = nil
+local debugView = 'final'
+local debugViews = {'final', 'base', 'emissive', 'bloom'}
 
 pipeline.emissiveFallback = false
 
@@ -58,17 +60,72 @@ function pipeline.drawEmissive(drawFn)
 end
 
 function pipeline.present(state)
-    if bloom and bloom.postDraw then
+    if not bloom or not bloom.postDraw then return end
+
+    if debugView == 'final' then
         bloom.postDraw(state, emissiveCanvas)
+        return
+    end
+
+    bloom.postDraw(state, emissiveCanvas, {skipFinal = true})
+
+    local canvas = nil
+    if debugView == 'base' and bloom.getMainCanvas then
+        canvas = bloom.getMainCanvas()
+    elseif debugView == 'emissive' then
+        canvas = emissiveCanvas
+    elseif debugView == 'bloom' and bloom.getBloomCanvas then
+        canvas = bloom.getBloomCanvas()
+    end
+
+    love.graphics.setCanvas()
+    love.graphics.clear(0, 0, 0, 1)
+    if canvas then
+        local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
+        local cw, ch = canvas:getWidth(), canvas:getHeight()
+        local sx = sw / cw
+        local sy = sh / ch
+        love.graphics.setBlendMode('alpha')
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(canvas, 0, 0, 0, sx, sy)
     end
 end
 
 function pipeline.drawUI(drawFn)
-    if drawFn then drawFn() end
+    if debugView == 'final' and drawFn then
+        drawFn()
+    end
 end
 
 function pipeline.getEmissiveCanvas()
     return emissiveCanvas
+end
+
+function pipeline.setDebugView(view)
+    for _, v in ipairs(debugViews) do
+        if v == view then
+            debugView = view
+            return debugView
+        end
+    end
+    return debugView
+end
+
+function pipeline.getDebugView()
+    return debugView
+end
+
+function pipeline.nextDebugView()
+    for i, v in ipairs(debugViews) do
+        if v == debugView then
+            local nextIndex = i + 1
+            if nextIndex > #debugViews then nextIndex = 1 end
+            debugView = debugViews[nextIndex]
+            return debugView
+        end
+    end
+    debugView = debugViews[1]
+    return debugView
 end
 
 return pipeline

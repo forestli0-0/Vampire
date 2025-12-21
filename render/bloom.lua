@@ -383,7 +383,7 @@ function bloom.preDraw()
     love.graphics.clear()
 end
 
-function bloom.postDraw(state, emissiveCanvas)
+function bloom.postDraw(state, emissiveCanvas, opts)
     love.graphics.setCanvas() -- Reset to screen
 
     local src = canvas_main
@@ -438,30 +438,41 @@ function bloom.postDraw(state, emissiveCanvas)
         bloom_ready = true
     end
 
-    -- 4. Final Combine (tonemap + vignette)
-    love.graphics.setCanvas() -- Back to screen
-    love.graphics.setBlendMode("alpha")
+    local skipFinal = opts and opts.skipFinal
+    if not skipFinal then
+        -- 4. Final Combine (tonemap + vignette)
+        love.graphics.setCanvas() -- Back to screen
+        love.graphics.setBlendMode("alpha")
 
-    love.graphics.setShader(shader_combine)
-    shader_combine:send("bloomTex", canvas_blur_v)
-    shader_combine:send("bloomIntensity", bloom_intensity)
-    shader_combine:send("exposure", tonemap_exposure)
-    shader_combine:send("tonemapAmount", tonemap_amount)
-    shader_combine:send("vignetteStrength", vignette_strength)
-    shader_combine:send("vignettePower", vignette_power)
+        love.graphics.setShader(shader_combine)
+        shader_combine:send("bloomTex", canvas_blur_v)
+        shader_combine:send("bloomIntensity", bloom_intensity)
+        shader_combine:send("exposure", tonemap_exposure)
+        shader_combine:send("tonemapAmount", tonemap_amount)
+        shader_combine:send("vignetteStrength", vignette_strength)
+        shader_combine:send("vignettePower", vignette_power)
 
-    shader_combine:send("screenSize", {src:getWidth(), src:getHeight()})
-    shader_combine:send("time", love.timer.getTime())
-    shader_combine:send("filmGrainAmount", film_grain_amount)
-    shader_combine:send("filmGrainSize", film_grain_size)
-    shader_combine:send("chromaAmount", chroma_amount)
-    shader_combine:send("chromaPixels", chroma_pixels)
-    shader_combine:send("chromaEdgePower", chroma_edge_power)
+        shader_combine:send("screenSize", {src:getWidth(), src:getHeight()})
+        shader_combine:send("time", love.timer.getTime())
+        shader_combine:send("filmGrainAmount", film_grain_amount)
+        shader_combine:send("filmGrainSize", film_grain_size)
+        shader_combine:send("chromaAmount", chroma_amount)
+        shader_combine:send("chromaPixels", chroma_pixels)
+        shader_combine:send("chromaEdgePower", chroma_edge_power)
 
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.draw(src, 0, 0)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(src, 0, 0)
 
-    love.graphics.setShader()
+        love.graphics.setShader()
+    else
+        love.graphics.setCanvas()
+        love.graphics.setBlendMode("alpha")
+        love.graphics.setShader()
+    end
+end
+
+function bloom.getBloomCanvas()
+    return canvas_blur_v
 end
 
 function bloom.resize(w, h)
