@@ -109,6 +109,23 @@ function assets.init(state)
         bleed     = loadSfx('assets/sfx/bleed.wav', 400),
         explosion = loadSfx('assets/sfx/explosion.wav', 300)
     }
+    local sfxVolumes = {
+        shoot = 0.4,
+        hit = 1.0,
+        gem = 0.8,
+        glass = 0.9,
+        freeze = 0.8,
+        ignite = 0.9,
+        static = 0.5,
+        bleed = 0.85,
+        explosion = 0.9
+    }
+    for key, src in pairs(state.sfx) do
+        local v = sfxVolumes[key]
+        if v and src and src.setVolume then
+            pcall(function() src:setVolume(v) end)
+        end
+    end
     state.music = loadMusic({
         'assets/music/bgm.ogg','assets/music/bgm.mp3','assets/music/bgm.wav',
         'assets/sfx/bgm.ogg','assets/sfx/bgm.mp3','assets/sfx/bgm.wav'
@@ -116,6 +133,10 @@ function assets.init(state)
 
     function state.playSfx(key)
         local s = state.sfx[key]
+        if key == 'static' and s and s.isPlaying then
+            local okPlaying, playing = pcall(function() return s:isPlaying() end)
+            if okPlaying and playing then return end
+        end
         if s and s.clone then
             local ok, src = pcall(function() return s:clone() end)
             if ok and src and src.play then
@@ -293,6 +314,11 @@ function assets.init(state)
     if plantBullet then
         plantBullet:setFilter('nearest', 'nearest')
         state.enemySprites['plant_bullet'] = plantBullet
+    end
+    local defaultEnemyBullet = loadImage('assets/weapons/fire_wand.png')
+    if defaultEnemyBullet then
+        defaultEnemyBullet:setFilter('nearest', 'nearest')
+        state.enemySprites['default_bullet'] = defaultEnemyBullet
     end
 
     state.enemySprites['skeleton_frames'] = {}

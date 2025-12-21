@@ -115,7 +115,7 @@ local function build(helpers)
                         local est = #targets * ((p.slashDashChain.maxStepTime or 0) + (p.slashDashChain.pause or 0))
                         p.invincibleTimer = math.max(p.invincibleTimer or 0, est)
                     end
-                    if state.playSfx then state.playSfx('shoot') end
+                    if state.playSfx then state.playSfx('static') end
                     return true
                 end
             },
@@ -578,7 +578,7 @@ local function build(helpers)
                 
                     table.insert(state.voltLightningChains, chainData)
                 
-                    if state.playSfx then state.playSfx('shoot') end
+                    if state.playSfx then state.playSfx('static') end
                     return true
                 end
             },

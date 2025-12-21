@@ -1597,12 +1597,15 @@ function draw.renderWorld(state)
 
     -- 敌方子弹
     for _, eb in ipairs(state.enemyBullets) do
-        local sprite = state.enemySprites and state.enemySprites[eb.spriteKey or '']
+        local sprite = state.enemySprites and (state.enemySprites[eb.spriteKey or ''] or state.enemySprites['default_bullet'])
         if sprite then
             love.graphics.setColor(1,1,1)
             local sw, sh = sprite:getWidth(), sprite:getHeight()
             local baseScale = (eb.size or sw) / sw
             if eb.spriteKey == 'plant_bullet' then baseScale = baseScale * 2 end
+            if not eb.spriteKey and state.enemySprites and sprite == state.enemySprites['default_bullet'] then
+                baseScale = baseScale * 3
+            end
             local scale = baseScale
             love.graphics.push()
             love.graphics.translate(eb.x, eb.y)

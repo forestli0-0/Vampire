@@ -679,6 +679,7 @@ function enemies.update(state, dt)
     local p = state.player
     local playerMight = (state.player and state.player.stats and state.player.stats.might) or 1
     state.chainLinks = {}
+    state._staticSfxCooldown = math.max(0, (state._staticSfxCooldown or 0) - dt)
     for i = #state.enemies, 1, -1 do
         local e = state.enemies[i]
         ensureStatus(e)
@@ -903,6 +904,10 @@ function enemies.update(state, dt)
 
         if e.status.static and e.status.staticTimer and e.status.staticTimer > 0 then
             e.status.staticTimer = e.status.staticTimer - dt
+            if state._staticSfxCooldown <= 0 then
+                if state.playSfx then state.playSfx('static') end
+                state._staticSfxCooldown = 0.35
+            end
             if e.health > 0 then
                 e.status.staticAcc = (e.status.staticAcc or 0) + (e.status.staticDps or 0) * dt
                 if e.status.staticAcc >= 1 then
