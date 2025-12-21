@@ -2135,12 +2135,11 @@ function draw.renderUI(state)
     -- end
 end
 
--- Backward compatible entry point
-function draw.render(state)
+function draw.renderBase(state)
     draw.renderWorld(state)
-    
+
     draw.renderUI(state)
-    
+
     -- Room transition fade overlay
     if state.roomTransitionFade and state.roomTransitionFade > 0 then
         local alpha = state.roomTransitionFade
@@ -2148,6 +2147,11 @@ function draw.render(state)
         love.graphics.rectangle('fill', 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
         love.graphics.setColor(1, 1, 1, 1)
     end
+end
+
+-- Backward compatible entry point
+function draw.render(state)
+    draw.renderBase(state)
 end
 
 return draw

@@ -20,6 +20,7 @@ local shopScreen = require('ui.screens.shop')
 local testmode = require('debug.testmode')
 local ui = require('ui')
 local uiDemo = require('ui.demo')
+local pipeline = require('render.pipeline')
 local vfx = require('render.vfx')
 local weapons = require('gameplay.weapons')
 local world = require('world.world')
@@ -128,15 +129,19 @@ local function updateGameOver(state, dt)
 end
 
 local function drawWorld(state)
-    bloom.preDraw()
-    draw.render(state)
-    bloom.postDraw(state)
+    pipeline.beginFrame()
+    pipeline.drawBase(function()
+        draw.renderBase(state)
+    end)
+    pipeline.present(state)
 
     benchmark.draw(state)
     debugmenu.draw(state)
     testmode.draw(state)
 
-    ui.draw()
+    pipeline.drawUI(function()
+        ui.draw()
+    end)
 end
 
 local function drawArsenal(state)
@@ -190,7 +195,7 @@ function scenes.draw(state)
 end
 
 function scenes.resize(state, w, h)
-    bloom.resize(w, h)
+    pipeline.resize(w, h)
     ui.resize(w, h)
 end
 
