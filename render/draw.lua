@@ -2149,6 +2149,12 @@ function draw.renderBase(state)
     end
 end
 
+function draw.renderEmissive(state)
+    -- Placeholder: no emissive-only layers yet.
+    -- Returning false triggers pipeline fallback to base for bloom.
+    return false
+end
+
 -- Backward compatible entry point
 function draw.render(state)
     draw.renderBase(state)

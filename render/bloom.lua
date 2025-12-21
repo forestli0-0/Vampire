@@ -49,6 +49,10 @@ local perf_fps_to_full = 50
 local perf_fps_to_low = 28
 local perf_fps_to_medium_from_low = 34
 
+function bloom.getMainCanvas()
+    return canvas_main
+end
+
 local function collectWarpWaves(state)
     local waves = {
         {0, 0, 0, 0},
@@ -379,7 +383,7 @@ function bloom.preDraw()
     love.graphics.clear()
 end
 
-function bloom.postDraw(state)
+function bloom.postDraw(state, emissiveCanvas)
     love.graphics.setCanvas() -- Reset to screen
 
     local src = canvas_main
@@ -402,6 +406,8 @@ function bloom.postDraw(state)
         src = canvas_warp
     end
 
+    local emissiveSrc = emissiveCanvas or src
+
     local doBloom = (perf_bloom_div <= 1) or (perf_frame % perf_bloom_div == 0) or (not bloom_ready)
     if doBloom then
         -- 1. Downscale + extract highlights from main
@@ -411,9 +417,9 @@ function bloom.postDraw(state)
         shader_extract:send("threshold", bloom_threshold)
         shader_extract:send("knee", bloom_knee)
         love.graphics.setColor(1, 1, 1, 1)
-        local sx = down_w / src:getWidth()
-        local sy = down_h / src:getHeight()
-        love.graphics.draw(src, 0, 0, 0, sx, sy) -- Draw downscaled
+        local sx = down_w / emissiveSrc:getWidth()
+        local sy = down_h / emissiveSrc:getHeight()
+        love.graphics.draw(emissiveSrc, 0, 0, 0, sx, sy) -- Draw downscaled
 
         -- 2. Horizontal Blur
         love.graphics.setCanvas(canvas_blur_h)
