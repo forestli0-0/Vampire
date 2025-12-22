@@ -18,6 +18,7 @@ local widgets = {
     xpText = nil,
     levelText = nil,
     goldText = nil,
+    timeText = nil,
     dashBar = nil,
     dashText = nil,
     dashValue = nil,
@@ -48,6 +49,10 @@ local LAYOUT = {
     -- Objective (Top Center)
     objX = 320,
     objY = 10,
+    
+    -- Time (Top Right)
+    timeX = 640 - 60,
+    timeY = 20,
     
     -- Colors
     hpColor = {0.8, 0.2, 0.2, 1},
@@ -214,13 +219,15 @@ local function buildPlayerFrame(data, parent)
     -- Gold display (below frame)
     widgets.goldText = ui.Text.new({
         x = x, y = y + 14,
+        w = 200, -- Set width to prevent wrapping
         text = "GOLD 0",
         color = LAYOUT.goldColor,
         shadow = true,
         font = theme.getFont('small'),
         glow = true,
         glowColor = LAYOUT.goldColor,
-        glowAlpha = 0.25
+        glowAlpha = 0.25,
+        align = 'left' -- Ensure text aligns left
     })
     parent:addChild(widgets.goldText)
 end
@@ -370,6 +377,17 @@ local function buildCombatFrame(parent)
 end
 
 local function buildObjectiveFrame(parent)
+    -- Time display (Top Right)
+    widgets.timeText = ui.Text.new({
+        x = LAYOUT.timeX, y = LAYOUT.timeY,
+        text = "00:00",
+        color = HUD_LABEL_COLOR,
+        shadow = true,
+        font = theme.getFont('small'),
+        align = 'right' -- Align text to the right
+    })
+    parent:addChild(widgets.timeText)
+    
     -- Objective panel below the wave/room info (draw.lua shows room at Y=40)
     local panelW = 320
     local panelH = 20
@@ -478,7 +496,15 @@ function hud.update(gameState, dt)
 
         -- Gold
         if widgets.goldText then
-            widgets.goldText:setText(string.format("GOLD %d", data.resources.gold or 0))
+            widgets.goldText:setText(string.format("G %d", data.resources.gold or 0))
+        end
+        
+        -- Time
+        if widgets.timeText then
+            local totalSeconds = math.floor(data.resources.time or 0)
+            local minutes = math.floor(totalSeconds / 60)
+            local seconds = totalSeconds % 60
+            widgets.timeText:setText(string.format("%02d:%02d", minutes, seconds))
         end
 
         -- Dash

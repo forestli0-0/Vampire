@@ -31,7 +31,8 @@ function hudModel.build(state)
             maxEnergy = stats.maxEnergy or p.maxEnergy or 100
         },
         resources = {
-            gold = math.floor(state.runCurrency or 0)
+            gold = math.floor(state.runCurrency or 0),
+            time = state.gameTimer or 0
         },
         dash = {},
         staticCharge = {
