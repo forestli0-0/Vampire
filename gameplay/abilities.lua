@@ -1,15 +1,20 @@
--- abilities.lua
--- 4-Ability system (Warframe-style)
+-- 技能系统 (Abilities System)
+-- 包含：4-技能循环、Buff 系统、施法逻辑 以及 复杂技能的持续效果 (如 Volt 的 Discharge, Mag 的 Magnetize)。
+-- 技能设计思路参考 Warframe。
 
 local abilities = {}
 
--- Ability definitions structured by class
+-- 加载不同职业的技能定义
 local defs = require('data.defs.abilities')
 local defData = defs.build({
     addBuff = function(state, buff) return abilities.addBuff(state, buff) end
 })
 abilities.catalog = defData.catalog
 abilities.passives = defData.passives
+
+-------------------------------------------
+-- 基础辅助函数
+-------------------------------------------
 
 local function hasBuff(p, id)
     if not p or not p.buffs or not id then return false end
@@ -19,6 +24,7 @@ local function hasBuff(p, id)
     return false
 end
 
+--- restoreCastMoveSpeed: 恢复施法导致的减速。
 local function restoreCastMoveSpeed(p)
     if not p then return end
     local mult = p.castSlowMult
@@ -31,6 +37,8 @@ local function restoreCastMoveSpeed(p)
     p.castSlowMult = nil
 end
 
+--- detonateMagnetize: 引爆 Mag 的磁化区域。
+-- 会根据该区域内积攒的伤害释放一个范围爆发。
 function abilities.detonateMagnetize(state, enemy, reason)
     local e = enemy
     if not e then return false end
@@ -45,6 +53,7 @@ function abilities.detonateMagnetize(state, enemy, reason)
         explosionDmg = math.floor(stored * (m.explosionMult or 1))
     end
 
+    -- 应用全方位的磁力爆炸
     if explosionDmg > 0 and radius > 0 then
         local ok, calc = pcall(require, 'gameplay.calculator')
         local inst = nil
@@ -83,8 +92,7 @@ function abilities.detonateMagnetize(state, enemy, reason)
     return true
 end
 
-
--- Simple helper to get ability definition
+--- getAbilityDef: 获取特定索引的技能定义。
 function abilities.getAbilityDef(state, index)
     local p = state.player
     local className = p.class or 'volt'
@@ -95,9 +103,7 @@ function abilities.getAbilityDef(state, index)
     return nil
 end
 
-
-
--- Apply passive for current class
+--- applyPassive: 应用当前职业的被动技能。
 function abilities.applyPassive(state)
     local p = state.player
     if not p then return end
@@ -109,7 +115,7 @@ function abilities.applyPassive(state)
         passive.apply(state)
         p.passiveApplied = className
         
-        -- Show notification
+        -- 显示通知
         if state.texts then
             table.insert(state.texts, {
                 x = p.x, y = p.y - 60,
@@ -122,25 +128,24 @@ function abilities.applyPassive(state)
     end
 end
 
--- Get current passive info
 function abilities.getPassiveInfo(state)
     local p = state.player
     if not p then return nil end
-    
     local className = p.class or 'volt'
     return abilities.passives[className]
 end
 
 -- =============================================================================
--- BUFF SYSTEM
+-- 增益/减益系统 (BUFF SYSTEM)
 -- =============================================================================
 
+--- addBuff: 为玩家添加一个 Buff。
+-- 如果存在相同 ID 的 Buff，则执行刷新 (Expire -> Remove -> Add)。
 function abilities.addBuff(state, buff)
     local p = state.player
     if not p then return end
     p.buffs = p.buffs or {}
     
-    -- If a buff with the same id exists, remove it first (refresh)
     if buff.id then
         for i = #p.buffs, 1, -1 do
             if p.buffs[i].id == buff.id then
@@ -154,6 +159,7 @@ function abilities.addBuff(state, buff)
     if buff.onApply then buff.onApply(state) end
 end
 
+--- updateBuffs: 更新所有 Buff 的生命周期。
 function abilities.updateBuffs(state, dt)
     local p = state.player
     if not p or not p.buffs then return end
@@ -179,8 +185,7 @@ function abilities.removeBuff(state, id)
     end
 end
 
-
--- Get ability definition by index (1-4) for current player class
+--- getAbilityByIndex: 获取当前职业 1-4 档位的技能。
 function abilities.getAbilityByIndex(state, index)
     local p = state.player
     if not p then return nil end
@@ -192,7 +197,8 @@ function abilities.getAbilityByIndex(state, index)
     return classAbilities[index]
 end
 
--- Check if ability can be used (abilityIndex is 1, 2, 3, or 4)
+--- canUse: 检查当前能否释放特定索引的技能。
+-- 检查：蓝量、干扰区 (Nullifier)、施法中状态、特殊重放 (Recast) 逻辑。
 function abilities.canUse(state, abilityIndex)
     local p = state.player
     if not p then return false end
@@ -200,24 +206,26 @@ function abilities.canUse(state, abilityIndex)
     local def = abilities.getAbilityByIndex(state, abilityIndex)
     if not def then return false end
     
-    -- Cannot use during casting animation
+    -- 施法动画中禁止重复释放
     if p.isCasting then return false end
 
+    -- 开关类技能总是可以通过再次按键关闭
     local togglingOff = def.toggleId and hasBuff(p, def.toggleId)
     if togglingOff then
         return true
     end
     
-    -- Cannot use abilities inside Nullifier bubble
+    -- 干扰区 (Nullifier bubble) 内禁用技能
     local enemiesMod = require('gameplay.enemies')
     if enemiesMod.isInNullBubble and enemiesMod.isInNullBubble(state) then
         if state.texts and not p._nullBubbleWarningCd then
             table.insert(state.texts, {x = p.x, y = p.y - 40, text = "技能被屏蔽!", color = {0.6, 0.5, 0.9}, life = 0.8})
-            p._nullBubbleWarningCd = 0.8  -- Cooldown to prevent spam
+            p._nullBubbleWarningCd = 0.8
         end
         return false
     end
 
+    -- 检查是否处于“免费重放”阶段 (例如 Mag 的磁化引爆)
     if def.recastCheck and def.recastNoCost then
         local target = def.recastCheck(state)
         if target then
@@ -225,13 +233,12 @@ function abilities.canUse(state, abilityIndex)
         end
     end
     
-    -- Check energy (with efficiency preview)
+    -- 能量 (Energy) 消耗计算
     local eff = p.stats and p.stats.abilityEfficiency or 1.0
     local cost = math.floor(def.cost / eff)
     if (p.energy or 0) < cost then return false end
     
-    -- WF-style: Most abilities have NO cooldown, only energy limits
-    -- Only check CD if explicitly set (rare cases like Helminth abilities)
+    -- 冷却处理 (WF 风格大多数技能无 CD)
     if def.cd and def.cd > 0 then
         p.abilityCooldowns = p.abilityCooldowns or {}
         if (p.abilityCooldowns[abilityIndex] or 0) > 0 then return false end
@@ -240,21 +247,20 @@ function abilities.canUse(state, abilityIndex)
     return true
 end
 
--- Get cast time for an ability (affected by Natural Talent)
+--- getCastTime: 获取某技能的施法前摇时间 (受天赋 Natural Talent 影响)。
 function abilities.getCastTime(state, def)
     local p = state.player
     if not def then return 0 end
     
     local baseCast = def.castTime or 0
-    if baseCast <= 0 then return 0 end  -- Instant cast
+    if baseCast <= 0 then return 0 end
     
-    -- Natural Talent effect: reduce cast time
     local castSpeedMult = (p.stats and p.stats.castSpeed) or 1.0
     return baseCast / castSpeedMult
 end
 
--- Try to activate ability (WF-style: no CD, with cast time)
--- abilityIndex is 1, 2, 3, or 4
+--- tryActivate: 尝试释放技能。
+-- 进行合法性校验、扣除能量，并处理 瞬间释放 vs 需要前摇 的不同逻辑。
 function abilities.tryActivate(state, abilityIndex)
     if not abilities.canUse(state, abilityIndex) then return false end
     
@@ -262,12 +268,14 @@ function abilities.tryActivate(state, abilityIndex)
     local def = abilities.getAbilityByIndex(state, abilityIndex)
     if not def then return false end
     
+    -- 处理开关逻辑
     local togglingOff = def.toggleId and hasBuff(p, def.toggleId)
     if togglingOff then
         abilities.removeBuff(state, def.toggleId)
         return true
     end
 
+    -- 处理特殊重放逻辑
     if def.recastCheck and def.recastNoCost then
         local target = def.recastCheck(state)
         if target and def.recastAction then
@@ -275,32 +283,28 @@ function abilities.tryActivate(state, abilityIndex)
         end
     end
 
-    -- Consume energy (Efficiency reduces cost)
+    -- 消耗能量 (受效率修正)
     local eff = p.stats and p.stats.abilityEfficiency or 1.0
     local cost = math.floor(def.cost / eff)
     p.energy = (p.energy or 0) - cost
     
-    -- Get cast time
     local castTime = abilities.getCastTime(state, def)
     
     if castTime > 0 then
-        -- Start casting animation
+        -- 进入施法动画状态
         p.isCasting = true
         p.castTimer = castTime
         p.castDef = def
         p.castAbilityIndex = abilityIndex
         p.castProgress = 0
         
-        -- Store original speed for slowing during cast
+        -- 缓存原始速度并在施法中减速
         if not p.castOriginalSpeed then
             p.castOriginalSpeed = p.stats.moveSpeed or 170
         end
-        
-        -- Slow movement during cast (50% speed)
         p.castSlowMult = 0.5
         p.stats.moveSpeed = p.castOriginalSpeed * p.castSlowMult
         
-        -- Visual feedback: casting started
         if state.texts then
             table.insert(state.texts, {
                 x = p.x, y = p.y - 40, 
@@ -311,12 +315,11 @@ function abilities.tryActivate(state, abilityIndex)
             })
         end
         
-        return true  -- Cast started
+        return true
     else
-        -- Instant cast: execute immediately
+        -- 瞬发技能：直接执行效果
         local success = def.effect(state)
         
-        -- Set CD only if explicitly defined (WF-style: most have none)
         if def.cd and def.cd > 0 then
             p.abilityCooldowns = p.abilityCooldowns or {}
             p.abilityCooldowns[abilityIndex] = def.cd
@@ -326,12 +329,13 @@ function abilities.tryActivate(state, abilityIndex)
     end
 end
 
--- Interrupt casting (called when stunned, knocked down, etc.)
+--- interruptCast: 打断正在进行的施法。
+-- 当被控制 (Stun/Knockdown) 时调用。返还 50% 能量。
 function abilities.interruptCast(state, reason)
     local p = state.player
     if not p or not p.isCasting then return false end
     
-    -- Refund partial energy (50% if interrupted)
+    -- 返还部分能量
     if p.castDef then
         local eff = p.stats and p.stats.abilityEfficiency or 1.0
         local cost = math.floor(p.castDef.cost / eff)
@@ -339,10 +343,8 @@ function abilities.interruptCast(state, reason)
         p.energy = math.min(p.maxEnergy or 100, (p.energy or 0) + refund)
     end
     
-    -- Restore movement speed (only undo cast slow)
     restoreCastMoveSpeed(p)
     
-    -- Visual feedback
     if state.texts then
         table.insert(state.texts, {
             x = p.x, y = p.y - 30, 
@@ -352,7 +354,7 @@ function abilities.interruptCast(state, reason)
         })
     end
     
-    -- Clear casting state
+    -- 清理施法状态
     p.isCasting = false
     p.castTimer = nil
     p.castDef = nil
@@ -362,36 +364,31 @@ function abilities.interruptCast(state, reason)
     return true
 end
 
--- Get ability index for keyboard input (1, 2, 3, 4)
 function abilities.getAbilityForKey(key)
-    local keyMap = {
-        ['1'] = 1,
-        ['2'] = 2,
-        ['3'] = 3,
-        ['4'] = 4
-    }
+    local keyMap = { ['1'] = 1, ['2'] = 2, ['3'] = 3, ['4'] = 4 }
     return keyMap[key]
 end
 
-
--- Alias for backward compatibility (used by HUD)
 abilities.getAbilityDef = abilities.getAbilityByIndex
 
--- Update casting, cooldowns and energy regen
+-------------------------------------------
+-- 更新逻辑 (Update System)
+-------------------------------------------
+
 function abilities.update(state, dt)
     local p = state.player
     if not p then return end
     
-    -- Apply passive on first frame if not applied
+    -- 初始化被动
     if not p.passiveApplied then
         abilities.applyPassive(state)
     end
     
-    -- Buffs and Active Effects
+    -- 更新 Buff 计时与特殊持续效果
     abilities.updateBuffs(state, dt)
     abilities.updateActiveEffects(state, dt)
     
-    -- Apply warframe MODs on first frame if not applied
+    -- 首次加载角色 MOD (若未应用)
     if not p.warframeModsApplied then
         local mods = require('systems.mods')
         local slots = mods.getSlots(state, 'warframe', nil)
@@ -401,9 +398,7 @@ function abilities.update(state, dt)
         if hasModsEquipped then
             p.stats = p.stats or {}
             local modded = mods.applyWarframeMods(state, p.stats)
-            for k, v in pairs(modded) do
-                p.stats[k] = v
-            end
+            for k, v in pairs(modded) do p.stats[k] = v end
             if modded.maxHp then p.maxHp = modded.maxHp end
             if modded.maxEnergy then p.maxEnergy = modded.maxEnergy end
             if modded.energyRegen then p.energyRegen = modded.energyRegen end
@@ -417,16 +412,18 @@ function abilities.update(state, dt)
         p.warframeModsApplied = true
     end
     
-    -- === CASTING SYSTEM ===
+    -- 处理施法计时
     if p.isCasting and p.castTimer then
         p.castTimer = p.castTimer - dt
         local totalCast = abilities.getCastTime(state, p.castDef)
         p.castProgress = totalCast > 0 and (1 - (p.castTimer / totalCast)) or 1
         
+        -- 检查施法是否被控制技能打断
         local interrupted = (p.stunTimer and p.stunTimer > 0) or (p.knockdownTimer and p.knockdownTimer > 0) or (p.frozenTimer and p.frozenTimer > 0)
         if interrupted then
             abilities.interruptCast(state, "被控制打断!")
         elseif p.castTimer <= 0 then
+            -- 施法成功：触发正式效果
             if p.castDef and p.castDef.effect then p.castDef.effect(state) end
             if p.castDef and p.castDef.cd and p.castDef.cd > 0 then
                 p.abilityCooldowns = p.abilityCooldowns or {}
@@ -437,36 +434,37 @@ function abilities.update(state, dt)
         end
     end
     
-    -- Energy regen
+    -- 能量自然回复
     local regen = (p.stats and p.stats.energyRegen) or p.energyRegen or 2
-    if p.isCasting then regen = regen * 0.5 end
+    if p.isCasting then regen = regen * 0.5 end -- 施法中减半回蓝
     p.energy = math.min(p.maxEnergy or 100, (p.energy or 0) + regen * dt)
     
-    -- Null bubble warning cooldown
+    -- 干扰区警告计时器
     if p._nullBubbleWarningCd and p._nullBubbleWarningCd > 0 then
         p._nullBubbleWarningCd = p._nullBubbleWarningCd - dt
         if p._nullBubbleWarningCd <= 0 then p._nullBubbleWarningCd = nil end
     end
     
-    -- Cooldown tick
+    -- 冷却计时
     p.abilityCooldowns = p.abilityCooldowns or {}
     for key, cd in pairs(p.abilityCooldowns) do
         if cd > 0 then p.abilityCooldowns[key] = cd - dt end
     end
     
-    -- Temp shield decay
+    -- 临时护盾衰减
     if p.tempShieldTimer and p.tempShieldTimer > 0 then
         p.tempShieldTimer = p.tempShieldTimer - dt
         if p.tempShieldTimer <= 0 then p.tempShield, p.tempShieldTimer = 0, nil end
     end
 end
 
--- Unified function for persistent ability updates (Volt chains, WoF, Exalted Blade drain, etc.)
+--- updateActiveEffects: 更新所有激活的持续性技能效果。
+-- 涵盖：Volt 的闪电链视觉、显赫刀剑的持续耗蓝、电磁盾、Mag 的磁化力场、Discharge 波动等。
 function abilities.updateActiveEffects(state, dt)
     local p = state.player
     if not p then return end
     
-    -- 1. Volt Lightning VFX
+    -- 1. Volt 闪电链 VFX
     if state.voltLightningChains then
         for i = #state.voltLightningChains, 1, -1 do
             local c = state.voltLightningChains[i]
@@ -476,8 +474,9 @@ function abilities.updateActiveEffects(state, dt)
         end
     end
     
+    -- 2. 持续耗蓝技能：显赫刀剑 (Exalted Blade)
     if p.exaltedBladeActive then
-        p.energy = (p.energy or 0) - 2.5 * dt -- Energy drain
+        p.energy = (p.energy or 0) - 2.5 * dt
         if p.energy <= 0 then
             p.energy = 0
             abilities.removeBuff(state, "excalibur_exalted_blade")
@@ -485,14 +484,12 @@ function abilities.updateActiveEffects(state, dt)
         end
     end
     
-    
+    -- 3. 电盾 (Electric Shield) 动态跟随
     if p.electricShield and p.electricShield.active then
         p.electricShield.timer = p.electricShield.timer - dt
         if p.electricShield.timer <= 0 then 
             p.electricShield.active = false
-            if state.texts then
-                table.insert(state.texts, {x=p.x, y=p.y-30, text="电盾消散", color={0.6,0.6,0.8}, life=1})
-            end
+            if state.texts then table.insert(state.texts, {x=p.x, y=p.y-30, text="电盾消散", color={0.6,0.6,0.8}, life=1}) end
         elseif p.electricShield.followPlayer then
             local ang = p.aimAngle or 0
             local dst = p.electricShield.distance or 60
@@ -500,7 +497,7 @@ function abilities.updateActiveEffects(state, dt)
         end
     end
 
-    -- 4. Mag: Magnetize fields
+    -- 4. Mag: 磁化力场 (Magnetize Fields) 牵引与跳字伤害
     if state.enemies then
         state.magMagnetizeFields = nil
         for _, e in ipairs(state.enemies) do
@@ -512,6 +509,7 @@ function abilities.updateActiveEffects(state, dt)
                 state.magMagnetizeFields = state.magMagnetizeFields or {}
                 table.insert(state.magMagnetizeFields, {x = e.x, y = e.y, r = m.radius or 0, t = m.timer})
 
+                -- 这里的引力将其他敌人拉向磁化中心
                 local pullStrength = m.pullStrength or 160
                 if m.radius and m.radius > 0 then
                     local r2 = m.radius * m.radius
@@ -523,8 +521,7 @@ function abilities.updateActiveEffects(state, dt)
                             if d2 < r2 and d2 > 1 then
                                 local len = math.sqrt(d2)
                                 local step = pullStrength * dt
-                                local mx = dx / len * step
-                                local my = dy / len * step
+                                local mx, my = dx / len * step, dy / len * step
                                 if state.world and state.world.moveCircle then
                                     o.x, o.y = state.world:moveCircle(o.x, o.y, (o.size or 16) / 2, mx, my)
                                 else
@@ -536,6 +533,7 @@ function abilities.updateActiveEffects(state, dt)
                     end
                 end
 
+                -- 磁化力场的周期性 Tick 伤害
                 if m.tick >= 0.5 then
                     local tickTime = m.tick
                     m.tick = 0
@@ -573,13 +571,11 @@ function abilities.updateActiveEffects(state, dt)
                 if m.timer <= 0 then
                     abilities.detonateMagnetize(state, e, 'timeout')
                 end
-            elseif m then
-                e.magnetize = nil
-            end
+            elseif m then e.magnetize = nil end
         end
     end
 
-    -- 5. Volt: Discharge & Tesla Nodes
+    -- 5. Volt: Discharge 扩张冲击波与特斯拉节点 (Tesla Node)
     if p.dischargeWave and p.dischargeWave.active then
         local wave = p.dischargeWave
         wave.timer = wave.timer - dt
@@ -599,14 +595,13 @@ function abilities.updateActiveEffects(state, dt)
                         wave.hitEnemies[e] = true
                         if ok and calc then
                             local inst = calc.createInstance({
-                                damage = wave.damage,
-                                critChance = 0.2, critMultiplier = 2.5, statusChance = 1.0,
+                                damage = wave.damage, critChance = 0.2, critMultiplier = 2.5, statusChance = 1.0,
                                 elements = {'ELECTRIC'}, weaponTags = {'ability', 'area', 'electric'}
                             })
                             calc.applyHit(state, e, inst)
-                        else
-                            e.health = (e.health or 0) - wave.damage
-                        end
+                        else e.health = (e.health or 0) - wave.damage end
+                        
+                        -- 被命中的敌人转化为“特斯拉节点”，向周围放电并被眩晕
                         e.frozenTimer = wave.stunDuration
                         e.teslaNode = {
                             active = true,
@@ -623,7 +618,7 @@ function abilities.updateActiveEffects(state, dt)
         if wave.timer <= 0 then p.dischargeWave = nil end
     end
 
-    -- Discharge Wave VFX update
+    -- Discharge 的视觉波动效果
     if state.voltDischargeWaves then
         for i = #state.voltDischargeWaves, 1, -1 do
             local w = state.voltDischargeWaves[i]
@@ -636,7 +631,7 @@ function abilities.updateActiveEffects(state, dt)
         end
     end
 
-    -- Tesla Node Network
+    -- 特斯拉节点网络逻辑 (Node Network)
     local nodes = {}
     for _, e in ipairs(state.enemies or {}) do
         if e and e.teslaNode and e.teslaNode.active then table.insert(nodes, e) end
@@ -658,6 +653,7 @@ function abilities.updateActiveEffects(state, dt)
                     if e2.teslaNode and e2.teslaNode.active then
                         local d2 = (e2.x-e1.x)^2 + (e2.y-e1.y)^2
                         if d2 <= r2 then
+                            -- 在节点间生成电弧视觉效果
                             table.insert(state.teslaArcs, {x1=e1.x, y1=e1.y, x2=e2.x, y2=e2.y, alpha=0.7 + 0.3*math.sin(love.timer.getTime()*10)})
                             if n1.damageTickTimer >= 0.5 then
                                 local dmg = math.floor(n1.dps * 0.5)
@@ -678,6 +674,5 @@ function abilities.updateActiveEffects(state, dt)
         end
     end
 end
-
 
 return abilities
