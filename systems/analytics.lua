@@ -236,11 +236,26 @@ function analytics.saveToFile()
     
     local json = serialize(data)
     local filename = string.format("analytics_%s.json", os.date("%Y%m%d_%H%M%S"))
-    local success, err = love.filesystem.write(filename, json)
-    if success then
-        print(string.format("[Analytics] Saved to %s", filename))
+    
+    -- Get the source directory (project directory) for saving
+    local sourceDir = love.filesystem.getSource()
+    local filepath = sourceDir .. "/" .. filename
+    
+    -- Use native Lua io to write to project directory (not LÖVE save directory)
+    local file, err = io.open(filepath, "w")
+    if file then
+        file:write(json)
+        file:close()
+        print(string.format("[Analytics] Saved to %s", filepath))
     else
-        print(string.format("[Analytics] Failed to save: %s", err or "unknown"))
+        -- Fallback to LÖVE filesystem if native io fails
+        local success, loveErr = love.filesystem.write(filename, json)
+        if success then
+            local saveDir = love.filesystem.getSaveDirectory()
+            print(string.format("[Analytics] Saved to %s/%s (fallback)", saveDir, filename))
+        else
+            print(string.format("[Analytics] Failed to save: %s", loveErr or err or "unknown"))
+        end
     end
 end
 

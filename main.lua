@@ -95,6 +95,10 @@ end
 
 
 function love.quit()
+    -- Save analytics data before quitting
+    local analytics = require('systems.analytics')
+    analytics.endRun()
+    
     -- 退出时尝试刷新日志落盘
     if logger.flushIfActive then logger.flushIfActive(state, 'quit') end
 end
