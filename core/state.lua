@@ -1,3 +1,6 @@
+-- 全局状态管理模块
+-- 负责维护游戏运行时的所有核心数据，包括玩家属性、存盘数据（Profile）、
+-- 物品目录（Catalog）以及各种游戏系统的实时状态。
 local state = {}
 
 local assets = require('render.assets')
@@ -7,6 +10,10 @@ local mods = require('systems.mods')
 
 local PROFILE_PATH = "profile.lua"
 
+--- serializeLua: 将 Lua 表递归序列化为字符串，用于存盘。
+-- @param value (any) 要序列化的值。
+-- @param depth (number) 当前缩进深度。
+-- @return (string) 序列化后的字符串。
 local function serializeLua(value, depth)
     depth = depth or 0
     local t = type(value)
@@ -30,10 +37,11 @@ local function serializeLua(value, depth)
     end
 end
 
+--- defaultProfile: 生成一个默认的全新存档数据表。
 local function defaultProfile()
     return {
         modRanks = {},
-        -- Weapon-specific pre-run mod loadouts (8-slot system).
+        -- 武器特定的赛前 MOD 配置 (8槽系统)
         weaponMods = {
             wand = {
                 slots = {}
@@ -45,7 +53,7 @@ local function defaultProfile()
         modTargetCategory = 'weapons',
         modSystemVersion = 2,
 
-        -- Legacy global mod equip fields (kept for backward compatibility; migrated into weaponMods).
+        -- 遗留存档字段 (为了向后兼容)
         equippedMods = {},
         modOrder = {},
         ownedMods = {
@@ -57,13 +65,15 @@ local function defaultProfile()
         },
         currency = 0,
 
-        -- Pets (loadout + light meta progression)
+        -- 宠物系统 (当前携带与成长)
         startPetKey = 'pet_magnet',
         petModules = {},
         petRanks = {}
     }
 end
 
+--- state.loadProfile: 从磁盘加载玩家存档。
+-- 包含复杂的版本迁移逻辑，特别是从旧版全局 MOD 系统迁移到新版武器特定 slot 系统。
 function state.loadProfile()
     local profile = defaultProfile()
     if love and love.filesystem and love.filesystem.load then
@@ -75,6 +85,7 @@ function state.loadProfile()
             end
         end
     end
+    -- 确保基础字段存在
     profile.modRanks = profile.modRanks or {}
     profile.weaponMods = profile.weaponMods or {}
     profile.modTargetWeapon = profile.modTargetWeapon or 'wand'
@@ -84,6 +95,7 @@ function state.loadProfile()
     profile.ownedMods = profile.ownedMods or {}
     profile.modSystemVersion = profile.modSystemVersion or 1
 
+    -- 构建验证 MOD key 的集合 (用于清理旧档)
     local function buildModKeySet()
         local set = {}
         for _, category in ipairs({'warframe', 'weapons', 'companion'}) do
@@ -106,6 +118,7 @@ function state.loadProfile()
         return key
     end
 
+    -- 重新映射键值对以清理旧名前缀
     local function remapKeys(tbl)
         local out = {}
         for k, v in pairs(tbl or {}) do
@@ -121,6 +134,7 @@ function state.loadProfile()
         end
     end
 
+    -- 版本迁移逻辑：从 Version 1 -> Version 2
     if profile.modSystemVersion ~= 2 then
         profile.ownedMods = remapKeys(profile.ownedMods)
         profile.modRanks = remapKeys(profile.modRanks)
@@ -131,7 +145,7 @@ function state.loadProfile()
             end
         end
 
-        -- Migrate legacy global equippedMods/modOrder into weaponMods.wand if no weapon loadouts exist yet.
+        -- 将全局装备的 MOD 迁移到默认武器 wand 的配置中
         if next(profile.weaponMods) == nil then
             local legacyEq = profile.equippedMods or {}
             local legacyOrder = profile.modOrder or {}
@@ -172,6 +186,7 @@ function state.loadProfile()
             end
         end
 
+        -- 处理旧版武器特定 loadout (旧版使用 equippedMods 和 modOrder 分开存储)
         for weaponKey, lo in pairs(profile.weaponMods or {}) do
             if lo and lo.equippedMods and lo.modOrder then
                 local slots = {}
@@ -216,6 +231,7 @@ function state.loadProfile()
         profile.modSystemVersion = 2
     end
 
+    -- 补全所有已拥有的 MOD 集合
     for k, _ in pairs(profile.modRanks) do profile.ownedMods[k] = true end
     for _, lo in pairs(profile.weaponMods or {}) do
         for _, modKey in pairs((lo and lo.slots) or {}) do
@@ -241,15 +257,17 @@ function state.saveProfile(profile)
     pcall(function() love.filesystem.write(PROFILE_PATH, data) end)
 end
 
+--- state.applyPersistentMods: 将存档中的 MOD 配置应用到当前的运行清单（inventory）中。
 function state.applyPersistentMods()
-    state.inventory.mods = {} -- legacy (do not apply globally)
-    state.inventory.modOrder = {} -- legacy (do not apply globally)
+    state.inventory.mods = {} -- legacy
+    state.inventory.modOrder = {} -- legacy
     state.inventory.weaponMods = {}
     state.inventory.warframeMods = nil
     state.inventory.companionMods = nil
     if not state.profile then return end
     local ranks = state.profile.modRanks or {}
 
+    -- 应用每把武器的专属 MOD
     for weaponKey, lo in pairs(state.profile.weaponMods or {}) do
         local entry = {mods = {}, modOrder = {}}
         local slots = (lo and lo.slots) or {}
@@ -279,10 +297,14 @@ function state.applyPersistentMods()
         return entry
     end
 
+    -- 应用战甲与宠物的 MOD
     state.inventory.warframeMods = buildEntry(state.profile.warframeMods)
     state.inventory.companionMods = buildEntry(state.profile.companionMods)
 end
 
+--- state.gainGold: 增加玩家在当前 run 中的金币。
+-- @param amount (number) 获得金币的基础数值。
+-- @param ctx (table) 上下文，包含拾取类型、来源位置、是否显示文字等。
 function state.gainGold(amount, ctx)
     if state.benchmarkMode then return 0 end
     local base = tonumber(amount) or 0
@@ -295,6 +317,7 @@ function state.gainGold(amount, ctx)
     ctx.player = ctx.player or state.player
     ctx.t = ctx.t or state.gameTimer or 0
 
+    -- 触发拾取插件逻辑 (Augments)
     if state and state.augments and state.augments.dispatch then
         state.augments.dispatch(state, 'onPickup', ctx)
         if ctx.cancel then
@@ -308,6 +331,7 @@ function state.gainGold(amount, ctx)
 
     state.runCurrency = (state.runCurrency or 0) + amt
 
+    -- 显示浮动金币文字
     if ctx.showText ~= false and state.texts then
         local p = ctx.player or state.player or {}
         local x = ctx.x or p.x or 0
@@ -323,6 +347,8 @@ function state.gainGold(amount, ctx)
     return amt
 end
 
+--- state.init: 游戏核心状态系统的初始化。
+-- 定义了玩家基础属性、战甲类定义、以及每场 run 需要重置的容器（敌人、子弹、掉落物等）。
 function state.init()
     math.randomseed(os.time())
 
@@ -331,12 +357,13 @@ function state.init()
     end
 
     state.gameState = 'ARSENAL'
-    state.benchmarkMode = false -- true when running benchmark to suppress level-ups
+    state.benchmarkMode = false 
     state.noLevelUps = false
     state.testArena = false
     state.pendingLevelUps = 0
     state.gameTimer = 0
-    -- Use Chinese-supporting font for the entire game
+    
+    -- === 字体系统 (支持中文) ===
     local fontPath = "fonts/ZZGFBHV1.otf"
     local ok, font = pcall(love.graphics.newFont, fontPath, 14)
     if ok then
@@ -353,41 +380,46 @@ function state.init()
 
     local xpBase = (progression.defs and progression.defs.xpBase) or 10
 
+    -- === 玩家状态 (Player Entity) ===
     state.player = {
         x = 400, y = 300,
         size = 28,
         facing = 1,
         isMoving = false,
         hp = 100, maxHp = 100,
-        shield = 50, maxShield = 50,  -- Reduced from 100 for more danger
+        shield = 50, maxShield = 50,
         energy = 100, maxEnergy = 100,
         level = 0, xp = 0, xpToNextLevel = xpBase,
         invincibleTimer = 0,
         shieldDelayTimer = 0,
         dash = {charges = 2, maxCharges = 2, rechargeTimer = 0, timer = 0, dx = 1, dy = 0},
-        class = 'volt', -- Current class: excalibur / mag / volt
-        ability = {cooldown = 0, timer = 0}, -- Q skill state
-        quickAbilityIndex = 1, -- Quick cast selection (1-4)
-        -- Weapon slots (2-slot system: ranged + melee, with reserved slot for future class passive)
+        class = 'volt', -- 当前战甲类别
+        ability = {cooldown = 0, timer = 0}, -- 技能状态
+        quickAbilityIndex = 1, 
+        
+        -- 武器插槽 (Warframe 风格: 主手 + 近战)
         weaponSlots = {
-            ranged = nil,    -- Ranged weapon key (wands, bows, guns, thrown)
-            melee = nil,     -- Melee weapon key (hammers, swords, daggers)
-            reserved = nil   -- Reserved for future class-specific passive (summoner summons, alchemist potions, etc.)
+            ranged = nil,
+            melee = nil,
+            reserved = nil   -- 预留位，用于未来的职业被动
         },
-        activeSlot = 'ranged', -- Currently active weapon slot
-        -- Bow charge state (hold to charge arrows)
+        activeSlot = 'ranged', -- 当前激活的武器槽位
+        
+        -- 弓箭蓄力状态
         bowCharge = {
             isCharging = false,
             startTime = 0,
             chargeTime = 0,
             weaponKey = nil
         },
+        
+        -- === 基础战斗属性 (Unified Stats) ===
         stats = {
             moveSpeed = 110,
-            might = 1.0,
-            cooldown = 1.0,
-            area = 1.0,
-            speed = 1.0,
+            might = 1.0,      -- 威力倍率
+            cooldown = 1.0,   -- 冷却倍率
+            area = 1.0,       -- 攻击范围
+            speed = 1.0,      -- 攻击速度
             pickupRange = 120,
             armor = 0,
             regen = 0,
@@ -395,21 +427,21 @@ function state.init()
             maxShield = 100,
             maxEnergy = 100,
             
-            -- WF Unified Stats
-            abilityStrength = 1.0,
-            abilityEfficiency = 1.0,
-            abilityDuration = 1.0,
-            abilityRange = 1.0,
+            -- WF 四维属性
+            abilityStrength = 1.0,  -- 技能强度
+            abilityEfficiency = 1.0, -- 技能效率
+            abilityDuration = 1.0,   -- 技能持续时间
+            abilityRange = 1.0,      -- 技能范围
 
             dashCharges = 1,
             dashCooldown = 3,
-            dashDuration = 0.14,     -- seconds of dash movement
-            dashDistance = 56,       -- pixels traveled (2x player width)
-            dashInvincible = 0.14    -- i-frames (can be >= dashDuration)
+            dashDuration = 0.14,     
+            dashDistance = 56,       
+            dashInvincible = 0.14    
         }
     }
 
-    -- Class definitions: base stats, starting weapon, Q ability
+    -- === 战甲类别定义 (Classes) ===
     state.classes = {
         excalibur = {
             name = "咖喱",
@@ -459,17 +491,17 @@ function state.init()
             desc = "电系战甲。高护盾/能量，技能强化电击。Q: Shock (链电)",
             baseStats = {
                 maxHp = 85,
-                armor = 15,  -- Reduced from 25 for more danger
-                moveSpeed = 155,           -- Volt is still fastest
+                armor = 15,
+                moveSpeed = 155,           
                 might = 1.0,
-                maxShield = 80,  -- Reduced from 180 for more danger
-                maxEnergy = 200,           -- High energy for ability spam
+                maxShield = 80,
+                maxEnergy = 200,           
                 dashCharges = 1,
-                abilityStrength = 1.15,    -- +15% ability damage
-                statusChance = 0.10        -- +10% electric procs
+                abilityStrength = 1.15,    
+                statusChance = 0.10        
             },
-            startWeapon = 'static_orb',    -- Amprex (chain lightning)
-            startSecondary = 'atomos',     -- Energy pistol
+            startWeapon = 'static_orb',    
+            startSecondary = 'atomos',     
             preferredUpgrades = {'lanka', 'thunder_loop', 'atomos', 'braton'},
             ability = {
                 name = "Shock",
@@ -481,68 +513,67 @@ function state.init()
     state.catalog = require('data.defs.catalog')
     progression.recompute(state)
 
-    -- WF-style: 2-slot system (ranged + melee) with extra slot reserved for character passive
+    -- === 仓库与背包系统 (Inventory) ===
     state.inventory = {
-        weapons = {},  -- Legacy (for backward compat during transition)
+        weapons = {},  
         passives = {},
         mods = {},
         modOrder = {},
-        weaponMods = {},
+        weaponMods = {}, -- 存储各武器的 MOD 配置
         augments = {},
         augmentOrder = {},
-        -- New WF weapon slot system
         weaponSlots = {
-            ranged = nil,  -- Primary ranged weapon slot
-            melee = nil,   -- Melee weapon slot
-            extra = nil    -- Reserved for character passive (e.g. dual-wield gunner)
+            ranged = nil,
+            melee = nil,
+            extra = nil    
         },
-        activeSlot = 'ranged',     -- Currently active weapon slot
-        canUseExtraSlot = false    -- Unlocked by specific character passives
+        activeSlot = 'ranged',
+        canUseExtraSlot = false
     }
     state.augmentState = {}
     state.maxAugmentsPerRun = 4
-    state.maxWeaponsPerRun = 2  -- Changed: 2 slots default (ranged + melee)
-    -- Mods are loadout-only by default (Warframe-like); in-run power comes from weapons/passives/augments.
+    state.maxWeaponsPerRun = 2
     state.allowInRunMods = false
 
-    -- Run economy (resets each run)
+    -- === 运行中的核心容器 ===
     state.runCurrency = 0
     state.shop = nil
 
     state.profile = state.loadProfile()
     state.applyPersistentMods()
-    state.enemies = {}
-    state.bullets = {}
-    state.enemyBullets = {}
-    state.gems = {}
-    state.floorPickups = {}
+    state.enemies = {}      -- 敌人列表
+    state.bullets = {}      -- 玩家子弹
+    state.enemyBullets = {} -- 敌人子弹
+    state.gems = {}         -- 掉落经验
+    state.floorPickups = {} -- 地面拾取物
     state.magnetTimer = 60
-    state.texts = {}
-    state.chests = {}
-    state.doors = {}
+    state.texts = {}        -- 浮动文字
+    state.chests = {}       -- 宝箱
+    state.doors = {}        -- 传送门/房门
     state.upgradeOptions = {}
     state.pendingWeaponSwap = nil
     state.pendingUpgradeRequests = {}
     state.activeUpgradeRequest = nil
-    state.chainLinks = {}
+    state.chainLinks = {}   -- 链式闪电连接线
     state.lightningLinks = {}
-    state.quakeEffects = {}
+    state.quakeEffects = {} -- 震地效果区
 
     state.spawnTimer = 0
     state.camera = { x = 0, y = 0 }
     state.directorState = { event60 = false, event120 = false }
     state.shakeAmount = 0
 
-    -- Run structure: 'rooms' (Hades-like room flow) or 'survival' (timed director) or 'explore' (Mission).
-    -- Default to Rooms (Dev Mode). Explore is for production content.
+    -- === 运行模式 (Run Mode) ===
+    -- 'rooms': Hades 风格的房间流转
+    -- 'survival': 传统吸血鬼幸存者风格的计时刷怪
+    -- 'explore': 关卡/任务模式
     state.runMode = 'rooms'
     state.rooms = {
         enabled = true,
         phase = 'init',
         roomIndex = 0,
         bossRoom = 8,
-        -- reward pacing defaults (rooms mode): upgrades mainly come from room rewards + elites, not XP spam.
-        useXp = false,          -- legacy VS-style XP orb loop (off by default for Hades-like rooms pacing)
+        useXp = false,          
         xpGivesUpgrades = false,
         eliteDropsChests = false,
         eliteRoomBonusUpgrades = 1
