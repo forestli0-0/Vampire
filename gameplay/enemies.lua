@@ -2357,12 +2357,16 @@ function enemies.update(state, dt)
                                 if math.random() < (eliteDef.healthOrb or 0.20) then
                                     table.insert(state.floorPickups, {x=e.x + 15, y=e.y, size=12, kind='health_orb'})
                                 end
-                                -- Energy orb (15% chance - WF style)
-                                if math.random() < (eliteDef.energyOrb or 0.15) then
+                                -- Energy orb (12% chance - WF style)
+                                if math.random() < (eliteDef.energyOrb or 0.12) then
                                     table.insert(state.floorPickups, {x=e.x - 15, y=e.y, size=12, kind='energy_orb'})
                                 end
-                                -- MOD drop (lower rate - 40% for elite)
-                                if math.random() < (eliteDef.modDrop or 0.40) then
+                                -- Ammo drop (30% for elite - 弹药更充足!)
+                                if math.random() < (eliteDef.ammo or 0.30) then
+                                    table.insert(state.floorPickups, {x=e.x, y=e.y + 15, size=12, kind='ammo', amount=30})
+                                end
+                                -- MOD drop (15% for elite - 降低!)
+                                if math.random() < (eliteDef.modDrop or 0.15) then
                                     table.insert(state.floorPickups, {
                                         x = e.x,
                                         y = e.y,
@@ -2398,12 +2402,13 @@ function enemies.update(state, dt)
                                     end
                                 end
                                 
-                                -- Ammo drop (separate roll, WF style)
-                                if math.random() < ammoChance then
-                                    table.insert(state.floorPickups, {x=e.x + 5, y=e.y - 5, size=10, kind='ammo'})
+                                -- Ammo drop (18% for normal - 弹药充足!)
+                                local normalAmmoChance = normalDef.ammo or 0.18
+                                if math.random() < normalAmmoChance then
+                                    table.insert(state.floorPickups, {x=e.x + 5, y=e.y - 5, size=10, kind='ammo', amount=20})
                                 end
-                                -- Normal enemy MOD drop (25% chance - DEBUG HIGH RATE)
-                                if math.random() < (normalDef.modDrop or 0.25) then
+                                -- Normal enemy MOD drop (5% chance - 大幅降低!)
+                                if math.random() < (normalDef.modDrop or 0.05) then
                                     table.insert(state.floorPickups, {
                                         x = e.x,
                                         y = e.y,
