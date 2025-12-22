@@ -117,6 +117,33 @@ local function getDashTrailShader()
     return dashTrailShader or nil
 end
 
+-- 受击闪白 Shader：根据 flashAmount (0-1) 将精灵颜色混合至白色
+local hitFlashShader
+local function getHitFlashShader()
+    if hitFlashShader ~= nil then return hitFlashShader or nil end
+    if not love or not love.graphics or not love.graphics.newShader then
+        hitFlashShader = false
+        return nil
+    end
+    local ok, sh = pcall(love.graphics.newShader, [[
+        extern number flashAmount;
+        
+        vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc)
+        {
+            vec4 base = Texel(tex, uv) * color;
+            if (base.a <= 0.001) {
+                return vec4(0.0);
+            }
+            
+            // Mix original color towards white based on flashAmount
+            vec3 flashColor = mix(base.rgb, vec3(1.0), flashAmount);
+            return vec4(flashColor, base.a);
+        }
+    ]])
+    if ok then hitFlashShader = sh else hitFlashShader = false end
+    return hitFlashShader or nil
+end
+
 local function drawOutlineAnimFallback(anim, x, y, r, sx, sy, t)
     t = t or 1
     local offsets = {
@@ -971,6 +998,18 @@ function draw.renderWorld(state)
             end
         end
 
+        -- Hit flash: use shader if flashing
+        local ft = e.flashTimer or 0
+        local flashShader = nil
+        if ft > 0 then
+            flashShader = getHitFlashShader()
+            if flashShader then
+                local flashAmount = math.min(1, ft / 0.1) * 0.85  -- Strong flash, up to 85% white
+                love.graphics.setShader(flashShader)
+                flashShader:send('flashAmount', flashAmount)
+            end
+        end
+
         -- Base draw: Use skeleton animation frames for all enemies (tinted by color, scaled by size)
         local skeletonFrames = state.enemySprites and state.enemySprites['skeleton_frames']
         if skeletonFrames and #skeletonFrames > 0 and not e.anim then
@@ -1001,31 +1040,9 @@ function draw.renderWorld(state)
             love.graphics.rectangle('fill', e.x - e.size/2, e.y - e.size/2, e.size, e.size)
         end
 
-        -- Hit flash overlay: white highlight instead of forcing full-white base
-        local ft = e.flashTimer or 0
-        if ft > 0 then
-            local f = math.min(1, ft / 0.1)
-            local a = 0.22 + 0.28 * f
-            love.graphics.setColor(1, 1, 1, a)
-            if skeletonFrames and #skeletonFrames > 0 and not e.anim then
-                local animSpeed = 8
-                local numFrames = #skeletonFrames
-                local timeOffset = (e.spawnTime or 0) * 0.37
-                local frameIndex = math.floor((love.timer.getTime() + timeOffset) * animSpeed) % numFrames + 1
-                local sprite = skeletonFrames[frameIndex]
-                local baseSize = 24
-                local targetSize = e.size or 24
-                local scale = targetSize / baseSize
-                local sx = (e.facing or 1) * scale
-                local sy = scale
-                local sw, sh = sprite:getWidth(), sprite:getHeight()
-                love.graphics.draw(sprite, e.x, e.y, 0, sx, sy, sw/2, sh/2)
-            elseif e.anim then
-                local sx = e.facing or 1
-                e.anim:draw(e.x, e.y, 0, sx, 1)
-            else
-                love.graphics.rectangle('fill', e.x - e.size/2, e.y - e.size/2, e.size, e.size)
-            end
+        -- Reset shader after drawing
+        if flashShader then
+            love.graphics.setShader()
         end
         
         -- Attack windup visual indicator
