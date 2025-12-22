@@ -413,13 +413,23 @@ function arsenal.toggleEquip(state, modKey)
         local modDef = mods.getCatalog(category)[modKey]
         setMessage(state, "Unequipped " .. ((modDef and modDef.name) or modKey))
     else
+        -- Check for duplicate baseId (same mod or variant already equipped)
+        local catalog = mods.getCatalog(category)
+        local conflictingModKey = mods.hasDuplicateBaseId(loadout.slots, modKey, catalog)
+        if conflictingModKey then
+            local conflictDef = catalog[conflictingModKey]
+            local conflictName = (conflictDef and conflictDef.name) or conflictingModKey
+            setMessage(state, "已装备同类MOD: " .. conflictName)
+            return
+        end
+        
         local slotIdx = findFirstEmptySlot(loadout)
         if not slotIdx then
             setMessage(state, "Slots full (" .. MAX_SLOTS .. ")")
             return
         end
         local slots = buildSlotData(profile, loadout, slotIdx, modKey)
-        local used = mods.getTotalCost(slots, mods.getCatalog(category))
+        local used = mods.getTotalCost(slots, catalog)
         local cap = getCapacity(state)
         if used > cap then
             setMessage(state, "Capacity full (" .. used .. "/" .. cap .. ")")
@@ -427,7 +437,7 @@ function arsenal.toggleEquip(state, modKey)
         end
         loadout.slots[slotIdx] = modKey
         profile.modRanks[modKey] = profile.modRanks[modKey] or 0
-        local modDef = mods.getCatalog(category)[modKey]
+        local modDef = catalog[modKey]
         setMessage(state, "Equipped " .. ((modDef and modDef.name) or modKey))
     end
 
@@ -457,13 +467,24 @@ function arsenal.equipToSlot(state, modKey, slotIndex)
         return true
     end
 
+    -- Check for duplicate baseId (same mod or variant already equipped, excluding current slot)
+    local catalog = mods.getCatalog(category)
+    local conflictingModKey = mods.hasDuplicateBaseId(loadout.slots, modKey, catalog, slotIndex)
+    -- Also exclude if the mod is already in another slot (we're moving it)
+    if conflictingModKey and conflictingModKey ~= modKey then
+        local conflictDef = catalog[conflictingModKey]
+        local conflictName = (conflictDef and conflictDef.name) or conflictingModKey
+        setMessage(state, "已装备同类MOD: " .. conflictName)
+        return false
+    end
+
     local oldMod = loadout.slots[slotIndex]
     if existingSlot then
         loadout.slots[existingSlot] = nil
     end
 
     local slots = buildSlotData(profile, loadout, slotIndex, modKey)
-    local used = mods.getTotalCost(slots, mods.getCatalog(category))
+    local used = mods.getTotalCost(slots, catalog)
     local cap = getCapacity(state)
     if used > cap then
         if existingSlot then
@@ -479,7 +500,7 @@ function arsenal.equipToSlot(state, modKey, slotIndex)
     end
 
     profile.modRanks[modKey] = profile.modRanks[modKey] or 0
-    local modDef = mods.getCatalog(category)[modKey]
+    local modDef = catalog[modKey]
     setMessage(state, "Equipped " .. ((modDef and modDef.name) or modKey))
     state.saveProfile(profile)
     state.applyPersistentMods()
