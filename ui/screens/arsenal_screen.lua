@@ -470,12 +470,12 @@ local function buildLeftColumn(gameState, parent)
     parent:addChild(petBtn)
     y = y + 24
     
-    -- Start button
+    -- Start button (Rooms mode)
     local startBtn = ui.Button.new({
         x = x, y = y,
-        w = LAYOUT.leftW - 4, h = 26,
-        text = "开始测试 (Enter)",
-        tooltip = "房间模式 (默认) | 按 F 进入探索任务",
+        w = LAYOUT.leftW - 4, h = 22,
+        text = "房间模式 (Enter)",
+        tooltip = "波次战斗模式",
         normalColor = {0.2, 0.5, 0.3, 1},
         hoverColor = {0.3, 0.6, 0.4, 1}
     })
@@ -483,6 +483,21 @@ local function buildLeftColumn(gameState, parent)
         arsenalScreen.startRun(gameState)
     end)
     parent:addChild(startBtn)
+    y = y + 24
+    
+    -- Chapter mode button (NEW!)
+    local chapterBtn = ui.Button.new({
+        x = x, y = y,
+        w = LAYOUT.leftW - 4, h = 22,
+        text = "章节探索 (F)",
+        tooltip = "线性地下城探索模式",
+        normalColor = {0.3, 0.4, 0.6, 1},
+        hoverColor = {0.4, 0.5, 0.7, 1}
+    })
+    chapterBtn:on('click', function()
+        arsenalScreen.startChapterMode(gameState)
+    end)
+    parent:addChild(chapterBtn)
 end
 
 -------------------------------------------
@@ -730,6 +745,13 @@ function arsenalScreen.startRun(gameState)
     arsenal.startRun(gameState, {runMode = gameState.runMode or 'rooms'})
 end
 
+function arsenalScreen.startChapterMode(gameState)
+    local arsenal = require('core.arsenal')
+    
+    -- Start run in chapter mode
+    arsenal.startRun(gameState, {runMode = 'chapter'})
+end
+
 function arsenalScreen.keypressed(gameState, key)
     -- Let UI system handle Tab/Enter/Arrow keys first
     -- Let UI system handle Enter/Arrow keys first
@@ -743,6 +765,12 @@ function arsenalScreen.keypressed(gameState, key)
         local arsenal = require('core.arsenal')
         arsenal.toggleEquip(gameState, selectedModCard.modKey)
         arsenalScreen.rebuild(gameState)
+        return true
+    end
+    
+    -- F to start chapter mode
+    if key == 'f' then
+        arsenalScreen.startChapterMode(gameState)
         return true
     end
     

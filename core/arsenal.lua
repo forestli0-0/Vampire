@@ -575,6 +575,45 @@ function arsenal.startRun(state, opts)
         state.rooms = state.rooms or {}
         state.rooms.enabled = false
         campaign.startRun(state)
+    elseif state.runMode == 'chapter' then
+        -- 章节探索模式: 线性地下城
+        state.rooms = state.rooms or {}
+        state.rooms.enabled = false
+        state.mission = nil
+        state.campaign = nil
+        
+        -- 生成章节地图
+        local chapter = require('world.chapter')
+        local chapterMap = chapter.generate({
+            nodeCount = 8,
+            mapWidth = 200,
+            mapHeight = 80,
+        })
+        state.chapterMap = chapterMap
+        
+        -- 创建 world 用于碰撞检测
+        state.world = world.new({w = chapterMap.w, h = chapterMap.h})
+        state.world.enabled = true
+        state.world.tiles = chapterMap.tiles
+        state.world.w = chapterMap.w
+        state.world.h = chapterMap.h
+        state.world.tileSize = chapterMap.tileSize
+        state.world.pixelW = chapterMap.pixelW
+        state.world.pixelH = chapterMap.pixelH
+        
+        -- 玩家出生点
+        state.player.x = chapterMap.spawnX
+        state.player.y = chapterMap.spawnY
+        state.world.spawnX = chapterMap.spawnX
+        state.world.spawnY = chapterMap.spawnY
+        
+        -- 初始化小地图
+        local hud = require('ui.screens.hud')
+        hud.initMinimap(chapterMap)
+        
+        -- 重置 spawner
+        local spawner = require('world.spawner')
+        spawner.reset()
     else
         state.mission = nil
         state.campaign = nil

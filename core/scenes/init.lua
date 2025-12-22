@@ -2,6 +2,7 @@ local abilities = require('gameplay.abilities')
 local arsenal = require('core.arsenal')
 local benchmark = require('debug.benchmark')
 local bloom = require('render.bloom')
+local chapter = require('world.chapter')
 local debugmenu = require('debug.debugmenu')
 local director = require('world.director')
 local draw = require('render.draw')
@@ -10,6 +11,7 @@ local gameoverScreen = require('ui.screens.gameover')
 local hud = require('ui.screens.hud')
 local ingameMenu = require('ui.screens.ingame_menu')
 local levelupScreen = require('ui.screens.levelup')
+local minimap = require('ui.minimap')
 local mission = require('world.mission')
 local pets = require('gameplay.pets')
 local pickups = require('systems.pickups')
@@ -17,6 +19,7 @@ local player = require('gameplay.player')
 local projectiles = require('gameplay.projectiles')
 local rooms = require('world.rooms')
 local shopScreen = require('ui.screens.shop')
+local spawner = require('world.spawner')
 local testmode = require('debug.testmode')
 local ui = require('ui')
 local uiDemo = require('ui.demo')
@@ -75,7 +78,13 @@ local function updatePlaying(state, dt)
     weapons.updateReload(state, dt)
     projectiles.updatePlayerBullets(state, dt)
     projectiles.updateEnemyBullets(state, dt)
-    if state.runMode == 'rooms' and not state.testArena and not state.scenarioNoDirector and not state.benchmarkMode then
+    if state.runMode == 'chapter' and state.chapterMap then
+        -- Chapter mode: use chapter spawner
+        spawner.update(state, state.chapterMap, dt)
+        spawner.checkRoomClear(state, state.chapterMap)
+        spawner.spawnBoss(state, state.chapterMap)
+        minimap.update(state, state.chapterMap, dt)
+    elseif state.runMode == 'rooms' and not state.testArena and not state.scenarioNoDirector and not state.benchmarkMode then
         rooms.update(state, dt)
     elseif state.runMode == 'explore' and not state.testArena and not state.scenarioNoDirector and not state.benchmarkMode then
         mission.update(state, dt)
@@ -163,6 +172,10 @@ local function drawWorld(state)
 
     pipeline.drawUI(function()
         ui.draw()
+        -- Draw minimap for chapter mode (after UI so it's on top)
+        if state.runMode == 'chapter' and state.chapterMap then
+            hud.drawMinimap(state)
+        end
     end)
 end
 

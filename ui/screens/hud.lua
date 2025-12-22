@@ -2,6 +2,7 @@ local ui = require('ui')
 local theme = require('ui.theme')
 local scaling = require('ui.scaling')
 local hudModel = require('ui.hud_model')
+local minimap = require('ui.minimap')
 
 local hud = {}
 local root = nil
@@ -679,6 +680,18 @@ end
 -------------------------------------------
 -- draw is handled by ui.draw()
 -------------------------------------------
+
+function hud.initMinimap(chapterMap)
+    if chapterMap then
+        minimap.init(chapterMap)
+    end
+end
+
+function hud.drawMinimap(gameState)
+    if gameState and gameState.runMode == 'chapter' and gameState.chapterMap then
+        minimap.draw(gameState, gameState.chapterMap)
+    end
+end
 
 function hud.keypressed(key) return false end
 
