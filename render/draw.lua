@@ -2,6 +2,7 @@ local weapons = require('gameplay.weapons')
 local enemies = require('gameplay.enemies')
 local vfx = require('render.vfx')
 local pipeline = require('render.pipeline')
+local weaponTrail = require('render.weapon_trail')  -- 武器拖影系统
 
 local draw = {}
 
@@ -2664,6 +2665,17 @@ function draw.renderEmissive(state)
             love.graphics.setBlendMode('alpha')
         end
     end
+
+    -- ==================== 武器拖影绘制 ====================
+    -- 绘制近战挥砍弧形拖影
+    love.graphics.setBlendMode('add')
+    weaponTrail.drawSlash()
+    love.graphics.setBlendMode('alpha')
+    
+    -- 绘制投射物尾迹
+    love.graphics.setBlendMode('add')
+    weaponTrail.drawBulletTrails()
+    love.graphics.setBlendMode('alpha')
 
     love.graphics.setBlendMode("alpha")
     love.graphics.setColor(1, 1, 1, 1)

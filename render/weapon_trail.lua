@@ -11,7 +11,7 @@ local trail = {}
 -- =============================================================================
 
 trail.slashTrails = {}
-trail.maxSlashAge = 0.15  -- 拖影最大存活时间
+trail.maxSlashAge = 0.25  -- 拖影最大存活时间（增强）
 
 --- 记录挥砍轨迹点
 ---@param entity table 实体（玩家或敌人）
@@ -83,31 +83,53 @@ function trail.drawSlash()
     for _, t in pairs(trail.slashTrails) do
         local points = t.points
         if #points >= 2 then
-            for i = 2, #points do
-                local p1 = points[i - 1]
-                local p2 = points[i]
+            -- 绘制多层拖影以增强可见度
+            for layer = 1, 3 do
+                local layerMult = 1 - (layer - 1) * 0.25  -- 1.0, 0.75, 0.5
+                local widthMult = layer == 1 and 1.5 or (layer == 2 and 1.0 or 0.5)
                 
-                local age1 = now - p1.time
-                local age2 = now - p2.time
-                local alpha1 = math.max(0, 1 - age1 / trail.maxSlashAge) * t.intensity * 0.7
-                local alpha2 = math.max(0, 1 - age2 / trail.maxSlashAge) * t.intensity * 0.7
-                
-                -- 绘制弧形拖影
-                local avgRange = (p1.range + p2.range) / 2
-                local avgX = (p1.x + p2.x) / 2
-                local avgY = (p1.y + p2.y) / 2
-                
-                love.graphics.setColor(t.color[1], t.color[2], t.color[3], (alpha1 + alpha2) / 2)
-                love.graphics.setLineWidth(t.width * (1 - (age1 + age2) / 2 / trail.maxSlashAge))
-                
-                -- 绘制弧段
-                local startAngle = math.min(p1.angle, p2.angle)
-                local endAngle = math.max(p1.angle, p2.angle)
-                if endAngle - startAngle > math.pi then
-                    startAngle, endAngle = endAngle, startAngle + 2 * math.pi
+                for i = 2, #points do
+                    local p1 = points[i - 1]
+                    local p2 = points[i]
+                    
+                    local age1 = now - p1.time
+                    local age2 = now - p2.time
+                    local avgAge = (age1 + age2) / 2
+                    local fadeProgress = avgAge / trail.maxSlashAge
+                    
+                    -- 透明度计算：基础透明度更高
+                    local alpha = math.max(0, 1 - fadeProgress) * t.intensity * layerMult
+                    if alpha <= 0.01 then goto continue end
+                    
+                    -- 线宽计算：保持较粗
+                    local baseWidth = t.width * widthMult
+                    local lineWidth = math.max(2, baseWidth * (1 - fadeProgress * 0.5))
+                    
+                    -- 颜色计算：内层更亮
+                    local colorMult = layer == 1 and 1.2 or 1.0
+                    love.graphics.setColor(
+                        math.min(1, t.color[1] * colorMult), 
+                        math.min(1, t.color[2] * colorMult), 
+                        math.min(1, t.color[3] * colorMult), 
+                        alpha
+                    )
+                    love.graphics.setLineWidth(lineWidth)
+                    
+                    -- 绘制弧段
+                    local avgRange = (p1.range + p2.range) / 2
+                    local avgX = (p1.x + p2.x) / 2
+                    local avgY = (p1.y + p2.y) / 2
+                    
+                    local startAngle = math.min(p1.angle, p2.angle)
+                    local endAngle = math.max(p1.angle, p2.angle)
+                    if endAngle - startAngle > math.pi then
+                        startAngle, endAngle = endAngle, startAngle + 2 * math.pi
+                    end
+                    
+                    love.graphics.arc('line', 'open', avgX, avgY, avgRange, startAngle, endAngle)
+                    
+                    ::continue::
                 end
-                
-                love.graphics.arc('line', 'open', avgX, avgY, avgRange, startAngle, endAngle)
             end
         end
     end
@@ -130,9 +152,30 @@ trail.bulletTrailInterval = 0.016  -- 每帧记录一个点
 function trail.addBulletPoint(bullet)
     local id = tostring(bullet)
     
+    -- 根据子弹类型自动分配尾迹颜色
+    local trailColor = bullet.trailColor
+    if not trailColor then
+        local bType = bullet.type or ''
+        if bType:find('fire') or bType:find('hellfire') or bType:find('flame') then
+            trailColor = {1, 0.5, 0.2}  -- 火焰橙红
+        elseif bType:find('ice') or bType:find('frost') or bType:find('cold') or bType:find('absolute_zero') then
+            trailColor = {0.4, 0.8, 1}  -- 冰霜蓝
+        elseif bType:find('electric') or bType:find('shock') or bType:find('thunder') or bType:find('static') then
+            trailColor = {0.6, 0.9, 1}  -- 电光淡蓝
+        elseif bType:find('poison') or bType:find('toxin') or bType:find('acid') then
+            trailColor = {0.4, 1, 0.4}  -- 毒素绿
+        elseif bType:find('void') or bType:find('dark') or bType:find('death') or bType:find('soul') then
+            trailColor = {0.8, 0.4, 1}  -- 虚空紫
+        elseif bType:find('holy') or bType:find('light') or bType:find('radiant') then
+            trailColor = {1, 1, 0.7}  -- 圣光金
+        else
+            trailColor = {0.9, 0.9, 0.95}  -- 默认白色
+        end
+    end
+    
     trail.bulletTrails[id] = trail.bulletTrails[id] or {
         points = {},
-        color = bullet.trailColor or {1, 1, 1},
+        color = trailColor,
         width = bullet.trailWidth or 2,
         lastUpdate = 0,
     }

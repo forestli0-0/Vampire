@@ -1,5 +1,6 @@
 local logger = require('core.logger')
 local input = require('core.input')
+local weaponTrail = require('render.weapon_trail')  -- 武器拖影系统
 
 local player = {}
 
@@ -230,10 +231,43 @@ function player.updateMelee(state, dt)
         
     elseif melee.phase == 'swing' then
         melee.swingTimer = melee.swingTimer - dt
+        
+        -- ==================== 挥砍拖影记录 ====================
+        local meleeRange = 60  -- 近战攻击范围
+        local swingArc = math.pi * 0.8  -- 挥砍弧度 (~145度)
+        
+        -- 计算当前挥砍角度 (从起始角度到结束角度)
+        local totalSwingTime = melee.attackType == 'heavy' and HEAVY_SWING_TIME or LIGHT_SWING_TIME
+        local speedMult = (p.attackSpeedBuffMult or 1) * ((p.stats and p.stats.meleeSpeed) or 1) * (p.exaltedBladeSpeedMult or 1)
+        totalSwingTime = totalSwingTime / math.max(0.01, speedMult)
+        
+        local swingProgress = 1 - (melee.swingTimer / totalSwingTime)
+        local baseAngle = p.aimAngle or 0
+        local startAngle = baseAngle - swingArc / 2
+        local currentAngle = startAngle + swingArc * swingProgress
+        
+        -- 根据攻击类型设置拖影颜色
+        local trailColor = {1, 1, 1}
+        if melee.attackType == 'heavy' then
+            trailColor = {1, 0.6, 0.3}  -- 重击橙色
+        elseif melee.attackType == 'finisher' then
+            trailColor = {1, 0.3, 0.3}  -- 终结技红色
+        else
+            trailColor = {0.8, 0.9, 1}  -- 轻击淡蓝色
+        end
+        
+        weaponTrail.addSlashPoint(p, currentAngle, meleeRange, {
+            color = trailColor,
+            width = melee.attackType == 'heavy' and 12 or 8,  -- 增粗线宽
+            intensity = melee.attackType == 'finisher' and 2.0 or 1.2,  -- 增强强度
+        })
+        
         if melee.swingTimer <= 0 then
             melee.phase = 'recovery'
-            local speedMult = (p.attackSpeedBuffMult or 1) * ((p.stats and p.stats.meleeSpeed) or 1) * (p.exaltedBladeSpeedMult or 1)
-            melee.recoveryTimer = RECOVERY_TIME / math.max(0.01, speedMult)
+            local speedMul = (p.attackSpeedBuffMult or 1) * ((p.stats and p.stats.meleeSpeed) or 1) * (p.exaltedBladeSpeedMult or 1)
+            melee.recoveryTimer = RECOVERY_TIME / math.max(0.01, speedMul)
+            -- 挥砍结束时清除拖影
+            weaponTrail.clearSlash(p)
         end
         
     elseif melee.phase == 'recovery' then
