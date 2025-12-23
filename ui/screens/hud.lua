@@ -497,6 +497,10 @@ function hud.update(gameState, dt)
 
         -- Gold
         if widgets.goldText then
+            -- NOTE: The goldText widget has a fixed width (configured elsewhere, e.g. ~200px)
+            -- that was originally sized for the longer "GOLD %d" label. We keep that width
+            -- even with the shorter "G %d" format to preserve HUD alignment and avoid
+            -- layout shifts as the value changes.
             widgets.goldText:setText(string.format("G %d", data.resources.gold or 0))
         end
         
