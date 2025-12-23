@@ -3,6 +3,7 @@
 -- 逻辑深度参考 Warframe 的 Damage 2.0 系统。
 
 local enemies = require('gameplay.enemies')
+local hitstop = require('render.hitstop')  -- 顿帧系统
 
 local calculator = {}
 
@@ -650,6 +651,34 @@ function calculator.applyDamage(state, enemy, instance, opts)
     if totalApplied > 0 then
         if not opts.noFlash then enemy.flashTimer = 0.1 end
         if not opts.noSfx and state.playSfx then state.playSfx('hit') end
+
+        -- ==================== 顿帧触发 ====================
+        -- 根据攻击类型和暴击等级选择顿帧预设
+        if not opts.noHitstop then
+            local hitstopPreset = 'light'
+            
+            -- 暴击触发更强顿帧
+            if isCrit and isCrit > 0 then
+                hitstopPreset = 'critical'
+            end
+            
+            -- Boss受击使用专门预设
+            if enemy.isBoss then
+                hitstopPreset = 'boss_hit'
+            end
+            
+            -- 大伤害触发重击顿帧
+            if totalApplied > 100 then
+                hitstopPreset = 'heavy'
+            end
+            
+            -- 致命一击触发终结技顿帧
+            if enemy.health and enemy.health <= 0 and totalApplied > 50 then
+                hitstopPreset = 'finisher'
+            end
+            
+            hitstop.trigger(hitstopPreset)
+        end
 
         if instance.knock then
             local a = math.atan2(enemy.y - state.player.y, enemy.x - state.player.x)

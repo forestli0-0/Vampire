@@ -43,6 +43,8 @@ local pipeline = require('render.pipeline')           -- 渲染管线
 local vfx = require('render.vfx')                     -- 视觉特效
 local weapons = require('gameplay.weapons')           -- 武器系统
 local world = require('world.world')                  -- 世界/地图系统
+local hitstop = require('render.hitstop')             -- 顿帧系统
+local weaponTrail = require('render.weapon_trail')    -- 武器拖影系统
 
 -- ============================================================================
 -- 局部变量：模块状态
@@ -108,6 +110,20 @@ local function updatePlaying(state, dt)
     -- 自定义特效更新回调（如果有）
     if state.updateEffects then state.updateEffects(dt) end
 
+    -- ==================== 顿帧系统更新 ====================
+    -- 顿帧会影响敌人的更新速度，但不影响玩家输入和UI
+    local hitstopDt = hitstop.update(dt)
+    local enemyDt = hitstop.shouldPause('enemy') and hitstopDt or dt
+    
+    -- 添加顿帧产生的额外屏幕震动
+    local hitstopShake = hitstop.getScreenShake()
+    if hitstopShake > 0 then
+        state.shakeAmount = math.max(state.shakeAmount, hitstopShake)
+    end
+
+    -- ==================== 武器拖影更新 ====================
+    weaponTrail.update(dt, state.bullets)
+
     -- ==================== 玩家系统更新 ====================
     player.updateFiring(state)      -- 射击逻辑（开火、冷却、弹药）
     player.updateMelee(state, dt)   -- 近战攻击逻辑
@@ -150,7 +166,8 @@ local function updatePlaying(state, dt)
     end
 
     -- ==================== 敌人更新 ====================
-    enemies.update(state, dt)       -- 敌人AI、攻击、死亡
+    -- 使用顿帧调整后的dt，使敌人在顿帧期间放慢
+    enemies.update(state, enemyDt)       -- 敌人AI、攻击、死亡
 
     -- ==================== 玩家动画更新 ====================
     if state.playerAnim then

@@ -523,7 +523,8 @@ function abilities.updateActiveEffects(state, dt)
                     seg.active = true
                     -- 计算伸缩进度 (从 delay 开始到 travelTime 结束)
                     local duration = seg.travelTime or 0.06
-                    local t = (c.elapsed - seg.delay) / duration
+                    local segDelay = seg.delay or 0
+                    local t = (c.elapsed - segDelay) / duration
                     seg.progress = math.min(1, math.max(0, t))
                     
                     -- 只有当进度达到 100% 且还没造成过伤害时，触发命中
