@@ -1,5 +1,4 @@
 -- Love2D 主入口文件，负责协调游戏状态、渲染引擎、物理更新与输入处理。
--- 这里的 scenes 系统是游戏逻辑的核心分发器。
 local state = require('core.state')
 local weapons = require('gameplay.weapons')
 local draw = require('render.draw')
