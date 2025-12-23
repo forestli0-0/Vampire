@@ -629,6 +629,9 @@ function state.initChapterMode(opts)
     local spawner = require('world.spawner')
     spawner.reset()
     
+    -- 预生成敌人 (敌人初始为idle状态，玩家接近时激活)
+    spawner.populateMapOnGenerate(state, chapterMap)
+    
     -- 设置游戏状态为游玩中
     state.gameState = 'PLAYING'
     

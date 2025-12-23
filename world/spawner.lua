@@ -1,5 +1,5 @@
--- Stealth Enemy Spawner
--- Spawns enemies only outside player's view (no visible pop-in)
+-- Chapter Enemy Spawner
+-- Pre-spawns enemies at map generation, uses activation range for AI state
 
 local spawner = {}
 
@@ -10,21 +10,15 @@ local enemies = require('gameplay.enemies')
 --------------------------------------------------------------------------------
 
 local CONFIG = {
-    -- View culling
-    screenRadius = 450,     -- Approximate screen half-diagonal in pixels
-    spawnBuffer = 100,      -- Extra buffer beyond screen edge
+    -- Activation range (pixels) - enemies start chasing when player is within this distance
+    aggroRange = 350,
     
-    -- Spawn timing
-    spawnInterval = 2.0,    -- Seconds between spawn checks
-    maxEnemiesPerRoom = 20, -- Cap per room
-    globalEnemyCap = 50,    -- Total enemies on map
-    
-    -- Difficulty scaling
+    -- Room spawn counts
     baseEnemiesPerRoom = {
         easy = 5,
         normal = 8,
         hard = 15,
-        boss = 1,
+        boss = 0,  -- Boss spawned separately
         safe = 0,
         optional = 6,
     },
@@ -33,6 +27,7 @@ local CONFIG = {
         normal = 0.1,
         hard = 0.25,
         boss = 0,
+        safe = 0,
         optional = 0.15,
     },
 }
@@ -42,20 +37,8 @@ local CONFIG = {
 --------------------------------------------------------------------------------
 
 local state = {
-    timer = 0,
-    activeRooms = {},  -- Rooms currently being processed
+    populated = false,  -- Has the map been populated with enemies?
 }
-
---------------------------------------------------------------------------------
--- VISIBILITY CHECK
---------------------------------------------------------------------------------
-
-local function isOutOfView(px, py, sx, sy)
-    local dx = sx - px
-    local dy = sy - py
-    local dist = math.sqrt(dx * dx + dy * dy)
-    return dist > (CONFIG.screenRadius + CONFIG.spawnBuffer)
-end
 
 --------------------------------------------------------------------------------
 -- ROOM ENEMY MANAGEMENT
@@ -71,42 +54,11 @@ local function countEnemiesInRoom(gameState, node)
     return count
 end
 
-local function countTotalEnemies(gameState)
-    local count = 0
-    for _, e in ipairs(gameState.enemies or {}) do
-        if e and (e.health or e.hp or 0) > 0 then
-            count = count + 1
-        end
-    end
-    return count
-end
-
---------------------------------------------------------------------------------
--- SPAWN POINT SELECTION
---------------------------------------------------------------------------------
-
-local function getValidSpawnPoint(gameState, chapterMap, node, px, py)
-    -- Get spawn points in this room
-    local points = chapterMap:getSpawnPointsForNode(node, 10)
-    
-    -- Filter to only out-of-view points
-    local valid = {}
-    for _, pt in ipairs(points) do
-        if isOutOfView(px, py, pt.x, pt.y) then
-            table.insert(valid, pt)
-        end
-    end
-    
-    if #valid == 0 then return nil end
-    return valid[math.random(#valid)]
-end
-
 --------------------------------------------------------------------------------
 -- ENEMY TYPE SELECTION
 --------------------------------------------------------------------------------
 
 local function chooseEnemyType(roomProgress)
-    -- Simple pool based on progression
     local pool = {'skeleton', 'skeleton', 'skeleton'}
     
     if roomProgress >= 2 then
@@ -134,65 +86,66 @@ local function chooseEnemyType(roomProgress)
 end
 
 --------------------------------------------------------------------------------
--- MAIN SPAWN LOGIC
+-- PRE-SPAWN AT MAP GENERATION
 --------------------------------------------------------------------------------
 
-function spawner.update(gameState, chapterMap, dt)
+function spawner.populateMapOnGenerate(gameState, chapterMap)
     if not gameState or not chapterMap then return end
-    if gameState.gameState ~= 'PLAYING' then return end
+    if state.populated then return end
     
-    state.timer = state.timer - dt
-    if state.timer > 0 then return end
-    state.timer = CONFIG.spawnInterval
+    gameState.enemies = gameState.enemies or {}
     
-    local p = gameState.player
-    if not p then return end
-    local px, py = p.x or 0, p.y or 0
-    
-    -- Check global cap
-    if countTotalEnemies(gameState) >= CONFIG.globalEnemyCap then
-        return
-    end
-    
-    -- Find rooms near player that need enemies
-    local nearbyNodes = chapterMap:getNodesInRange(px, py, 800)
-    
-    for _, node in ipairs(nearbyNodes) do
-        -- Skip safe rooms
-        if node.difficulty == 'safe' then goto continue end
-        
-        -- Skip cleared rooms (minimal respawn)
-        if node.cleared and math.random() > 0.1 then goto continue end
-        
-        -- Check room cap
-        local roomEnemies = countEnemiesInRoom(gameState, node)
-        local targetCount = CONFIG.baseEnemiesPerRoom[node.difficulty] or 8
-        
-        if roomEnemies >= targetCount then goto continue end
-        
-        -- Try to spawn one enemy
-        local spawnPt = getValidSpawnPoint(gameState, chapterMap, node, px, py)
-        if not spawnPt then goto continue end
-        
-        -- Determine enemy type
-        local roomProgress = node.id or 1
-        local kind = chooseEnemyType(roomProgress)
-        
-        -- Elite chance
-        local isElite = false
-        local eliteChance = CONFIG.eliteChance[node.difficulty] or 0
-        if node.spawnElite and math.random() < eliteChance then
-            isElite = true
+    for _, node in ipairs(chapterMap.nodes or {}) do
+        -- Skip safe rooms and boss room (boss spawned separately)
+        if node.difficulty == 'safe' or node.type == 'boss' or node.type == 'exit' or node.type == 'start' then
+            goto continue
         end
         
-        -- Spawn!
-        local enemy = enemies.spawnEnemy(gameState, kind, isElite, spawnPt.x, spawnPt.y)
-        if enemy then
-            enemy._roomId = node.id  -- Tag for room tracking
+        local targetCount = CONFIG.baseEnemiesPerRoom[node.difficulty] or 8
+        local eliteChance = CONFIG.eliteChance[node.difficulty] or 0
+        local roomProgress = node.id or 1
+        
+        -- Get spawn points for this room
+        local spawnPoints = chapterMap:getSpawnPointsForNode(node, targetCount + 5)
+        
+        local roomSpawned = 0
+        for i = 1, targetCount do
+            local spawnPt = spawnPoints[i]
+            if not spawnPt then break end
+            
+            local kind = chooseEnemyType(roomProgress)
+            local isElite = node.spawnElite and math.random() < eliteChance
+            
+            -- Spawn with aiState = 'idle' (won't chase until player is close)
+            local enemy = enemies.spawnEnemy(gameState, kind, isElite, spawnPt.x, spawnPt.y, {suppressSpawnText = true})
+            if enemy then
+                enemy._roomId = node.id
+                enemy.aiState = 'idle'
+                enemy.aggroRange = CONFIG.aggroRange
+                enemy.homeX = spawnPt.x
+                enemy.homeY = spawnPt.y
+                roomSpawned = roomSpawned + 1
+            end
+        end
+        
+        -- Mark room as having been populated if any enemies were spawned
+        if roomSpawned > 0 then
+            node.spawned = true
         end
         
         ::continue::
     end
+    
+    state.populated = true
+end
+
+--------------------------------------------------------------------------------
+-- UPDATE (only handles special cases now)
+--------------------------------------------------------------------------------
+
+function spawner.update(gameState, chapterMap, dt)
+    -- No dynamic spawning in chapter mode
+    -- Enemies are pre-spawned at map generation
 end
 
 --------------------------------------------------------------------------------
@@ -203,25 +156,37 @@ function spawner.checkRoomClear(gameState, chapterMap)
     if not chapterMap then return end
     
     for _, node in ipairs(chapterMap.nodes or {}) do
-        if not node.cleared and node.difficulty ~= 'safe' then
-            local count = countEnemiesInRoom(gameState, node)
+        -- Skip already cleared rooms
+        if node.cleared then goto continue_clear end
+        
+        -- Skip non-combat rooms
+        if node.difficulty == 'safe' then goto continue_clear end
+        if node.type == 'start' or node.type == 'exit' or node.type == 'boss' or node.type == 'merchant' or node.type == 'forge' then
+            goto continue_clear
+        end
+        
+        -- Only check rooms that have been populated with enemies
+        if not node.spawned then goto continue_clear end
+        
+        local count = countEnemiesInRoom(gameState, node)
+        
+        -- Check if player is in room and all enemies dead
+        local playerNode = chapterMap:getNodeAtPosition(
+            gameState.player.x, 
+            gameState.player.y
+        )
+        
+        if playerNode and playerNode.id == node.id and count == 0 then
+            -- Room cleared!
+            node.cleared = true
             
-            -- Check if player is in room and all enemies dead
-            local playerNode = chapterMap:getNodeAtPosition(
-                gameState.player.x, 
-                gameState.player.y
-            )
-            
-            if playerNode and playerNode.id == node.id and count == 0 then
-                -- Room cleared!
-                node.cleared = true
-                
-                -- Trigger reward/event
-                if node.type == 'small_combat' or node.type == 'large_combat' then
-                    spawner.onRoomCleared(gameState, node)
-                end
+            -- Trigger reward/event
+            if node.type == 'small_combat' or node.type == 'large_combat' then
+                spawner.onRoomCleared(gameState, node)
             end
         end
+        
+        ::continue_clear::
     end
 end
 
@@ -280,28 +245,46 @@ function spawner.spawnBoss(gameState, chapterMap)
     )
     
     if playerNode and playerNode.id == bossNode.id then
-        local existingBoss = false
-        for _, e in ipairs(gameState.enemies or {}) do
-            if e and e.isBoss then
-                existingBoss = true
-                break
+        -- Check if boss was already spawned
+        if bossNode.bossSpawned then
+            -- Boss was spawned before, check if defeated
+            local bossAlive = false
+            for _, e in ipairs(gameState.enemies or {}) do
+                if e and e.isBoss and (e.health or e.hp or 0) > 0 then
+                    bossAlive = true
+                    break
+                end
             end
+            
+            if not bossAlive then
+                -- Boss defeated! Mark room as cleared
+                bossNode.cleared = true
+                if gameState.texts then
+                    table.insert(gameState.texts, {
+                        x = bossNode.cx * 32, y = bossNode.cy * 32 - 60,
+                        text = "BOSS DEFEATED!",
+                        color = {1, 0.9, 0.3},
+                        life = 3.0,
+                        scale = 1.8
+                    })
+                end
+            end
+            return
         end
         
-        if not existingBoss then
-            local wx, wy = bossNode.cx * 32, bossNode.cy * 32
-            -- Spawn boss (use existing boss spawning logic)
-            enemies.spawnEnemy(gameState, 'boss_treant', false, wx, wy)
-            
-            if gameState.texts then
-                table.insert(gameState.texts, {
-                    x = wx, y = wy - 60,
-                    text = "BOSS INCOMING",
-                    color = {1, 0.3, 0.3},
-                    life = 2.0,
-                    scale = 1.5
-                })
-            end
+        -- Spawn boss for the first time
+        local wx, wy = bossNode.cx * 32, bossNode.cy * 32
+        enemies.spawnEnemy(gameState, 'boss_treant', false, wx, wy)
+        bossNode.bossSpawned = true
+        
+        if gameState.texts then
+            table.insert(gameState.texts, {
+                x = wx, y = wy - 60,
+                text = "BOSS INCOMING",
+                color = {1, 0.3, 0.3},
+                life = 2.0,
+                scale = 1.5
+            })
         end
     end
 end
@@ -311,8 +294,7 @@ end
 --------------------------------------------------------------------------------
 
 function spawner.reset()
-    state.timer = 0
-    state.activeRooms = {}
+    state.populated = false
 end
 
 return spawner

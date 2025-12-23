@@ -699,39 +699,42 @@ function enemies.update(state, dt)
 
         -- === STUCK DETECTION ===
         -- If enemy is far from player and hasn't moved much, teleport them closer
-        local distToPlayer = math.sqrt((p.x - e.x)^2 + (p.y - e.y)^2)
-        e._stuckTimer = e._stuckTimer or 0
-        e._lastX = e._lastX or e.x
-        e._lastY = e._lastY or e.y
-        
-        local movedDist = math.sqrt((e.x - e._lastX)^2 + (e.y - e._lastY)^2)
-        if distToPlayer > 400 and movedDist < 5 then
-            -- Enemy is far and hasn't moved
-            e._stuckTimer = e._stuckTimer + dt
-        else
-            e._stuckTimer = 0
-        end
-        e._lastX = e.x
-        e._lastY = e.y
-        
-        -- If stuck for more than 8 seconds, teleport to a valid location near player
-        if e._stuckTimer > 8 and not e.isBoss then
-            local world = state.world
-            if world and world.enabled and world.sampleSpawn then
-                local newX, newY = world:sampleSpawn(p.x, p.y, 150, 300, 20)
-                if newX and newY then
-                    e.x, e.y = newX, newY
-                    e._stuckTimer = 0
-                    if state.texts then
-                        table.insert(state.texts, {x = e.x, y = e.y - 40, text = "!", color = {1, 0.5, 0.5}, life = 0.6})
-                    end
-                end
+        -- DISABLED in chapter mode to preserve pre-spawn spatial design
+        if state.runMode ~= 'chapter' then
+            local distToPlayer = math.sqrt((p.x - e.x)^2 + (p.y - e.y)^2)
+            e._stuckTimer = e._stuckTimer or 0
+            e._lastX = e._lastX or e.x
+            e._lastY = e._lastY or e.y
+            
+            local movedDist = math.sqrt((e.x - e._lastX)^2 + (e.y - e._lastY)^2)
+            if distToPlayer > 400 and movedDist < 5 then
+                -- Enemy is far and hasn't moved
+                e._stuckTimer = e._stuckTimer + dt
             else
-                -- No world, just teleport near player
-                local ang = math.random() * math.pi * 2
-                e.x = p.x + math.cos(ang) * 200
-                e.y = p.y + math.sin(ang) * 200
                 e._stuckTimer = 0
+            end
+            e._lastX = e.x
+            e._lastY = e.y
+            
+            -- If stuck for more than 8 seconds, teleport to a valid location near player
+            if e._stuckTimer > 8 and not e.isBoss then
+                local world = state.world
+                if world and world.enabled and world.sampleSpawn then
+                    local newX, newY = world:sampleSpawn(p.x, p.y, 150, 300, 20)
+                    if newX and newY then
+                        e.x, e.y = newX, newY
+                        e._stuckTimer = 0
+                        if state.texts then
+                            table.insert(state.texts, {x = e.x, y = e.y - 40, text = "!", color = {1, 0.5, 0.5}, life = 0.6})
+                        end
+                    end
+                else
+                    -- No world, just teleport near player
+                    local ang = math.random() * math.pi * 2
+                    e.x = p.x + math.cos(ang) * 200
+                    e.y = p.y + math.sin(ang) * 200
+                    e._stuckTimer = 0
+                end
             end
         end
         -- === END STUCK DETECTION ===
@@ -1124,6 +1127,27 @@ function enemies.update(state, dt)
             slowPct = slowPct * (1 - tenacity * 0.6)
             coldMult = 1 - slowPct
         end
+        
+        -- === AI STATE ACTIVATION ===
+        -- Check if enemy should activate (start chasing)
+        local distToPlayer = math.sqrt((p.x - e.x)^2 + (p.y - e.y)^2)
+        local aggroRange = e.aggroRange or 350
+        
+        if e.aiState == 'idle' then
+            if distToPlayer < aggroRange then
+                -- Player is close, activate!
+                e.aiState = 'chase'
+                -- Show "!" indicator
+                if state.texts then
+                    table.insert(state.texts, {x = e.x, y = e.y - 30, text = "!", color = {1, 0.8, 0.2}, life = 0.5, scale = 1.2})
+                end
+            else
+                -- Still idle, skip movement and attack logic
+                goto continue_enemy_loop
+            end
+        end
+        -- === END AI STATE ACTIVATION ===
+        
         local targetX, targetY = p.x, p.y
         if e.status.radiationTimer and e.status.radiationTimer > 0 then
             local rt = e.status.radiationTarget
@@ -2425,6 +2449,8 @@ function enemies.update(state, dt)
                 end
             end
         end
+        
+        ::continue_enemy_loop::
     end
 end
 

@@ -511,7 +511,13 @@ function ChapterMap:getSpawnPointsForNode(node, count)
     local minY = node.y1 + padding
     local maxY = node.y2 - padding
     
+    -- Ensure valid bounds
+    if minX >= maxX or minY >= maxY then
+        return points
+    end
+    
     local attempts = count * 10
+    
     for _ = 1, attempts do
         if #points >= count then break end
         
