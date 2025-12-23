@@ -233,6 +233,7 @@ function vfx.init()
     _shLightning = safeNewShader[[
         extern number time;
         extern number alpha;
+        extern number u_length; // 传入当前段的实际显示长度
 
         number hash1(number n) {
             return fract(sin(n) * 43758.5453);
@@ -255,30 +256,30 @@ function vfx.init()
             number x = uv.x;
             number y = uv.y;
 
-            // segmented jitter (less "sine noodle", more bolt)
-            number tStep = floor(time * 60.0) * 0.17;
-            number nA = segNoise(x + time * 0.35, 26.0, tStep);
-            number nB = segNoise(x - time * 0.25, 52.0, tStep + 7.3);
-            number n = (nA * 0.65 + nB * 0.35) * 2.0 - 1.0;
+            // 使用实际像素长度来缩放 X，使噪声频率不随长度拉伸而改变
+            // 这里的 100.0 是参考缩放系数
+            number worldX = x * u_length / 100.0;
 
-            number sway = sin(x * 9.0 + time * 8.0) * 0.18;
-            number offset = (n * 0.22 + sway) * 0.18;
+            number tStep = floor(time * 30.0) * 0.13;
+            number nA = segNoise(worldX * 1.5, 12.0, tStep);
+            number nB = segNoise(worldX * 2.5, 24.0, tStep + 5.7);
+            number n = (nA * 0.7 + nB * 0.3) * 2.0 - 1.0;
+
+            number micro = (hash1(uv.x * 100.0 + time * 10.0) - 0.5) * 0.05;
+            
+            number offset = (n * 0.35 + micro);
             number center = 0.5 + offset;
 
             number dist = abs(y - center);
-            number core = smoothstep(0.06, 0.0, dist);
-            number glow = smoothstep(0.26, 0.0, dist) * 0.40;
+            number core = smoothstep(0.08, 0.02, dist);
+            number glow = smoothstep(0.35, 0.0, dist) * 0.5;
 
-            // occasional hot streaks along the bolt
-            number sparkN = segNoise(x + time * 0.9, 18.0, tStep + 13.7);
-            number sparks = smoothstep(0.86, 0.98, sparkN) * core * 0.55;
+            number flicker = 0.75 + 0.25 * sin(time * 60.0 + uv.x * 20.0);
+            number intensity = (core * 1.2 + glow) * flicker * alpha;
+            intensity = clamp(intensity, 0.0, 1.2);
 
-            number flicker = 0.78 + 0.22 * sin(time * 48.0 + x * 15.0);
-            number intensity = (core * 1.05 + glow + sparks) * flicker * alpha;
-            intensity = min(intensity, 1.0);
-
-            vec3 colCore = vec3(1.0, 0.98, 0.75);
-            vec3 colGlow = vec3(0.50, 0.82, 1.0);
+            vec3 colCore = vec3(1.0, 1.0, 1.0);
+            vec3 colGlow = vec3(0.4, 0.7, 1.0);
             vec3 col = mix(colGlow, colCore, core);
             return vec4(col * intensity, intensity);
         }
@@ -572,12 +573,15 @@ function vfx.drawHitEffect(key, x, y, progress, scale, alpha)
     doDraw(false)
 end
 
-function vfx.drawLightningSegment(x1, y1, x2, y2, width, alpha)
+function vfx.drawLightningSegment(x1, y1, x2, y2, width, alpha, progress)
     vfx.init()
+    progress = progress or 1
     if not canDraw() then
-        love.graphics.setColor(0.9, 0.95, 1, 0.9)
+        love.graphics.setColor(0.9, 0.95, 1, 0.9 * alpha)
         love.graphics.setLineWidth(width or 2)
-        love.graphics.line(x1, y1, x2, y2)
+        local px = x1 + (x2 - x1) * progress
+        local py = y1 + (y2 - y1) * progress
+        love.graphics.line(x1, y1, px, py)
         love.graphics.setLineWidth(1)
         love.graphics.setColor(1, 1, 1)
         return
@@ -588,8 +592,8 @@ function vfx.drawLightningSegment(x1, y1, x2, y2, width, alpha)
 
     local dx = x2 - x1
     local dy = y2 - y1
-    local len = math.sqrt(dx * dx + dy * dy)
-    if len < 1 then return end
+    local totalLen = math.sqrt(dx * dx + dy * dy)
+    if totalLen < 1 then return end
 
     if not _shLightning then
         love.graphics.setColor(0.9, 0.95, 1, 0.9 * alpha)
@@ -617,7 +621,7 @@ function vfx.drawLightningSegment(x1, y1, x2, y2, width, alpha)
         local ddx = bx - ax
         local ddy = by - ay
         local l = math.sqrt(ddx * ddx + ddy * ddy)
-        if l < 1 then return end
+        if l < 0.1 then return end
 
         local ang = math.atan2(ddy, ddx)
 
@@ -625,6 +629,7 @@ function vfx.drawLightningSegment(x1, y1, x2, y2, width, alpha)
         love.graphics.setShader(_shLightning)
         _shLightning:send('time', t)
         _shLightning:send('alpha', a)
+        _shLightning:send('u_length', l) -- 关键：告知着色器这一段有多长
 
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.push()
@@ -638,38 +643,72 @@ function vfx.drawLightningSegment(x1, y1, x2, y2, width, alpha)
     end
 
     local function doDraw(isBloom)
-        -- main bolt (cap alpha to avoid bloom washout at large widths)
+        -- main bolt: subdivision counts based on FULL length to keep jitter static
         local alphaMain = clamp(alpha * (0.85 + 0.15 * (18 / math.max(6, width))), 0, 0.95)
         if isBloom then alphaMain = clamp(alphaMain * 0.7, 0, 0.7) end
-        drawRaw(x1, y1, x2, y2, width, alphaMain)
 
-        -- subtle sub-filaments / branching for depth (low alpha, thin)
+        -- 关键：基于最终总长度确定分段数，确保生长过程中段数不跳变
+        local segs = math.max(2, math.floor(totalLen / 40))
+        if totalLen > 300 then segs = 5 end
+        
+        local jitterAmt = 12 * (width / 14)
+        local nx, ny = -dy / totalLen, dx / totalLen -- 基于最终方向的法线
+
+        local lastX, lastY = x1, y1
+        for i = 1, segs do
+            local tEnd = i / segs
+            -- 如果这一段完全超过了进度，就跳过
+            if (i-1) / segs > progress then break end
+
+            local targetT = math.min(progress, tEnd)
+            local tx = x1 + dx * targetT
+            local ty = y1 + dy * targetT
+            
+            -- 为每个分段节点添加固定的抖动（基于 i，而非当前长度）
+            if i < segs and tEnd <= progress then
+                local seed = hash01(x1 + i, y1 - i)
+                local offset = (seed * 2.0 - 1.0) * jitterAmt
+                tx = tx + nx * offset
+                ty = ty + ny * offset
+            end
+
+            drawRaw(lastX, lastY, tx, ty, width * 1.5, alphaMain)
+            lastX, lastY = tx, ty
+            
+            -- 如果这一段是进度截断点，说明画完了
+            if tEnd >= progress then break end
+        end
+
+        -- 分支逻辑 (仅在已经生长到的部分显示)
         local seedA = hash01(x1 + x2, y1 + y2)
         local seedB = hash01(x1 - x2, y1 - y2)
-        local branchCount = (seedA > 0.55) and 2 or 1
-        local nx = -dy / len
-        local ny = dx / len
-
+        local branchCount = (seedA > 0.65) and 2 or 1
+        
         for i = 1, branchCount do
             local phase = (t * (1.2 + 0.35 * i) + seedB * 3.7 + i * 11.3)
-            local along = 0.22 + 0.56 * ((seedA + 0.37 * i + (math.sin(phase) * 0.5 + 0.5) * 0.35) % 1)
-            local px = x1 + dx * along
-            local py = y1 + dy * along
+            local along = 0.2 + 0.6 * ((seedA + 0.3 * i + (math.sin(phase) * 0.5 + 0.5) * 0.2) % 1)
+            
+            -- 只有当分支点已经长出来时才绘制
+            if along <= progress then
+                local px = x1 + dx * along
+                local py = y1 + dy * along
 
-            local side = (((seedB * 100 + i) % 2) < 1) and -1 or 1
-            local off = side * (0.08 + 0.10 * ((seedA + i * 0.13) % 1)) * width
-            px = px + nx * off
-            py = py + ny * off
+                local side = (((seedB * 100 + i) % 2) < 1) and -1 or 1
+                local off = side * (0.12 + 0.15 * ((seedA + i * 0.13) % 1)) * width
+                px = px + nx * off
+                py = py + ny * off
 
-            local bl = math.min(len * (0.22 + 0.12 * ((seedB + i * 0.21) % 1)), 70)
-            local bang = angle + side * (0.55 + 0.35 * ((seedA + i * 0.19) % 1))
-            local bx = px + math.cos(bang) * bl
-            local by = py + math.sin(bang) * bl
+                -- 分支也需要根据整体缩放，但可以简化
+                local bl = math.min(totalLen * (0.25 + 0.15 * ((seedB + i * 0.21) % 1)), 80)
+                local bang = angle + side * (0.6 + 0.4 * ((seedA + i * 0.19) % 1))
+                local bx = px + math.cos(bang) * bl
+                local by = py + math.sin(bang) * bl
 
-            local bw = math.max(4, width * 0.38)
-            local ba = clamp(alphaMain * 0.35, 0, 0.45)
-            if isBloom then ba = clamp(ba * 0.75, 0, 0.35) end
-            drawRaw(px, py, bx, by, bw, ba)
+                local bw = math.max(4, width * 0.35)
+                local ba = clamp(alphaMain * 0.4, 0, 0.5)
+                if isBloom then ba = clamp(ba * 0.75, 0, 0.4) end
+                drawRaw(px, py, bx, by, bw, ba)
+            end
         end
     end
 

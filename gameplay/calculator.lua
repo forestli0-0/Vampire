@@ -802,16 +802,7 @@ function calculator.applyHit(state, enemy, params)
     -- Status feedback should be visible even if the hit kills the enemy.
     spawnProcVfx(state, enemy, appliedEffects)
 
-    -- Volt-like chain lightning: trigger immediately on STATIC proc (doesn't wait for DoT ticks).
-    local staticCount = 0
-    for _, eff in ipairs(appliedEffects or {}) do
-        if string.upper(eff or '') == 'STATIC' then
-            staticCount = staticCount + 1
-        end
-    end
-    if staticCount > 0 then
-        spawnVoltStaticChain(state, enemy, instance, staticCount)
-    end
+
 
     local opts = buildDamageMods(enemy, instance, appliedEffects)
     local dmg, isCrit = calculator.applyDamage(state, enemy, instance, opts)

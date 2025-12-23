@@ -482,7 +482,7 @@ local function build(helpers)
                     local damage = math.floor(25 * str)  -- Reduced from 50
                     local chainRange = 150 * rng  -- Reduced from 180
                     local chainR2 = chainRange * chainRange
-                    local maxChains = math.floor(2 + 1 * rng)  -- 2-3 chains (reduced from 3-5)
+                    local maxChains = math.floor(3 * rng - 1)  -- 默认命中 3 个，范围 2.0 时命中 6 个 (总命中翻倍)
                 
                     -- Build chain of targets, recording positions for VFX
                     local chainTargets = {nearestEnemy}
@@ -524,43 +524,29 @@ local function build(helpers)
                         })
                     end
                 
-                    -- Create visual lightning chain effect
-                    -- Store lightning segments for draw.lua to render
-                    state.voltLightningChains = state.voltLightningChains or {}
-                    local chainData = {
-                        segments = {},
-                        timer = 0.5,  -- Display for 0.5 seconds
-                        alpha = 1.0
-                    }
-                
-                    -- First segment: player to first enemy
-                    table.insert(chainData.segments, {
+                    -- Create visual lightning chain effect with new helper
+                    local abilities = require('gameplay.abilities')
+                    local segments = {}
+                    
+                    -- Initial segment
+                    table.insert(segments, {
                         x1 = p.x, y1 = p.y,
                         x2 = chainTargets[1].x, y2 = chainTargets[1].y,
-                        width = 16
+                        width = 16,
+                        source = p,
+                        target = chainTargets[1],
+                        instance = instance,
+                        damage = damage
                     })
-                
-                    -- Apply damage to first target
-                    if instance and ok and calc then
-                        calc.applyHit(state, chainTargets[1], instance)
-                    else
-                        chainTargets[1].health = (chainTargets[1].health or 0) - damage
-                    end
-                    if state.spawnEffect then state.spawnEffect('shock', chainTargets[1].x, chainTargets[1].y, 1.0) end
-                
-                    -- Chain segments between enemies
+                    
+                    -- Chain segments
                     for i = 2, #chainTargets do
                         local prev = chainTargets[i-1]
                         local curr = chainTargets[i]
-                        table.insert(chainData.segments, {
-                            x1 = prev.x, y1 = prev.y,
-                            x2 = curr.x, y2 = curr.y,
-                            width = 12  -- Slightly thinner for chains
-                        })
-                        -- Apply damage with slight falloff
                         local chainDmg = math.floor(damage * (1 - 0.1 * (i-1)))
+                        local chainInstance = nil
                         if instance and ok and calc then
-                            local chainInstance = calc.createInstance({
+                            chainInstance = calc.createInstance({
                                 damage = chainDmg,
                                 critChance = 0.15,
                                 critMultiplier = 2.0,
@@ -569,16 +555,21 @@ local function build(helpers)
                                 damageBreakdown = {ELECTRIC = 1},
                                 weaponTags = {'ability', 'electric'}
                             })
-                            calc.applyHit(state, curr, chainInstance)
-                        else
-                            curr.health = (curr.health or 0) - chainDmg
                         end
-                        if state.spawnEffect then state.spawnEffect('shock', curr.x, curr.y, 0.8) end
+                        
+                        table.insert(segments, {
+                            x1 = prev.x, y1 = prev.y,
+                            x2 = curr.x, y2 = curr.y,
+                            width = 12,
+                            source = prev,
+                            target = curr,
+                            instance = chainInstance,
+                            damage = chainDmg
+                        })
                     end
+                    
+                    abilities.spawnChain(state, segments, { speed = 2000 })
                 
-                    table.insert(state.voltLightningChains, chainData)
-                
-                    if state.playSfx then state.playSfx('static') end
                     return true
                 end
             },

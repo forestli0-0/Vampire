@@ -331,7 +331,7 @@ function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effec
         local addDps = math.max(1, base * 0.5)
         e.status.staticDps = (e.status.staticDps or 0) + addDps
         e.status.staticRadius = math.max(e.status.staticRadius or 0, radius)
-        e.status.staticAcc = e.status.staticAcc or 0
+        e.status.staticTickTimer = e.status.staticTickTimer or 1.0 -- 新增：感电结算计时器，默认为1秒
         -- Prevent perma-stun loops: apply a short stun with a lockout instead of refreshing for full duration.
         if (e.status.shockLockout or 0) <= 0 then
             local stun = (effectData and effectData.stunDuration) or 0.45
@@ -918,17 +918,16 @@ function enemies.update(state, dt)
         if e.status.static and e.status.staticTimer and e.status.staticTimer > 0 then
             e.status.staticTimer = e.status.staticTimer - dt
             if e.health > 0 then
-                e.status.staticAcc = (e.status.staticAcc or 0) + (e.status.staticDps or 0) * dt
-                if e.status.staticAcc >= 1 then
-                    local tick = math.floor(e.status.staticAcc)
-                    e.status.staticAcc = e.status.staticAcc - tick
+                e.status.staticTickTimer = (e.status.staticTickTimer or 1.0) - dt
+                if e.status.staticTickTimer <= 0 then
+                    e.status.staticTickTimer = 1.0
+                    local tick = math.floor(e.status.staticDps or 0)
                     if tick > 0 then
                         local radius = e.status.staticRadius or 140
                         local r2 = radius * radius
                         applyDotTick(state, e, 'ELECTRIC', tick, {noSfx=true})
-                        local shown = 0
-                        local world = state.world
-                        local useLos = world and world.enabled and world.segmentHitsWall
+                        
+                        local conductionTargets = {}
                         for _, o in ipairs(state.enemies) do
                             if o ~= e and o.health > 0 then
                                 local dx = o.x - e.x
@@ -939,21 +938,31 @@ function enemies.update(state, dt)
                                         blocked = true
                                     end
                                     
-                                    if not blocked then
-                                        ensureStatus(o)
-                                        local applied = false
-                                        if (o.status.staticSplashCd or 0) <= 0 then
-                                            applyDotTick(state, o, 'ELECTRIC', tick, {noText=true, noSfx=true})
-                                            o.status.staticSplashCd = 0.25
-                                            applied = true
-                                        end
-                                        if applied and shown < 6 then
-                                            table.insert(state.chainLinks, {x1=e.x, y1=e.y, x2=o.x, y2=o.y})
-                                            shown = shown + 1
-                                        end
+                                    if not blocked and (o.status.staticSplashCd or 0) <= 0 then
+                                        table.insert(conductionTargets, o)
                                     end
                                 end
                             end
+                        end
+                        
+                        -- Sort by distance or just pick top targets
+                        if #conductionTargets > 0 then
+                            local abilities = require('gameplay.abilities')
+                            local segments = {}
+                            local maxShown = 6
+                            for i = 1, math.min(#conductionTargets, maxShown) do
+                                local o = conductionTargets[i]
+                                o.status.staticSplashCd = 0.5 -- Higher CD for secondary procs
+                                table.insert(segments, {
+                                    x1 = e.x, y1 = e.y,
+                                    x2 = o.x, y2 = o.y,
+                                    width = 10,
+                                    source = e,
+                                    target = o,
+                                    damage = tick -- Secondary targets take same tick damage
+                                })
+                            end
+                            abilities.spawnChain(state, segments, { speed = 2500, noSfx = true })
                         end
                     end
                 end
@@ -963,7 +972,7 @@ function enemies.update(state, dt)
                 e.status.staticTimer = nil
                 e.status.staticDps = nil
                 e.status.staticRadius = nil
-                e.status.staticAcc = nil
+                e.status.staticTickTimer = nil
             end
         end
 

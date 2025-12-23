@@ -458,17 +458,90 @@ function abilities.update(state, dt)
     end
 end
 
+function abilities.spawnChain(state, segments, opts)
+    state.voltLightningChains = state.voltLightningChains or {}
+    opts = opts or {}
+    local chainData = {
+        segments = {},
+        timer = opts.timer or 0.8,
+        elapsed = 0,
+        alpha = opts.alpha or 1.0
+    }
+    
+    local speed = opts.speed or 2000
+    local currentDelay = opts.initialDelay or 0
+    
+    for _, s in ipairs(segments) do
+        local dx = s.x2 - s.x1
+        local dy = s.y2 - s.y1
+        local dist = math.sqrt(dx*dx + dy*dy)
+        local t = math.max(0.03, dist / speed)
+        
+        table.insert(chainData.segments, {
+            x1 = s.x1, y1 = s.y1,
+            x2 = s.x2, y2 = s.y2,
+            width = s.width or 12,
+            delay = currentDelay,
+            travelTime = t,
+            source = s.source,
+            target = s.target,
+            instance = s.instance,
+            damage = s.damage
+        })
+        currentDelay = currentDelay + t
+    end
+    
+    chainData.timer = math.max(chainData.timer, currentDelay + 0.4)
+    table.insert(state.voltLightningChains, chainData)
+    if not opts.noSfx and state.playSfx then state.playSfx('shock') end
+end
+
 --- updateActiveEffects: 更新所有激活的持续性技能效果。
 -- 涵盖：Volt 的闪电链视觉、显赫刀剑的持续耗蓝、电磁盾、Mag 的磁化力场、Discharge 波动等。
 function abilities.updateActiveEffects(state, dt)
     local p = state.player
     if not p then return end
     
-    -- 1. Volt 闪电链 VFX
+    -- 1. Volt 闪电链 VFX 与 延迟伤害
     if state.voltLightningChains then
         for i = #state.voltLightningChains, 1, -1 do
             local c = state.voltLightningChains[i]
+            c.elapsed = (c.elapsed or 0) + dt
             c.timer = c.timer - dt
+            
+            -- 检查每一段的动画和激活状态
+            for _, seg in ipairs(c.segments or {}) do
+                -- 核心优化：如果实体还在，实时同步坐标
+                if seg.source and seg.source.x then
+                    seg.x1, seg.y1 = seg.source.x, seg.source.y
+                end
+                if seg.target and seg.target.x then
+                    seg.x2, seg.y2 = seg.target.x, seg.target.y
+                end
+
+                if c.elapsed >= (seg.delay or 0) then
+                    seg.active = true
+                    -- 计算伸缩进度 (从 delay 开始到 travelTime 结束)
+                    local duration = seg.travelTime or 0.06
+                    local t = (c.elapsed - seg.delay) / duration
+                    seg.progress = math.min(1, math.max(0, t))
+                    
+                    -- 只有当进度达到 100% 且还没造成过伤害时，触发命中
+                    if seg.progress >= 1 and not seg.hitApplied then
+                        seg.hitApplied = true
+                        if seg.target and not seg.target.isDummy then
+                            local ok, calc = pcall(require, 'gameplay.calculator')
+                            if ok and calc and seg.instance then
+                                calc.applyHit(state, seg.target, seg.instance)
+                            else
+                                seg.target.health = (seg.target.health or 0) - (seg.damage or 0)
+                            end
+                            if state.spawnEffect then state.spawnEffect('shock', seg.target.x, seg.target.y, 0.8) end
+                        end
+                    end
+                end
+            end
+            
             c.alpha = math.max(0, c.timer / 0.5)
             if c.timer <= 0 then table.remove(state.voltLightningChains, i) end
         end

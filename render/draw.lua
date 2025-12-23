@@ -2359,7 +2359,9 @@ function draw.renderEmissive(state)
     if state.voltLightningChains then
         for _, chain in ipairs(state.voltLightningChains) do
             for _, seg in ipairs(chain.segments or {}) do
-                vfx.drawLightningSegment(seg.x1, seg.y1, seg.x2, seg.y2, seg.width or 14, chain.alpha or 1)
+                if seg.active then
+                    vfx.drawLightningSegment(seg.x1, seg.y1, seg.x2, seg.y2, seg.width or 14, chain.alpha or 1, seg.progress)
+                end
             end
         end
     end
