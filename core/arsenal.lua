@@ -571,11 +571,7 @@ function arsenal.startRun(state, opts)
     end
 
     -- 地图生成策略
-    if state.runMode == 'explore' then
-        state.rooms = state.rooms or {}
-        state.rooms.enabled = false
-        campaign.startRun(state)
-    elseif state.runMode == 'chapter' then
+    if state.runMode == 'chapter' then
         -- 章节探索模式: 线性地下城
         state.rooms = state.rooms or {}
         state.rooms.enabled = false
@@ -614,6 +610,9 @@ function arsenal.startRun(state, opts)
         -- 重置 spawner
         local spawner = require('world.spawner')
         spawner.reset()
+        
+        -- 预生成敌人 (敌人初始为idle状态，玩家接近时激活)
+        spawner.populateMapOnGenerate(state, chapterMap)
     else
         state.mission = nil
         state.campaign = nil
@@ -815,7 +814,8 @@ function arsenal.keypressed(state, key)
         arsenal.startRun(state)
         return true
     elseif key == 'f' then
-        arsenal.startRun(state, {runMode = 'explore'})
+        -- F now starts Chapter mode (handled by new UI)
+        arsenal.startRun(state, {runMode = 'chapter'})
         return true
     elseif key == 'r' then
         arsenal.startRun(state, {runMode = 'rooms'})

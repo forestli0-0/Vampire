@@ -86,8 +86,6 @@ local function updatePlaying(state, dt)
         minimap.update(state, state.chapterMap, dt)
     elseif state.runMode == 'rooms' and not state.testArena and not state.scenarioNoDirector and not state.benchmarkMode then
         rooms.update(state, dt)
-    elseif state.runMode == 'explore' and not state.testArena and not state.scenarioNoDirector and not state.benchmarkMode then
-        mission.update(state, dt)
     else
         director.update(state, dt)
     end
