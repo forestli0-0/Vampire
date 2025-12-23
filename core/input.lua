@@ -16,7 +16,7 @@ input.keymap = {
     melee = {'e'},
     reload = {'r'},
     slide = {'lshift', 'rshift'},
-    jump = {'space'},
+    dodge = {'space'},
     
     -- Abilities
     ability1 = {'1'},

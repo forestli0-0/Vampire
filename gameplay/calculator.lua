@@ -1,14 +1,26 @@
+-- 战斗计算器 (Combat Calculator)
+-- 核心战斗引擎：处理伤害计算、爆击阶级、多元素融合、护甲与护盾衰减，以及状态异常触发。
+-- 逻辑深度参考 Warframe 的 Damage 2.0 系统。
+
 local enemies = require('gameplay.enemies')
 
 local calculator = {}
 
+-------------------------------------------
+-- 属性与配置 (Properties & Config)
+-------------------------------------------
+
+-- 基础元素 (一级)
 local PRIMARY = {HEAT=true, COLD=true, ELECTRIC=true, TOXIN=true}
+
+-- 融合元素表 (二级)
 local COMBOS = {
     HEAT = {COLD='BLAST', ELECTRIC='RADIATION', TOXIN='GAS'},
     COLD = {ELECTRIC='MAGNETIC', TOXIN='VIRAL'},
     ELECTRIC = {TOXIN='CORROSIVE'}
 }
 
+-- 元素到状态异常 (Proc) 的映射
 local ELEMENT_TO_EFFECT = {
     HEAT='FIRE',
     COLD='FREEZE',
@@ -26,8 +38,8 @@ local ELEMENT_TO_EFFECT = {
     OIL='OIL'
 }
 
--- Warframe Damage 2.0 style type modifiers (percentages converted to multipliers).
--- Keys use our internal damage names (ELECTRIC not ELECTRICITY) and defense names.
+-- 防御类型修正系数 (参考 Warframe Damage 2.0)
+-- 包含：肉体 (Flesh)、各种护甲 (Armor)、护盾 (Shield) 对不同元素的抗性/弱点。
 local DEFENSE_MODIFIERS = {
     FLESH = {IMPACT=0.75, SLASH=1.25, TOXIN=1.5, GAS=0.75, VIRAL=1.5},
     CLONED_FLESH = {IMPACT=0.75, SLASH=1.25, HEAT=1.25, GAS=0.5, VIRAL=1.75},
@@ -45,6 +57,11 @@ local DEFENSE_MODIFIERS = {
     INDIFFERENT_FACADE = {PUNCTURE=1.25, SLASH=0.5, ELECTRIC=1.25, RADIATION=1.75, VIRAL=0.5, VOID=1.25}
 }
 
+-------------------------------------------
+-- 核心辅助算法
+-------------------------------------------
+
+--- getTypeModifier: 获取特定伤害类型对特定防御类型的伤害加成。
 local function getTypeModifier(dmgType, defenseType)
     local d = string.upper(dmgType or '')
     if d == 'ELECTRICITY' then d = 'ELECTRIC' end
@@ -54,27 +71,27 @@ local function getTypeModifier(dmgType, defenseType)
     return 1
 end
 
+--- getEffectiveArmor: 计算敌人当前的有效护甲 (处理剥除效果)。
 local function getEffectiveArmor(e)
     local armor = (e and e.armor) or 0
     if e and e.status then
-        if e.status.heatTimer and e.status.heatTimer > 0 then armor = armor * 0.5 end
-        -- Corrosive stripping is usually applied to baseArmor in enemies.lua, checking if we need to account for it here.
-        -- In enemies.lua applyStatus('CORROSIVE'), it modifies e.armor directly. So e.armor IS the current armor.
+        if e.status.heatTimer and e.status.heatTimer > 0 then armor = armor * 0.5 end -- 火焰状态削减 50%
     end
-    if armor < 0 then armor = 0 end
-    return armor
+    return math.max(0, armor)
 end
 
+--- applyArmorReduction: 应用护甲减伤公式 (DR = Armor / (Armor + 300))。
 local function applyArmorReduction(dmg, armor)
     if not armor or armor <= 0 then return dmg end
     local dr = armor / (armor + 300)
     return dmg * (1 - dr)
 end
 
+--- combineElements: 将单元素按顺序融合为复合元素。
+-- 例如：[HEAT, TOXIN] -> [GAS]。
 local function combineElements(elements, damageByType)
     if not elements or #elements == 0 then return elements, damageByType end
-    local out = {}
-    local outDamage = {}
+    local out, outDamage = {}, {}
     local i = 1
     while i <= #elements do
         local a = string.upper(elements[i])
@@ -124,23 +141,25 @@ local function normalizeElements(effectType, provided)
     return nil
 end
 
--- Calculate distance damage falloff multiplier (Warframe-style)
+--- calculateFalloff: 计算距离导致伤害衰减。
 local function calculateFalloff(distance, falloffStart, falloffEnd, falloffMin)
     if not falloffStart or not falloffEnd or not distance then
-        return 1.0 -- No falloff
+        return 1.0
     end
     
     if distance <= falloffStart then
-        return 1.0 -- Full damage
+        return 1.0
     elseif distance >= falloffEnd then
         return falloffMin or 1.0 -- Minimum damage
     else
-        -- Linear interpolation between start and end
+        -- 在起始与结束之间进行线性插值
         local t = (distance - falloffStart) / (falloffEnd - falloffStart)
         return 1.0 - t * (1.0 - (falloffMin or 1.0))
     end
 end
 
+--- calculator.createInstance: 创建一个伤害判定实例 (Snapshot)。
+-- 该实例包含所有被计算好的命中属性：各元素伤害分配、状态触发、爆击等。
 function calculator.createInstance(params)
     params = params or {}
     local rawElements = normalizeElements(params.effectType, params.elements) or {}
@@ -148,6 +167,7 @@ function calculator.createInstance(params)
     local baseDamage = params.damage or 0
 
     local damageByType = {}
+    -- 根据 Breakdown 权重分配总伤害到各个元素
     if params.damageByType and type(params.damageByType) == 'table' then
         for k, v in pairs(params.damageByType) do
             damageByType[string.upper(k)] = v
@@ -174,11 +194,9 @@ function calculator.createInstance(params)
                 allocated = allocated + intPart
                 table.insert(remainders, {key = info.key, rem = exact - intPart})
             end
+            -- 处理舍入余项
             local leftover = baseDamage - allocated
-            table.sort(remainders, function(a, b)
-                if a.rem == b.rem then return a.key < b.key end
-                return a.rem > b.rem
-            end)
+            table.sort(remainders, function(a, b) return a.rem > b.rem end)
             local ri = 1
             while leftover > 0 and #remainders > 0 do
                 local r = remainders[ri]
@@ -194,9 +212,10 @@ function calculator.createInstance(params)
         end
     end
 
+    -- 应用元素融合
     local elements, combinedDamageByType = combineElements(rawElements, damageByType)
     
-    -- Apply distance falloff if specified
+    -- 应用距离衰减
     local falloffMult = 1.0
     if params.distance and params.falloffStart then
         falloffMult = calculateFalloff(
@@ -255,10 +274,11 @@ local function chooseProcElement(instance)
     return elems[#elems]
 end
 
+--- calculator.applyStatus: 判定并应用状态异常。
+-- 处理“多重状态触发” (Status Chance > 1.0)。
 function calculator.applyStatus(state, enemy, instance, overrideChance)
     if not enemy or not instance then return {} end
-    local chance = overrideChance
-    if chance == nil then chance = instance.statusChance or 0 end
+    local chance = overrideChance or instance.statusChance or 0
     if chance <= 0 then return {} end
 
     local elems = instance.elements or {}
@@ -286,10 +306,12 @@ function calculator.applyStatus(state, enemy, instance, overrideChance)
             table.insert(applied, effectType)
         end
     end
-
     return applied
 end
 
+--- calculator.computeDamage: 计算爆击加成。
+-- 应用 Warframe 风格的爆击阶级公式：1 + Tier * (Multiplier - 1)。
+-- Tier 0 (白色), Tier 1 (黄色), Tier 2 (橙色), Tier 3+ (红色)。
 function calculator.computeDamage(instance)
     if not instance then return 1, 0 end
     local chance = instance.critChance or 0
@@ -307,11 +329,10 @@ function calculator.computeDamage(instance)
         -- WF formula: 1 + Tier * (Multiplier - 1)
         mult = 1 + tier * (cm - 1)
     end
-    
-    if mult < 0 then mult = 0 end
-    return mult, tier
+    return math.max(0, mult), tier
 end
 
+--- buildDamageMods: 构建应用伤害时的动态修饰。
 local function buildDamageMods(enemy, instance, appliedEffects)
     local opts = {}
     local status = enemy and enemy.status
@@ -334,6 +355,7 @@ local function buildDamageMods(enemy, instance, appliedEffects)
         opts.shieldMult = math.max(opts.shieldMult or 1, (status and status.magneticMult) or 1.75)
         opts.lockShield = true
     end
+    -- 病毒效果判定 (增伤)
     if status and status.viralStacks and status.viralStacks > 0 then
         local stacks = math.min(10, status.viralStacks)
         local bonus = math.min(2.25, 0.75 + stacks * 0.25)
@@ -342,6 +364,7 @@ local function buildDamageMods(enemy, instance, appliedEffects)
     return opts
 end
 
+--- spawnProcVfx: 为触发的状态异常生成视觉特效。
 local function spawnProcVfx(state, enemy, appliedEffects)
     if not state or not state.spawnEffect or not enemy then return end
     if not appliedEffects or #appliedEffects == 0 then return end
@@ -379,13 +402,13 @@ local function spawnProcVfx(state, enemy, appliedEffects)
 
         counts[fxKey] = (counts[fxKey] or 0) + 1
     end
-
     for fxKey, n in pairs(counts) do
         local scale = 0.85 + 0.18 * math.min(3, math.max(0, n - 1))
         state.spawnEffect(fxKey, enemy.x, enemy.y, scale)
     end
 end
 
+--- spawnVoltStaticChain: 为电击状态应用连锁闪电效果。
 local function spawnVoltStaticChain(state, enemy, instance, procCount)
     if not state or not enemy or not state.enemies then return end
     if not state.lightningLinks then return end
@@ -482,6 +505,8 @@ local function spawnVoltStaticChain(state, enemy, instance, procCount)
     end
 end
 
+--- calculator.applyDamage: 将计算好的伤害实例正式应用到敌人身上。
+-- 处理：分段伤害计算、护盾类型伤害、无视护盾判定 (Toxin)、护甲衰减及生命类型修正。
 function calculator.applyDamage(state, enemy, instance, opts)
     opts = opts or {}
     local shieldBefore = enemy and (enemy.shield or 0) or 0
@@ -490,7 +515,9 @@ function calculator.applyDamage(state, enemy, instance, opts)
 
     local dmgByType = instance.damageByType or {}
     local hasTypes = next(dmgByType) ~= nil
+    
     if hasTypes then
+        -- 逐一元素应用判定
         local function applySegment(elemKey, baseAmt)
             local perOpts = {}
             for k, v in pairs(opts) do perOpts[k] = v end

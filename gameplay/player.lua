@@ -515,7 +515,7 @@ function player.keypressed(state, key)
     end
     
     -- Movement: Bullet Jump / Dash (Space)
-    if input.isActionKey(key, 'jump') then
+    if input.isActionKey(key, 'dodge') then
         local dash = ensureDashState(p)
         if p.isSliding and dash and (dash.charges or 0) > 0 then
             -- Bullet Jump: Consumes 1 charge (Tactical Rush + Space)

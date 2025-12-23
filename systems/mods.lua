@@ -79,6 +79,37 @@ function mods.getCatalog(category)
     return {}
 end
 
+-- Get the base ID for a mod (for duplicate detection)
+-- If mod has explicit baseId field, use that; otherwise use the mod key itself.
+-- This allows enhanced/upgraded mods (e.g. "serration_prime") to share baseId with base version.
+function mods.getBaseId(modKey, catalog)
+    if not modKey then return nil end
+    local def = catalog and catalog[modKey]
+    if def and def.baseId then
+        return def.baseId
+    end
+    return modKey
+end
+
+-- Check if a mod with the same baseId is already equipped in the given slots
+-- Returns the conflicting mod key if found, nil otherwise
+function mods.hasDuplicateBaseId(slots, modKey, catalog, excludeSlotIndex)
+    if not slots or not modKey or not catalog then return nil end
+    
+    local targetBaseId = mods.getBaseId(modKey, catalog)
+    if not targetBaseId then return nil end
+    
+    for slotIdx, mod in pairs(slots) do
+        if mod and mod.key and slotIdx ~= excludeSlotIndex then
+            local equippedBaseId = mods.getBaseId(mod.key, catalog)
+            if equippedBaseId == targetBaseId then
+                return mod.key  -- Return the conflicting mod key
+            end
+        end
+    end
+    return nil
+end
+
 -- Calculate total cost of equipped mods
 function mods.getTotalCost(slots, catalog)
     local total = 0
@@ -122,12 +153,19 @@ function mods.equip(state, category, key, slotIndex, modKey, modRank)
     if category == 'weapons' and not isWeaponModCompatible(state, key, modKey, catalog) then
         return false
     end
+    
+    -- Check for duplicate baseId (same mod or variant already equipped)
+    local conflictingMod = mods.hasDuplicateBaseId(slotData.slots, modKey, catalog, slotIndex)
+    if conflictingMod then
+        return false, 'duplicate'
+    end
+    
     local oldMod = slotData.slots[slotIndex]
     slotData.slots[slotIndex] = nil
     
     if not mods.canEquip(slotData, modKey, modRank, catalog) then
         slotData.slots[slotIndex] = oldMod
-        return false
+        return false, 'capacity'
     end
     
     slotData.slots[slotIndex] = {key = modKey, rank = modRank or 0}
@@ -759,6 +797,12 @@ function mods.canEquipToRun(state, category, key, modKey, modRank)
         return false
     end
     
+    -- Check for duplicate baseId (same mod or variant already equipped)
+    local conflictingMod = mods.hasDuplicateBaseId(slotData.slots, modKey, catalog)
+    if conflictingMod then
+        return false
+    end
+    
     -- Check slot count
     local usedSlots = 0
     for _, slot in pairs(slotData.slots or {}) do
@@ -786,6 +830,12 @@ function mods.equipToRunSlot(state, category, key, slotIndex, modKey, modRank)
     local catalog = mods.getCatalog(category)
     if not catalog or not catalog[modKey] then return false end
     
+    -- Check for duplicate baseId (same mod or variant already equipped)
+    local conflictingMod = mods.hasDuplicateBaseId(slotData.slots, modKey, catalog, slotIndex)
+    if conflictingMod then
+        return false, 'duplicate'
+    end
+    
     -- Check capacity
     local oldMod = slotData.slots[slotIndex]
     local replacing = oldMod ~= nil
@@ -793,7 +843,7 @@ function mods.equipToRunSlot(state, category, key, slotIndex, modKey, modRank)
     
     if not mods.canEquipToRun(state, category, key, modKey, modRank) then
         slotData.slots[slotIndex] = oldMod
-        return false
+        return false, 'capacity'
     end
     
     slotData.slots[slotIndex] = { key = modKey, rank = modRank or 0 }

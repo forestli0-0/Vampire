@@ -699,39 +699,42 @@ function enemies.update(state, dt)
 
         -- === STUCK DETECTION ===
         -- If enemy is far from player and hasn't moved much, teleport them closer
-        local distToPlayer = math.sqrt((p.x - e.x)^2 + (p.y - e.y)^2)
-        e._stuckTimer = e._stuckTimer or 0
-        e._lastX = e._lastX or e.x
-        e._lastY = e._lastY or e.y
-        
-        local movedDist = math.sqrt((e.x - e._lastX)^2 + (e.y - e._lastY)^2)
-        if distToPlayer > 400 and movedDist < 5 then
-            -- Enemy is far and hasn't moved
-            e._stuckTimer = e._stuckTimer + dt
-        else
-            e._stuckTimer = 0
-        end
-        e._lastX = e.x
-        e._lastY = e.y
-        
-        -- If stuck for more than 8 seconds, teleport to a valid location near player
-        if e._stuckTimer > 8 and not e.isBoss then
-            local world = state.world
-            if world and world.enabled and world.sampleSpawn then
-                local newX, newY = world:sampleSpawn(p.x, p.y, 150, 300, 20)
-                if newX and newY then
-                    e.x, e.y = newX, newY
-                    e._stuckTimer = 0
-                    if state.texts then
-                        table.insert(state.texts, {x = e.x, y = e.y - 40, text = "!", color = {1, 0.5, 0.5}, life = 0.6})
-                    end
-                end
+        -- DISABLED in chapter mode to preserve pre-spawn spatial design
+        if state.runMode ~= 'chapter' then
+            local distToPlayer = math.sqrt((p.x - e.x)^2 + (p.y - e.y)^2)
+            e._stuckTimer = e._stuckTimer or 0
+            e._lastX = e._lastX or e.x
+            e._lastY = e._lastY or e.y
+            
+            local movedDist = math.sqrt((e.x - e._lastX)^2 + (e.y - e._lastY)^2)
+            if distToPlayer > 400 and movedDist < 5 then
+                -- Enemy is far and hasn't moved
+                e._stuckTimer = e._stuckTimer + dt
             else
-                -- No world, just teleport near player
-                local ang = math.random() * math.pi * 2
-                e.x = p.x + math.cos(ang) * 200
-                e.y = p.y + math.sin(ang) * 200
                 e._stuckTimer = 0
+            end
+            e._lastX = e.x
+            e._lastY = e.y
+            
+            -- If stuck for more than 8 seconds, teleport to a valid location near player
+            if e._stuckTimer > 8 and not e.isBoss then
+                local world = state.world
+                if world and world.enabled and world.sampleSpawn then
+                    local newX, newY = world:sampleSpawn(p.x, p.y, 150, 300, 20)
+                    if newX and newY then
+                        e.x, e.y = newX, newY
+                        e._stuckTimer = 0
+                        if state.texts then
+                            table.insert(state.texts, {x = e.x, y = e.y - 40, text = "!", color = {1, 0.5, 0.5}, life = 0.6})
+                        end
+                    end
+                else
+                    -- No world, just teleport near player
+                    local ang = math.random() * math.pi * 2
+                    e.x = p.x + math.cos(ang) * 200
+                    e.y = p.y + math.sin(ang) * 200
+                    e._stuckTimer = 0
+                end
             end
         end
         -- === END STUCK DETECTION ===
@@ -1124,6 +1127,30 @@ function enemies.update(state, dt)
             slowPct = slowPct * (1 - tenacity * 0.6)
             coldMult = 1 - slowPct
         end
+        
+        -- === AI STATE ACTIVATION ===
+        -- Check if enemy should activate (start chasing)
+        local dx = p.x - e.x
+        local dy = p.y - e.y
+        local distToPlayerSq = dx * dx + dy * dy
+        local aggroRange = e.aggroRange or 350
+        local aggroRangeSq = aggroRange * aggroRange
+        
+        if e.aiState == 'idle' then
+            if distToPlayerSq < aggroRangeSq then
+                -- Player is close, activate!
+                e.aiState = 'chase'
+                -- Show "!" indicator
+                if state.texts then
+                    table.insert(state.texts, {x = e.x, y = e.y - 30, text = "!", color = {1, 0.8, 0.2}, life = 0.5, scale = 1.2})
+                end
+            else
+                -- Still idle, skip movement and attack logic
+                goto continue_enemy_loop
+            end
+        end
+        -- === END AI STATE ACTIVATION ===
+        
         local targetX, targetY = p.x, p.y
         if e.status.radiationTimer and e.status.radiationTimer > 0 then
             local rt = e.status.radiationTarget
@@ -2357,12 +2384,16 @@ function enemies.update(state, dt)
                                 if math.random() < (eliteDef.healthOrb or 0.20) then
                                     table.insert(state.floorPickups, {x=e.x + 15, y=e.y, size=12, kind='health_orb'})
                                 end
-                                -- Energy orb (15% chance - WF style)
-                                if math.random() < (eliteDef.energyOrb or 0.15) then
+                                -- Energy orb (12% chance - WF style)
+                                if math.random() < (eliteDef.energyOrb or 0.12) then
                                     table.insert(state.floorPickups, {x=e.x - 15, y=e.y, size=12, kind='energy_orb'})
                                 end
-                                -- MOD drop (lower rate - 40% for elite)
-                                if math.random() < (eliteDef.modDrop or 0.40) then
+                                -- Ammo drop (30% for elite - 弹药更充足!)
+                                if math.random() < (eliteDef.ammo or 0.30) then
+                                    table.insert(state.floorPickups, {x=e.x, y=e.y + 15, size=12, kind='ammo', amount=30})
+                                end
+                                -- MOD drop (15% for elite - 降低!)
+                                if math.random() < (eliteDef.modDrop or 0.15) then
                                     table.insert(state.floorPickups, {
                                         x = e.x,
                                         y = e.y,
@@ -2398,12 +2429,13 @@ function enemies.update(state, dt)
                                     end
                                 end
                                 
-                                -- Ammo drop (separate roll, WF style)
-                                if math.random() < ammoChance then
-                                    table.insert(state.floorPickups, {x=e.x + 5, y=e.y - 5, size=10, kind='ammo'})
+                                -- Ammo drop (18% for normal - 弹药充足!)
+                                local normalAmmoChance = normalDef.ammo or 0.18
+                                if math.random() < normalAmmoChance then
+                                    table.insert(state.floorPickups, {x=e.x + 5, y=e.y - 5, size=10, kind='ammo', amount=20})
                                 end
-                                -- Normal enemy MOD drop (25% chance - DEBUG HIGH RATE)
-                                if math.random() < (normalDef.modDrop or 0.25) then
+                                -- Normal enemy MOD drop (5% chance - 大幅降低!)
+                                if math.random() < (normalDef.modDrop or 0.05) then
                                     table.insert(state.floorPickups, {
                                         x = e.x,
                                         y = e.y,
@@ -2420,6 +2452,8 @@ function enemies.update(state, dt)
                 end
             end
         end
+        
+        ::continue_enemy_loop::
     end
 end
 

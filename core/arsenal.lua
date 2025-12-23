@@ -5,6 +5,9 @@ local mission = require('world.mission')
 local campaign = require('world.campaign')
 local mods = require('systems.mods')
 
+-- 军械库 (Arsenal) 模块
+-- 负责处理玩家在出战前的武器选择、MOD 安装、战甲切换以及宠物配置。
+-- 它还负责将持久化的存档数据转化为每场 Run 的初始状态。
 local arsenal = {}
 
 -- New UI screen (lazy loaded to avoid circular deps)
@@ -21,6 +24,7 @@ arsenal.useNewUI = true
 
 local MAX_SLOTS = 8
 
+--- tagsMatch: 检查武器标签是否与目标标签匹配。
 local function tagsMatch(weaponTags, targetTags)
     if not weaponTags or not targetTags then return false end
     for _, tag in ipairs(targetTags) do
@@ -31,6 +35,7 @@ local function tagsMatch(weaponTags, targetTags)
     return false
 end
 
+--- buildModList: 根据所属类别构建可选的 MOD 列表并排序。
 local function buildModList(state, category)
     local list = {}
     local catalog = mods.getCatalog(category or 'weapons') or {}
@@ -63,6 +68,7 @@ local function buildWeaponList(state)
     return list
 end
 
+--- ensureWeaponLoadout: 确保存档中存在该武器的配置槽位。
 local function ensureWeaponLoadout(profile, weaponKey)
     if not profile then return nil end
     profile.weaponMods = profile.weaponMods or {}
@@ -124,6 +130,8 @@ local function getWeaponClass(state, weaponKey)
     return 'ranged'
 end
 
+--- isWeaponModCompatible: 检查特定 MOD 是否能安装在当前武器上。
+-- 例如：近战 MOD 不能装在远程武器上。
 local function isWeaponModCompatible(state, weaponKey, modKey, category)
     if category ~= 'weapons' then return true end
     local catalog = mods.getCatalog(category) or {}
@@ -243,6 +251,7 @@ local function buildClassList(state)
     return list
 end
 
+--- applyPreRunMods: 将军械库配置的 MOD 应用到战斗开始时的实时 MOD 插槽中。
 local function applyPreRunMods(state)
     local profile = state.profile
     if not profile then return end
@@ -277,6 +286,8 @@ local function applyPreRunMods(state)
     end
 end
 
+--- arsenal.init: 初始化军械库系统状态。
+-- 这里的 state.arsenal 存储了 UI 列表所需的索引信息（当前选中的 MOD/武器/宠物等）。
 function arsenal.init(state)
     local profile = state.profile
     local category = getModCategory(profile)
@@ -297,6 +308,7 @@ function arsenal.init(state)
         state.arsenal.idx = 0
     end
 
+    -- 同步存档中的上次选择
     if profile then
         profile.modTargetWeapon = profile.modTargetWeapon or 'wand'
         profile.modTargetCategory = profile.modTargetCategory or 'weapons'
@@ -331,7 +343,7 @@ function arsenal.init(state)
         end
     end
     
-    -- Initialize class selection
+    -- 初始化职业选择
     local classList = state.arsenal.classList or {}
     local playerClass = state.player.class or 'volt'
     for i, k in ipairs(classList) do
@@ -341,7 +353,7 @@ function arsenal.init(state)
         end
     end
     
-    -- Initialize new UI if enabled
+    -- 若启用了新 UI，则初始化新 UI 屏幕
     if arsenal.useNewUI then
         local screen = getArsenalScreen()
         screen.init(state)
@@ -413,13 +425,23 @@ function arsenal.toggleEquip(state, modKey)
         local modDef = mods.getCatalog(category)[modKey]
         setMessage(state, "Unequipped " .. ((modDef and modDef.name) or modKey))
     else
+        -- Check for duplicate baseId (same mod or variant already equipped)
+        local catalog = mods.getCatalog(category)
+        local conflictingModKey = mods.hasDuplicateBaseId(loadout.slots, modKey, catalog)
+        if conflictingModKey then
+            local conflictDef = catalog[conflictingModKey]
+            local conflictName = (conflictDef and conflictDef.name) or conflictingModKey
+            setMessage(state, "已装备同类MOD: " .. conflictName)
+            return
+        end
+        
         local slotIdx = findFirstEmptySlot(loadout)
         if not slotIdx then
             setMessage(state, "Slots full (" .. MAX_SLOTS .. ")")
             return
         end
         local slots = buildSlotData(profile, loadout, slotIdx, modKey)
-        local used = mods.getTotalCost(slots, mods.getCatalog(category))
+        local used = mods.getTotalCost(slots, catalog)
         local cap = getCapacity(state)
         if used > cap then
             setMessage(state, "Capacity full (" .. used .. "/" .. cap .. ")")
@@ -427,7 +449,7 @@ function arsenal.toggleEquip(state, modKey)
         end
         loadout.slots[slotIdx] = modKey
         profile.modRanks[modKey] = profile.modRanks[modKey] or 0
-        local modDef = mods.getCatalog(category)[modKey]
+        local modDef = catalog[modKey]
         setMessage(state, "Equipped " .. ((modDef and modDef.name) or modKey))
     end
 
@@ -457,13 +479,24 @@ function arsenal.equipToSlot(state, modKey, slotIndex)
         return true
     end
 
+    -- Check for duplicate baseId (same mod or variant already equipped, excluding current slot)
+    local catalog = mods.getCatalog(category)
+    local conflictingModKey = mods.hasDuplicateBaseId(loadout.slots, modKey, catalog, slotIndex)
+    -- Also exclude if the mod is already in another slot (we're moving it)
+    if conflictingModKey and conflictingModKey ~= modKey then
+        local conflictDef = catalog[conflictingModKey]
+        local conflictName = (conflictDef and conflictDef.name) or conflictingModKey
+        setMessage(state, "已装备同类MOD: " .. conflictName)
+        return false
+    end
+
     local oldMod = loadout.slots[slotIndex]
     if existingSlot then
         loadout.slots[existingSlot] = nil
     end
 
     local slots = buildSlotData(profile, loadout, slotIndex, modKey)
-    local used = mods.getTotalCost(slots, mods.getCatalog(category))
+    local used = mods.getTotalCost(slots, catalog)
     local cap = getCapacity(state)
     if used > cap then
         if existingSlot then
@@ -479,7 +512,7 @@ function arsenal.equipToSlot(state, modKey, slotIndex)
     end
 
     profile.modRanks[modKey] = profile.modRanks[modKey] or 0
-    local modDef = mods.getCatalog(category)[modKey]
+    local modDef = catalog[modKey]
     setMessage(state, "Equipped " .. ((modDef and modDef.name) or modKey))
     state.saveProfile(profile)
     state.applyPersistentMods()
@@ -518,11 +551,18 @@ function arsenal.adjustRank(state, modKey, delta)
     state.applyPersistentMods()
 end
 
+--- arsenal.startRun: 核心函数。正式开始一场战斗/冒险。
+-- 该函数负责：
+-- 1. 切换游戏状态至 'PLAYING'。
+-- 2. 根据所选模式（Explore/Rooms/Survival）初始化地图与摄像机。
+-- 3. 根据军械库配置，为玩家配备初始武器。
+-- 4. 应用赛前安装的所有 MOD 属性（refreshActiveStats）。
+-- 5. 初始化战甲技能、护盾、能量等资源。
 function arsenal.startRun(state, opts)
     opts = opts or {}
     state.applyPersistentMods()
     
-    -- Initialize in-run MOD system (Roguelike)
+    -- 初始化运行中的 MOD 系统 (Roguelike 升级部分)
     local modsModule = require('systems.mods')
     modsModule.initRunMods(state)
 
@@ -530,62 +570,91 @@ function arsenal.startRun(state, opts)
         state.runMode = opts.runMode
     end
 
-    if state.runMode == 'explore' then
+    -- 地图生成策略
+    if state.runMode == 'chapter' then
+        -- 章节探索模式: 线性地下城
         state.rooms = state.rooms or {}
         state.rooms.enabled = false
-        campaign.startRun(state)
+        state.mission = nil
+        state.campaign = nil
+        
+        -- 生成章节地图
+        local chapter = require('world.chapter')
+        local chapterMap = chapter.generate({
+            nodeCount = 8,
+            mapWidth = 200,
+            mapHeight = 80,
+        })
+        state.chapterMap = chapterMap
+        
+        -- 创建 world 用于碰撞检测
+        state.world = world.new({w = chapterMap.w, h = chapterMap.h})
+        state.world.enabled = true
+        state.world.tiles = chapterMap.tiles
+        state.world.w = chapterMap.w
+        state.world.h = chapterMap.h
+        state.world.tileSize = chapterMap.tileSize
+        state.world.pixelW = chapterMap.pixelW
+        state.world.pixelH = chapterMap.pixelH
+        
+        -- 玩家出生点
+        state.player.x = chapterMap.spawnX
+        state.player.y = chapterMap.spawnY
+        state.world.spawnX = chapterMap.spawnX
+        state.world.spawnY = chapterMap.spawnY
+        
+        -- 初始化小地图
+        local hud = require('ui.screens.hud')
+        hud.initMinimap(chapterMap)
+        
+        -- 重置 spawner
+        local spawner = require('world.spawner')
+        spawner.reset()
+        
+        -- 预生成敌人 (敌人初始为idle状态，玩家接近时激活)
+        spawner.populateMapOnGenerate(state, chapterMap)
     else
         state.mission = nil
         state.campaign = nil
         
-        -- Create world with immediate arena generation to avoid showing default map
+        -- 创建世界：立即生成竞技场竞技场，避免渲染时的瞬间空白。
         state.world = world.new({w=42, h=32})
         state.world.enabled = true
-        -- Immediately generate arena layout (don't wait for rooms.update)
         if state.world.generateArena then
             state.world:generateArena({w=42, h=32, layout='random'})
         end
         
-        -- Place player at arena spawn
+        -- 重定位玩家到出生点
         if state.world.spawnX and state.world.spawnY then
             state.player.x = state.world.spawnX
             state.player.y = state.world.spawnY
         end
         
-        -- Reset Rooms state to ensure clean generation
+        -- 重置房间状态机
         state.rooms = state.rooms or {}
         state.rooms.enabled = true
-        state.rooms.phase = 'between_rooms'  -- Skip 'init' since we already generated
+        state.rooms.phase = 'between_rooms' -- 跳过 init 状态，因为已手动生成。
         state.rooms.roomIndex = 0
-        state.rooms.timer = 0.1  -- Short delay before Room 1 starts
-        state.roomTransitionFade = 1.0 -- Force black screen fade-in
+        state.rooms.timer = 0.1
+        state.roomTransitionFade = 1.0 -- 强制一个淡入效果
     end
 
+    -- 武器发放逻辑 (Warframe 风格: 1个远程 + 1个近战)
     if not state.inventory.weaponSlots.ranged and not state.inventory.weaponSlots.melee then
-        -- WF-style 2-slot system: ranged + melee
         local defaultLoadout = {
-            ranged = 'wand',      -- Default ranged weapon
-            melee = 'heavy_hammer' -- Default melee weapon
+            ranged = 'wand',      
+            melee = 'heavy_hammer' 
         }
 
-        -- Override with selected weapon from Arsenal
+        -- 应用军械库选中的武器作为初始装备之一
         local selectedKey = state.profile and state.profile.modTargetWeapon
         local startSlot = 'ranged'
         
         if selectedKey then
             local def = state.catalog[selectedKey]
-            -- Check if it's a valid weapon and determine slot
             if def and def.type == 'weapon' then
-                local slot = def.slot or 'ranged' -- Default to ranged if not specified
-                -- Some melee weapons might not have explicit 'slot' field, usually inferred?
-                -- Checking weapons.lua or catalog definitions would be safer, but let's assume 'melee' tag or similar?
-                -- For now, relying on catalog 'slot' property or inferring from name/tags if possible.
-                -- Actually, let's look at how weapons.equipToSlot determines it?
-                -- weapons.equipToSlot takes explicit slot context.
-                
-                -- Simple inference: 'sword', 'hammer', 'axe' -> melee?
-                -- Better: check if we have explicit slot data.
-                -- If not, let's assume it replaces the default for its likely type.
+                local slot = def.slot or 'ranged'
+                -- 简单的槽位推导逻辑，如果 catalog 里没写 slot 字段
                 if def.slot == 'melee' or def.tags and tagsMatch(def.tags, {'melee'}) then
                     slot = 'melee'
                 end
@@ -595,7 +664,7 @@ function arsenal.startRun(state, opts)
             end
         end
         
-        -- Equip to slots using new slot system
+        -- 正式装备到槽位
         for slot, weaponKey in pairs(defaultLoadout) do
             local def = state.catalog and state.catalog[weaponKey]
             if def and def.type == 'weapon' and not def.evolvedOnly and not def.hidden then
@@ -603,7 +672,7 @@ function arsenal.startRun(state, opts)
             end
         end
         
-        -- Start with selected weapon active
+        -- 默认拿在手里的槽位
         state.inventory.activeSlot = startSlot
     end
 
@@ -611,22 +680,22 @@ function arsenal.startRun(state, opts)
         pets.spawnStartingPet(state)
     end
 
-    -- Apply pre-run loadouts to in-run mod slots.
+    -- 应用 MOD 属性
     applyPreRunMods(state)
     
-    -- Refresh from class + progression + run mods, then start at full resources
+    -- 根据 MOD/被动 重新计算玩家属性，并回满资源
     mods.refreshActiveStats(state)
     state.player.hp = state.player.maxHp or state.player.hp
     state.player.shield = state.player.maxShield or state.player.shield
     state.player.energy = state.player.maxEnergy or state.player.energy
     
-    -- Initialize ability cooldown
+    -- 重置技能冷却
     state.player.ability = state.player.ability or {cooldown = 0, timer = 0}
     state.player.ability.timer = 0
     
     state.gameState = 'PLAYING'
     
-    -- Switch UI to HUD
+    -- 切换 UI 状态至战姿 HUD
     if arsenal.useNewUI then
         local hud = require('ui.screens.hud')
         hud.init(state)
@@ -745,7 +814,8 @@ function arsenal.keypressed(state, key)
         arsenal.startRun(state)
         return true
     elseif key == 'f' then
-        arsenal.startRun(state, {runMode = 'explore'})
+        -- F now starts Chapter mode (handled by new UI)
+        arsenal.startRun(state, {runMode = 'chapter'})
         return true
     elseif key == 'r' then
         arsenal.startRun(state, {runMode = 'rooms'})
