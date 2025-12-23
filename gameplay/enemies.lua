@@ -1106,7 +1106,8 @@ function enemies.update(state, dt)
                     local dist = math.sqrt(distSq)
                     local overlap = minDist - dist
                     local nx, ny = dx / dist, dy / dist
-                    local strength = 5
+                    -- Soft repulsion: adjust strength for better stability
+                    local strength = 3.5
                     pushX = pushX + nx * overlap * strength
                     pushY = pushY + ny * overlap * strength
                 end
@@ -2137,28 +2138,21 @@ function enemies.update(state, dt)
         local enemyRadius = (e.size or 16) / 2
         local inChargeDash = e.attack and e.attack.type == 'charge' and e.attack.phase == 'dash'
         
-        -- Collision pushback only (no contact damage - all damage via attacks/bullets)
+        -- Collision: Player can push enemies, but enemies don't push player
         local collisionDist = playerRadius + enemyRadius
         if not inChargeDash and pDist < collisionDist and pDist > 0.1 then
             local pushDist = collisionDist - pDist
             local dx = (p.x - e.x) / pDist
             local dy = (p.y - e.y) / pDist
-            -- Push player away from enemy
-            local pushRatio = 0.7  -- Player gets pushed more
-            local playerPushX = dx * pushDist * pushRatio
-            local playerPushY = dy * pushDist * pushRatio
-            local enemyPushX = -dx * pushDist * (1 - pushRatio)
-            local enemyPushY = -dy * pushDist * (1 - pushRatio)
             
-            -- Apply push (with world collision check)
-            if world and world.enabled and world.adjustToWalkable then
-                local newPx, newPy = world:adjustToWalkable(p.x + playerPushX, p.y + playerPushY, 5)
-                if newPx and newPy then p.x, p.y = newPx, newPy end
-                local newEx, newEy = world:adjustToWalkable(e.x + enemyPushX, e.y + enemyPushY, 5)
-                if newEx and newEy then e.x, e.y = newEx, newEy end
+            -- Directional Push: Player pushes enemy, player doesn't get pushed
+            local enemyPushX = -dx * pushDist
+            local enemyPushY = -dy * pushDist
+            
+            -- Apply push to enemy (using moveCircle for smooth wall sliding)
+            if world and world.enabled and world.moveCircle then
+                e.x, e.y = world:moveCircle(e.x, e.y, (e.size or 16) / 2, enemyPushX, enemyPushY)
             else
-                p.x = p.x + playerPushX
-                p.y = p.y + playerPushY
                 e.x = e.x + enemyPushX
                 e.y = e.y + enemyPushY
             end
