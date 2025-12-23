@@ -11,7 +11,7 @@ local enemies = require('gameplay.enemies')
 
 local CONFIG = {
     -- Activation range (pixels) - enemies start chasing when player is within this distance
-    aggroRange = 350,
+    aggroRange = 500,
     
     -- Room spawn counts
     baseEnemiesPerRoom = {
