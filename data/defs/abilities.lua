@@ -479,10 +479,10 @@ local function build(helpers)
                     if not nearestEnemy then return false end
                 
                     local ok, calc = pcall(require, 'gameplay.calculator')
-                    local damage = math.floor(50 * str)
-                    local chainRange = 180 * rng
+                    local damage = math.floor(25 * str)  -- Reduced from 50
+                    local chainRange = 150 * rng  -- Reduced from 180
                     local chainR2 = chainRange * chainRange
-                    local maxChains = math.floor(3 + 2 * rng)  -- 3-5 chains based on range
+                    local maxChains = math.floor(2 + 1 * rng)  -- 2-3 chains (reduced from 3-5)
                 
                     -- Build chain of targets, recording positions for VFX
                     local chainTargets = {nearestEnemy}
@@ -591,12 +591,12 @@ local function build(helpers)
                     local str = p.stats.abilityStrength or 1.0
                     local dur = p.stats.abilityDuration or 1.0
                 
-                    local speedMult = 1 + (0.50 * str)
-                    local atkSpeedMult = 1 + (0.30 * str)
+                    local speedMult = 1 + (0.25 * str)  -- Reduced from 0.50
+                    local atkSpeedMult = 1 + (0.15 * str)  -- Reduced from 0.30
                 
                     addBuff(state, {
                         id = "volt_speed",
-                        timer = 10 * dur,
+                        timer = 6 * dur,  -- Reduced from 10s
                         onApply = function(s)
                             s.player.speedBuffActive = true
                             s.player.moveSpeedBuffMult = (s.player.moveSpeedBuffMult or 1) * speedMult
@@ -634,7 +634,7 @@ local function build(helpers)
                     local dur = p.stats.abilityDuration or 1.0
                 
                     -- Shield properties (arc-shaped)
-                    local shieldDuration = 25 * dur
+                    local shieldDuration = 12 * dur  -- Reduced from 25s
                     local shieldDistance = 60             -- Distance from player (arc radius)
                     local arcWidth = 1.2                  -- Arc width in radians (~70 degrees)
                 
@@ -678,8 +678,8 @@ local function build(helpers)
                 
                     -- Discharge properties (NO enemy count limit - hits ALL enemies in range)
                     local maxRadius = 350 * rng
-                    local damage = math.floor(40 * str)  -- Further reduced for balance
-                    local stunDuration = 4 * dur
+                    local damage = math.floor(20 * str)  -- Reduced from 40 for balance
+                    local stunDuration = 2 * dur  -- Reduced from 4s
                     local expandSpeed = 400  -- pixels per second
                     local expandDuration = maxRadius / expandSpeed
                 
