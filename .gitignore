@@ -1,0 +1,5 @@
+*.log
+logs/
+analytics_*.json
+.DS_Store
+.vscode/
