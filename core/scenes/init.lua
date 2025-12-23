@@ -129,6 +129,13 @@ local function updatePlaying(state, dt)
     player.updateMelee(state, dt)   -- 近战攻击逻辑
     abilities.update(state, dt)     -- 主动技能冷却和触发
     player.updateMovement(state, dt) -- 移动和闪避
+    
+    -- ==================== 玩家挤压拉伸更新 ====================
+    local p = state.player
+    if p.transform then
+        local animTransform = require('render.animation_transform')
+        animTransform.update(p.transform, dt)
+    end
 
     -- ==================== 世界系统更新 ====================
     world.update(state, dt)         -- 地图、相机跟随

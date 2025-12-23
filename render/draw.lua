@@ -3,6 +3,7 @@ local enemies = require('gameplay.enemies')
 local vfx = require('render.vfx')
 local pipeline = require('render.pipeline')
 local weaponTrail = require('render.weapon_trail')  -- 武器拖影系统
+local animTransform = require('render.animation_transform')  -- 挤压拉伸变换
 
 local draw = {}
 
@@ -1446,9 +1447,80 @@ function draw.renderWorld(state)
     local inv = state.player.invincibleTimer > 0
     local blink = inv and love.timer.getTime() % 0.2 < 0.1
 
+    -- ==================== 涂抹帧效果 (Smear Frame) ====================
+    -- 在冲刺/Bullet Jump时沿移动方向拉伸玩家
+    local p = state.player
+    local smearRotation = 0
+    local smearScaleX = 1
+    local smearScaleY = 1
+    local isSmearing = false
+    
+    -- 检查是否正在高速移动（冲刺或Bullet Jump）
+    local dash = p.dash
+    local isDashing = dash and (dash.timer or 0) > 0
+    local isBulletJumping = (p.bulletJumpTimer or 0) > 0
+    
+    if isDashing or isBulletJumping then
+        isSmearing = true
+        local dx, dy, duration, timer
+        
+        if isBulletJumping then
+            dx, dy = p.bjDx or 0, p.bjDy or 0
+            duration = 0.4  -- BULLET_JUMP_DURATION
+            timer = p.bulletJumpTimer or 0
+        else
+            dx, dy = dash.dx or 0, dash.dy or 0
+            duration = dash.duration or 0.2
+            timer = dash.timer
+        end
+        
+        -- 计算进度 (0 = 刚开始, 1 = 快结束)
+        local progress = 1 - (timer / duration)
+        
+        -- 涂抹帧强度：开始时最强，结束时消失
+        -- 使用 Ease-Out 让效果更自然
+        local smearIntensity = (1 - progress) * (1 - progress)  -- 二次衰减
+        
+        -- Bullet Jump 涂抹更强
+        if isBulletJumping then
+            smearIntensity = smearIntensity * 1.5
+        end
+        
+        -- 沿移动方向拉伸
+        -- 旋转角度 = 移动方向
+        smearRotation = math.atan2(dy, dx)
+        
+        -- 拉伸：沿移动方向拉长 (1.0 + intensity*0.8)，垂直方向压缩 (1.0 - intensity*0.3)
+        smearScaleX = 1.0 + smearIntensity * 0.8
+        smearScaleY = 1.0 - smearIntensity * 0.3
+    end
+    
+    -- 挤压拉伸变换（原有代码，保留兼容）
+    local transformSX, transformSY = 1, 1
+    if p.transform then
+        local t = p.transform
+        transformSX = (t.scaleX or 1) + (t.offsetX or 0)
+        transformSY = (t.scaleY or 1) + (t.offsetY or 0)
+    end
+
     -- Player outline (drawn behind base)
     if state.playerAnim then
-        drawOutlineAnim(state.playerAnim, state.player.x, state.player.y, 0, state.player.facing, 1, 1, {0.9, 0.95, 1, 0.55})
+        if isSmearing then
+            -- 涂抹帧：使用旋转+拉伸
+            love.graphics.push()
+            love.graphics.translate(state.player.x, state.player.y)
+            love.graphics.rotate(smearRotation)
+            love.graphics.setColor(0.9, 0.95, 1, 0.55)
+            state.playerAnim:draw(0, 0, 0, smearScaleX * (state.player.facing >= 0 and 1 or -1), smearScaleY)
+            -- 绘制拖影副本（涂抹帧的"中间帧"）
+            if smearScaleX > 1.2 then
+                love.graphics.setColor(0.8, 0.9, 1, 0.25)
+                state.playerAnim:draw(-8 * smearScaleX, 0, 0, smearScaleX * 0.9 * (state.player.facing >= 0 and 1 or -1), smearScaleY * 0.95)
+            end
+            love.graphics.pop()
+        else
+            drawOutlineAnim(state.playerAnim, state.player.x, state.player.y, 0, state.player.facing * transformSX, transformSY, 1, {0.9, 0.95, 1, 0.55})
+        end
     else
         love.graphics.setColor(0.9, 0.95, 1, 0.55)
         drawOutlineRect(state.player.x, state.player.y, state.player.size or 20, 1)
@@ -1457,10 +1529,28 @@ function draw.renderWorld(state)
 
     if state.playerAnim then
         if blink then love.graphics.setColor(1,1,1,0.35) else love.graphics.setColor(1,1,1) end
-        state.playerAnim:draw(state.player.x, state.player.y, 0, state.player.facing, 1)
+        if isSmearing then
+            -- 涂抹帧主体
+            love.graphics.push()
+            love.graphics.translate(state.player.x, state.player.y)
+            love.graphics.rotate(smearRotation)
+            state.playerAnim:draw(0, 0, 0, smearScaleX * (state.player.facing >= 0 and 1 or -1), smearScaleY)
+            love.graphics.pop()
+        else
+            state.playerAnim:draw(state.player.x, state.player.y, 0, state.player.facing * transformSX, transformSY)
+        end
     else
         if blink then love.graphics.setColor(1,1,1) else love.graphics.setColor(0,1,0) end
-        love.graphics.rectangle('fill', state.player.x - (state.player.size/2), state.player.y - (state.player.size/2), state.player.size, state.player.size)
+        local size = state.player.size or 20
+        if isSmearing then
+            love.graphics.push()
+            love.graphics.translate(state.player.x, state.player.y)
+            love.graphics.rotate(smearRotation)
+            love.graphics.rectangle('fill', -size * smearScaleX / 2, -size * smearScaleY / 2, size * smearScaleX, size * smearScaleY)
+            love.graphics.pop()
+        else
+            love.graphics.rectangle('fill', state.player.x - (size * transformSX / 2), state.player.y - (size * transformSY / 2), size * transformSX, size * transformSY)
+        end
     end
     love.graphics.setColor(1,1,1)
 

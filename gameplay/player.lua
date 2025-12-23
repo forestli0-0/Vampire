@@ -1,6 +1,7 @@
 local logger = require('core.logger')
 local input = require('core.input')
 local weaponTrail = require('render.weapon_trail')  -- 武器拖影系统
+local animTransform = require('render.animation_transform')  -- 挤压拉伸变换
 
 local player = {}
 
@@ -426,6 +427,21 @@ function player.tryDash(state, dirX, dirY)
     dash.dy = dy
     dash.trailX = p.x
     dash.trailY = p.y
+    
+    -- ==================== 冲刺拉伸效果 ====================
+    -- 顶视角：沿冲刺方向拉伸（变成冲刺方向的椭圆）
+    -- 初始化玩家的transform（如果没有）
+    if not p.transform then
+        p.transform = animTransform.new()
+    end
+    
+    -- 记录冲刺方向角度，用于draw时正确应用拉伸方向
+    local dashAngle = math.atan2(dy, dx)
+    p.transform.dashAngle = dashAngle
+    
+    -- 沿冲刺方向拉伸：X放大Y缩小（水平椭圆），然后在绘制时旋转
+    animTransform.stretch(p.transform, 0.4, true)
+    
     if state.spawnDashAfterimage then
         local face = p.facing or 1
         if dx > 0 then face = 1 elseif dx < 0 then face = -1 end
@@ -593,24 +609,76 @@ function player.updateMovement(state, dt)
 
     -- Handle Advanced Movement Timers
     if (p.bulletJumpTimer or 0) > 0 then
+        -- ==================== Bullet Jump 加速曲线 ====================
+        -- 比普通Dash更爆发：开始3x，快速减速
+        local duration = BULLET_JUMP_DURATION
+        local progress = 1 - (p.bulletJumpTimer / duration)
+        
+        -- Ease-Out Quart: 比普通Dash更猛烈的减速
+        local easeOut = 1 - math.pow(1 - progress, 4)
+        local speedMultiplier = 3.0 - easeOut * 2.5  -- 3.0 → 0.5
+        local speed = BULLET_JUMP_SPEED * speedMultiplier
+        
         p.bulletJumpTimer = p.bulletJumpTimer - dt
-        local mx = (p.bjDx or 0) * BULLET_JUMP_SPEED * dt
-        local my = (p.bjDy or 0) * BULLET_JUMP_SPEED * dt
+        local mx = (p.bjDx or 0) * speed * dt
+        local my = (p.bjDy or 0) * speed * dt
         if world and world.enabled and world.moveCircle then
             p.x, p.y = world:moveCircle(p.x, p.y, (p.size or 20) / 2, mx, my)
         else
             p.x, p.y = p.x + mx, p.y + my
         end
+        
+        -- Bullet Jump 残影（比普通Dash更密集、更亮）
+        if state.spawnDashAfterimage then
+            p.bjTrailX = p.bjTrailX or ox
+            p.bjTrailY = p.bjTrailY or oy
+            local spacing = 16  -- 比普通Dash(24)更密集
+            local ddx = p.x - (p.bjTrailX or ox)
+            local ddy = p.y - (p.bjTrailY or oy)
+            local dist = math.sqrt(ddx * ddx + ddy * ddy)
+            local face = p.facing or 1
+            if p.bjDx and p.bjDx > 0 then face = 1 elseif p.bjDx and p.bjDx < 0 then face = -1 end
+            local guard = 0
+            while dist >= spacing and guard < 16 do
+                p.bjTrailX = (p.bjTrailX or ox) + (p.bjDx or 0) * spacing
+                p.bjTrailY = (p.bjTrailY or oy) + (p.bjDy or 0) * spacing
+                -- 更亮的残影（alpha 0.35 vs 普通的0.20）
+                state.spawnDashAfterimage(p.bjTrailX, p.bjTrailY, face, {alpha = 0.35, duration = 0.25, dirX = p.bjDx, dirY = p.bjDy})
+                ddx = p.x - p.bjTrailX
+                ddy = p.y - p.bjTrailY
+                dist = math.sqrt(ddx * ddx + ddy * ddy)
+                guard = guard + 1
+            end
+        end
+        
+        -- 清理残影追踪
+        if p.bulletJumpTimer <= 0 then
+            p.bjTrailX = nil
+            p.bjTrailY = nil
+        end
+        
         moving = true
     elseif dash and (dash.timer or 0) > 0 then
-        local speed = dash.speed
-        if speed == nil then
+        -- ==================== 闪避加速度曲线 ====================
+        -- 使用 Ease-Out Cubic 曲线：开始快，结束慢
+        -- 这让闪避有"弹射出去"的爆发感
+        local baseSpeed = dash.speed
+        if baseSpeed == nil then
             local stats = p.stats or {}
             local duration = stats.dashDuration or 0
             local distance = stats.dashDistance or 0
-            speed = (duration > 0) and (distance / duration) or 0
+            baseSpeed = (duration > 0) and (distance / duration) or 0
         end
-
+        
+        -- 计算当前进度 (0 = 开始, 1 = 结束)
+        local progress = 1 - (dash.timer / dash.duration)
+        
+        -- Ease-Out Cubic: 开始快，结束慢
+        -- 速度倍率：开始时2.0x，结束时0.5x
+        local easeOut = 1 - math.pow(1 - progress, 3)
+        local speedMultiplier = 2.0 - easeOut * 1.5  -- 2.0 → 0.5
+        local speed = baseSpeed * speedMultiplier
+        
         local mx = (dash.dx or 0) * speed * dt
         local my = (dash.dy or 0) * speed * dt
         if world and world.enabled and world.moveCircle then
