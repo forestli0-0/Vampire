@@ -88,7 +88,30 @@ end
 local function buildPools(state, request)
     if isModReward(request) then
         local basePool = getModRewardPool(state)
-        local poolNew = cloneList(basePool)
+        local poolNew = {}
+        
+        -- Filter by category and group if specified in request
+        for _, opt in ipairs(basePool) do
+            local match = true
+            if request.category and opt.category ~= request.category then
+                match = false
+            end
+            if request.group and opt.group ~= request.group then
+                match = false
+            end
+            
+            -- Extra pet logic: check pet key for augments
+            if match and opt.group == 'augment' and opt.def and opt.def.requiresPetKey then
+                local pet = pets.getActive(state)
+                if not pet or pet.key ~= opt.def.requiresPetKey then
+                    match = false
+                end
+            end
+            
+            if match then
+                table.insert(poolNew, cloneList(opt))
+            end
+        end
 
         return {
             mode = 'mod',

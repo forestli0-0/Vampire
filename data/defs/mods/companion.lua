@@ -41,6 +41,43 @@ local catalog = {
             {stat = 'healthLink', type = 'add', value = {0.10,0.20,0.30,0.40,0.50,0.60}},
             {stat = 'armorLink', type = 'add', value = {0.10,0.20,0.30,0.40,0.50,0.60}}
         }
+    },
+
+    -- --- 局内增强 MOD (New) ---
+    overclock = {
+        name = "过载运转", desc = "能力冷却时间缩短",
+        stat = 'cooldownReduction', type = 'add',
+        cost = {4,5,6,7,8,9}, value = {0.06, 0.12, 0.18, 0.24, 0.30, 0.36}
+    },
+    catalyst = {
+        name = "增强催化", desc = "能力状态触发层数增加",
+        stat = 'extraStatusProcs', type = 'add',
+        cost = {4,5,6,7,8,9}, value = {0, 1, 1, 2, 2, 3}
+    },
+    pet_vitality = {
+        name = "宠物生命", desc = "宠物基础生命值提升",
+        stat = 'maxHp', type = 'mult',
+        cost = {2,3,4,5,6,7}, value = {0.12, 0.24, 0.36, 0.48, 0.60, 0.72}
+    },
+
+    -- --- 行为增强 (Augments) ---
+    pulse_core = {
+        name = "脉冲核心", desc = "磁力幼崽: 能力变为范围脉冲",
+        group = 'augment', rarity = 'RARE', baseId = 'pet_module',
+        requiresPetKey = 'pet_magnet', moduleId = 'pulse',
+        cost = {9}, value = {1.0}
+    },
+    field_core = {
+        name = "腐蚀核心", desc = "腐蚀史莱姆: 能力变为腐蚀力场",
+        group = 'augment', rarity = 'RARE', baseId = 'pet_module',
+        requiresPetKey = 'pet_corrosive', moduleId = 'field',
+        cost = {9}, value = {1.0}
+    },
+    barrier_core = {
+        name = "护罩核心", desc = "守护精灵: 能力变为产生护盾",
+        group = 'augment', rarity = 'RARE', baseId = 'pet_module',
+        requiresPetKey = 'pet_guardian', moduleId = 'barrier',
+        cost = {9}, value = {1.0}
     }
 }
 

@@ -2331,13 +2331,7 @@ function enemies.update(state, dt)
                                 if math.random() < (eliteDef.ammo or 0.12) then
                                     table.insert(state.floorPickups, {x=e.x, y=e.y + 15, size=12, kind='ammo', amount=30})
                                 end
-                                -- Pet module chip
-                                local pet = pets.getActive(state)
-                                if pet and not pet.downed and (pet.module or 'default') == 'default' then
-                                    if math.random() < (eliteDef.petModule or 0.15) then
-                                        table.insert(state.floorPickups, {x = e.x + 26, y = e.y + 8, size = 14, kind = 'pet_module_chip'})
-                                    end
-                                end
+                                -- Pet module chip drop removed (now managed via room/event rewards)
                             else
                                 -- Normal enemy drops (WF-style low rates)
                                 local roll = math.random()

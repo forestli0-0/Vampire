@@ -8,10 +8,10 @@ local REASON_DEFAULTS = {
     mod_drop = {mode = 'mod', kind = 'mod', allowedTypes = {mod = true, augment = true}},
     pet_contract = {kind = 'pet', allowedTypes = {pet = true}},
     shop_pet = {kind = 'pet', allowedTypes = {pet = true}},
-    pet_module_chip = {kind = 'pet_module', allowedTypes = {pet_module = true}},
-    shop_pet_module = {kind = 'pet_module', allowedTypes = {pet_module = true}},
-    pet_upgrade_chip = {kind = 'pet_upgrade', allowedTypes = {pet_upgrade = true}},
-    shop_pet_upgrade = {kind = 'pet_upgrade', allowedTypes = {pet_upgrade = true}}
+    pet_module_chip = {mode = 'mod', kind = 'mod', allowedTypes = {mod = true, augment = true}, category = 'companion', group = 'augment'},
+    shop_pet_module = {mode = 'mod', kind = 'mod', allowedTypes = {mod = true, augment = true}, category = 'companion', group = 'augment'},
+    pet_upgrade_chip = {mode = 'mod', kind = 'mod', allowedTypes = {mod = true}, category = 'companion'},
+    shop_pet_upgrade = {mode = 'mod', kind = 'mod', allowedTypes = {mod = true}, category = 'companion'}
 }
 
 local function hasAllowedType(allowed, want)

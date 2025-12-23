@@ -67,13 +67,7 @@ local function applyPetProc(state, enemy, effectType, procs, petKey, petModule)
     })
 end
 
-local function getPetUpgradeLevel(state, upgradeKey)
-    local ps = state and state.pets or nil
-    local ups = ps and ps.upgrades or nil
-    local lvl = ups and ups[upgradeKey] or 0
-    lvl = tonumber(lvl) or 0
-    return math.max(0, math.floor(lvl))
-end
+-- Legacy upgrade level check removed (unified to MOD system)
 
 local function applyPetHit(state, enemy, params)
     local calc = getCalculator()
@@ -109,6 +103,19 @@ local function recomputePetStats(state, pet)
     local modded = modsModule.applyCompanionMods(state, baseForMods)
     modded = modsModule.applyRunCompanionMods(state, modded)
     
+    -- Detect active module from Augment MODs
+    local companionSlots = modsModule.getRunSlots(state, 'companion', nil)
+    local activeModule = 'default'
+    for _, slot in pairs(companionSlots or {}) do
+        if slot and slot.key then
+            local modDef = modsModule.companion[slot.key]
+            if modDef and modDef.group == 'augment' and modDef.requiresPetKey == pet.key then
+                activeModule = modDef.moduleId or activeModule
+            end
+        end
+    end
+    pet.module = activeModule
+
     -- Inherit from player (Link mods)
     local p = state.player
     if p then
@@ -120,9 +127,6 @@ local function recomputePetStats(state, pet)
         end
     end
 
-    local vitLv = getPetUpgradeLevel(state, 'pet_upgrade_vitality')
-    local hpMul = 1 + 0.12 * vitLv
-
     local oldMax = pet.maxHp or 0
     local oldHp = pet.hp or oldMax
     local hpPct = 1
@@ -130,24 +134,21 @@ local function recomputePetStats(state, pet)
         hpPct = math.max(0, math.min(1, oldHp / oldMax))
     end
 
-    local finalMaxHp = math.floor((modded.maxHp or maxHpBase) * hpMul + 0.5)
+    local finalMaxHp = math.floor(modded.maxHp or maxHpBase + 0.5)
     finalMaxHp = math.max(1, finalMaxHp)
     pet.maxHp = finalMaxHp
     pet.hp = math.min(finalMaxHp, math.max(0, math.floor(finalMaxHp * hpPct + 0.5)))
     pet.armor = modded.armor or 0
     pet.damageMult = modded.damage or 1.0
     pet.critBonus = modded.critChance or 0
+    pet.extraStatusProcs = modded.extraStatusProcs or 0
 
     local baseCd = tonumber(base.cooldown) or (pet.abilityCooldown or 3.0)
-    local lvl = ps.runLevel or 1
-
-    local cdMul = 1.0 - math.min(0.18, (lvl - 1) * 0.02)
-    cdMul = cdMul * (1.0 - math.min(0.15, rank * 0.03))
-    local overLv = getPetUpgradeLevel(state, 'pet_upgrade_overclock')
-    cdMul = cdMul * (1.0 - math.min(0.30, overLv * 0.06))
-    pet.abilityCooldown = math.max(0.25, baseCd * cdMul)
-
-    pet.level = lvl
+    local petRankBonus = 1.0 - math.min(0.15, rank * 0.03) -- Persistent rank bonus
+    local modCdReduction = modded.cooldownReduction or 0
+    
+    pet.abilityCooldown = math.max(0.25, baseCd * petRankBonus * (1.0 - modCdReduction))
+    pet.level = ps.runLevel or 1
 end
 
 local function doPetAbility(state, pet)
@@ -158,10 +159,8 @@ local function doPetAbility(state, pet)
     local p = state.player or {}
     local might = (p.stats and p.stats.might) or 1
 
-    local powerLv = getPetUpgradeLevel(state, 'pet_upgrade_power')
-    local dmgMul = 1 + 0.20 * powerLv
-    local statusLv = getPetUpgradeLevel(state, 'pet_upgrade_status')
-    local extraProcs = math.floor(statusLv / 2)
+    local dmgMul = pet.damageMult or 1.0
+    local extraProcs = pet.extraStatusProcs or 0
 
     local function tags()
         local t = {'pet', tostring(key or 'pet')}
@@ -267,7 +266,7 @@ local function doPetAbility(state, pet)
             table.insert(state.texts, {x = p.x, y = p.y - 46, text = "BARRIER", color = {0.7, 0.95, 1.0}, life = 0.8})
         else
             local heal = 7 + math.min(10, (lvl - 1) * 2)
-            heal = math.floor(heal * (1 + 0.12 * powerLv) + 0.5)
+            heal = math.floor(heal * dmgMul + 0.5)
             p.hp = math.min(p.maxHp or p.hp, (p.hp or 0) + heal)
             if state.spawnEffect then state.spawnEffect('static_hit', p.x, p.y, 0.7) end
             table.insert(state.texts, {x = p.x, y = p.y - 46, text = "+" .. tostring(heal), color = {0.55, 1.0, 0.55}, life = 0.9})
@@ -319,6 +318,7 @@ function pets.setActive(state, petKey, opts)
     local profile = state.profile or {}
     profile.startPetKey = profile.startPetKey or 'pet_magnet'
     profile.petModules = profile.petModules or {}
+    -- module is now determined by MOD slots in recomputePetStats
     local module = 'default'
 
     local baseHp = (def.base and def.base.hp) or 60

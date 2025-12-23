@@ -9,8 +9,7 @@ end
 merge(require('systems.upgrades.apply_handlers.weapon'))
 merge(require('systems.upgrades.apply_handlers.mod'))
 merge(require('systems.upgrades.apply_handlers.augment'))
-merge(require('systems.upgrades.apply_handlers.pet_module'))
-merge(require('systems.upgrades.apply_handlers.pet_upgrade'))
+-- Legacy pet handlers removed (unified to MOD system)
 merge(require('systems.upgrades.apply_handlers.pet'))
 merge(require('systems.upgrades.apply_handlers.passive'))
 
