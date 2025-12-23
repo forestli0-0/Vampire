@@ -449,6 +449,7 @@ end
 function ChapterMap:revealArea(worldX, worldY, radius)
     local cx, cy = self:worldToCell(worldX, worldY)
     local cellRadius = math.ceil(radius / self.tileSize)
+    local revealedNew = false
     
     for dy = -cellRadius, cellRadius do
         for dx = -cellRadius, cellRadius do
@@ -458,11 +459,15 @@ function ChapterMap:revealArea(worldX, worldY, radius)
                 local ty = cy + dy
                 if tx >= 1 and tx <= self.w and ty >= 1 and ty <= self.h then
                     local idx = self:cellIndex(tx, ty)
-                    self.explored[idx] = true
+                    if not self.explored[idx] then
+                        self.explored[idx] = true
+                        revealedNew = true
+                    end
                 end
             end
         end
     end
+    return revealedNew
 end
 
 function ChapterMap:isExplored(cx, cy)
