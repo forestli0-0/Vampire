@@ -178,13 +178,54 @@ local function updatePlaying(state, dt)
 
     -- ==================== 玩家动画更新 ====================
     if state.playerAnim then
-        if state.player.isMoving then
-            -- 移动中：播放奔跑动画
-            if not state.playerAnim.playing then state.playerAnim:play(false) end
-            state.playerAnim:update(dt)
+        -- ==================== 动画状态机逻辑 ====================
+        -- 根据玩家状态决定动画行为
+        local p = state.player
+        local dash = p.dash or {}
+        local melee = p.meleeState or {}
+        
+        -- 确定当前动画状态
+        local animState = 'idle'
+        local animSpeed = 1.0
+        
+        if (dash.timer or 0) > 0 or (p.bulletJumpTimer or 0) > 0 then
+            -- 冲刺/Bullet Jump：快速播放动画
+            animState = 'dash'
+            animSpeed = 2.5
+        elseif melee.phase and melee.phase ~= 'idle' then
+            -- 近战攻击：根据攻击类型调整速度
+            animState = 'attack'
+            if melee.attackType == 'heavy' then
+                animSpeed = 0.8  -- 重击慢一些
+            else
+                animSpeed = 1.5  -- 轻击快一些
+            end
+        elseif p.isSliding then
+            -- 滑行：中速播放
+            animState = 'slide'
+            animSpeed = 1.8
+        elseif p.isMoving then
+            -- 移动中：正常速度
+            animState = 'run'
+            animSpeed = 1.0
         else
-            -- 静止：停止动画
-            if state.playerAnim.playing then state.playerAnim:stop() end
+            -- 静止：慢速呼吸感
+            animState = 'idle'
+            animSpeed = 0.3
+        end
+        
+        -- 保存状态供其他系统使用
+        p.animState = animState
+        
+        -- 根据状态播放动画
+        if animState == 'idle' then
+            -- Idle状态：慢速播放，给一个"呼吸"效果
+            if not state.playerAnim.playing then state.playerAnim:play(false) end
+            state.playerAnim:update(dt * animSpeed)
+        else
+            -- 其他状态：正常播放
+            if not state.playerAnim.playing then state.playerAnim:play(false) end
+            state.playerAnim:update(dt * animSpeed)
         end
     end
 
