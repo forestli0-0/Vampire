@@ -274,8 +274,8 @@ function spawner.spawnBoss(gameState, chapterMap)
         
         -- Spawn boss for the first time
         local wx, wy = bossNode.cx * 32, bossNode.cy * 32
-        enemies.spawnEnemy(gameState, 'boss_treant', false, wx, wy)
         bossNode.bossSpawned = true
+        enemies.spawnEnemy(gameState, 'boss_treant', false, wx, wy)
         
         if gameState.texts then
             table.insert(gameState.texts, {
