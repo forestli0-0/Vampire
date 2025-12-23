@@ -300,38 +300,37 @@ function ChapterMap:carveCorridor(fromNode, toNode)
     local x1, y1 = fromNode.cx, fromNode.cy
     local x2, y2 = toNode.cx, toNode.cy
     local width = CONFIG.corridorWidth
+    local halfWidth = math.floor(width / 2)
     
     -- L-shaped corridor (horizontal then vertical, or vice versa)
     if math.random() < 0.5 then
-        -- Horizontal first
-        local dir = (x2 >= x1) and 1 or -1
-        for x = x1, x2, dir do
-            for w = -math.floor(width/2), math.floor(width/2) do
-                self:carveRect(x, y1 + w, x, y1 + w)
-            end
+        -- Horizontal first: carve a horizontal strip around y1 from x1 to x2
+        local hx1 = math.min(x1, x2)
+        local hx2 = math.max(x1, x2)
+        for w = -halfWidth, halfWidth do
+            self:carveRect(hx1, y1 + w, hx2, y1 + w)
         end
-        -- Then vertical
-        dir = (y2 >= y1) and 1 or -1
-        for y = y1, y2, dir do
-            for w = -math.floor(width/2), math.floor(width/2) do
-                self:carveRect(x2 + w, y, x2 + w, y)
-            end
+        
+        -- Then vertical: carve a vertical strip around x2 from y1 to y2
+        local vy1 = math.min(y1, y2)
+        local vy2 = math.max(y1, y2)
+        for w = -halfWidth, halfWidth do
+            self:carveRect(x2 + w, vy1, x2 + w, vy2)
         end
     else
-        -- Vertical first
-        local dir = (y2 >= y1) and 1 or -1
-        for y = y1, y2, dir do
-            for w = -math.floor(width/2), math.floor(width/2) do
-                self:carveRect(x1 + w, y, x1 + w, y)
-            end
-        end
-        -- Then horizontal
-        dir = (x2 >= x1) and 1 or -1
-        for x = x1, x2, dir do
-            for w = -math.floor(width/2), math.floor(width/2) do
-                self:carveRect(x, y2 + w, x, y2 + w)
-            end
-        end
+        -- Vertical first: carve a vertical strip around x1 from y1 to y2
+          local vy1 = math.min(y1, y2)
+          local vy2 = math.max(y1, y2)
+          for w = -halfWidth, halfWidth do
+              self:carveRect(x1 + w, vy1, x1 + w, vy2)
+          end
+          
+          -- Then horizontal: carve a horizontal strip around y2 from x1 to x2
+          local hx1 = math.min(x1, x2)
+          local hx2 = math.max(x1, x2)
+          for w = -halfWidth, halfWidth do
+              self:carveRect(hx1, y2 + w, hx2, y2 + w)
+          end
     end
 end
 

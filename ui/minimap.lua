@@ -76,11 +76,12 @@ function minimap.update(gameState, chapterMap, dt)
     
     local p = gameState.player
     
-    -- Reveal area around player
-    chapterMap:revealArea(p.x, p.y, CONFIG.revealRadius * chapterMap.tileSize)
+    -- Reveal area around player; only mark dirty if new tiles were actually revealed
+    local revealed = chapterMap:revealArea(p.x, p.y, CONFIG.revealRadius * chapterMap.tileSize)
     
-    -- Mark for redraw
-    state.dirty = true
+    if revealed then
+        state.dirty = true
+    end
 end
 
 --------------------------------------------------------------------------------

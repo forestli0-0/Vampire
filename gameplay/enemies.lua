@@ -1130,11 +1130,14 @@ function enemies.update(state, dt)
         
         -- === AI STATE ACTIVATION ===
         -- Check if enemy should activate (start chasing)
-        local distToPlayer = math.sqrt((p.x - e.x)^2 + (p.y - e.y)^2)
+        local dx = p.x - e.x
+        local dy = p.y - e.y
+        local distToPlayerSq = dx * dx + dy * dy
         local aggroRange = e.aggroRange or 350
+        local aggroRangeSq = aggroRange * aggroRange
         
         if e.aiState == 'idle' then
-            if distToPlayer < aggroRange then
+            if distToPlayerSq < aggroRangeSq then
                 -- Player is close, activate!
                 e.aiState = 'chase'
                 -- Show "!" indicator
