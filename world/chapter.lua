@@ -451,11 +451,14 @@ function ChapterMap:revealArea(worldX, worldY, radius)
     
     for dy = -cellRadius, cellRadius do
         for dx = -cellRadius, cellRadius do
-            local tx = cx + dx
-            local ty = cy + dy
-            if tx >= 1 and tx <= self.w and ty >= 1 and ty <= self.h then
-                local idx = self:cellIndex(tx, ty)
-                self.explored[idx] = true
+            -- Check if the tile is within the circular radius
+            if dx*dx + dy*dy <= cellRadius*cellRadius then
+                local tx = cx + dx
+                local ty = cy + dy
+                if tx >= 1 and tx <= self.w and ty >= 1 and ty <= self.h then
+                    local idx = self:cellIndex(tx, ty)
+                    self.explored[idx] = true
+                end
             end
         end
     end
