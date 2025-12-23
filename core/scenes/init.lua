@@ -78,7 +78,7 @@ local function updatePlaying(state, dt)
     weapons.updateReload(state, dt)
     projectiles.updatePlayerBullets(state, dt)
     projectiles.updateEnemyBullets(state, dt)
-    if state.runMode == 'chapter' and state.chapterMap then
+    if state.runMode == 'chapter' and state.chapterMap and not state.testArena and not state.scenarioNoDirector and not state.benchmarkMode then
         -- Chapter mode: use chapter spawner
         spawner.update(state, state.chapterMap, dt)
         spawner.checkRoomClear(state, state.chapterMap)
