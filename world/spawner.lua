@@ -103,7 +103,8 @@ function spawner.populateMapOnGenerate(gameState, chapterMap)
         
         local targetCount = CONFIG.baseEnemiesPerRoom[node.difficulty] or 8
         local eliteChance = CONFIG.eliteChance[node.difficulty] or 0
-        local roomProgress = node.id or 1
+        -- Use mainPathProgress for branches (their IDs start at 1000), otherwise use node.id
+        local roomProgress = node.mainPathProgress or node.id or 1
         
         -- Get spawn points for this room
         local spawnPoints = chapterMap:getSpawnPointsForNode(node, targetCount + 5)

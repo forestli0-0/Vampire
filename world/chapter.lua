@@ -200,6 +200,7 @@ function ChapterMap:generateBranches()
                     enemies = {},
                     connected = {node.id},
                     isBranch = true,
+                    mainPathProgress = node.id,  -- Use parent's main path order for difficulty scaling
                 }
                 
                 -- Clamp to map bounds
