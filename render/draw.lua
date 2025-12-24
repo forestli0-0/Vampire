@@ -971,12 +971,26 @@ function draw.renderWorld(state)
             local t = e.isBoss and 2 or 1
             
             -- 获取敌人的当前动画（使用新动画系统）
+            -- 修复：使用与主体绘制相同的动画选择逻辑
             local outlineAnim = e.anim
             if not outlineAnim and state.enemyAnimSets and state.enemyAnims then
                 local animKey = state.enemyAnims.getAnimKeyForType(e.kind or 'skeleton')
                 local anims = state.enemyAnimSets[animKey] or state.enemyAnimSets['skeleton']
                 if anims then
-                    outlineAnim = anims.move or anims.idle
+                    -- 根据敌人状态选择动画（与主体绘制保持一致）
+                    if e.flashTimer and e.flashTimer > 0 then
+                        outlineAnim = anims.hit or anims.move
+                    elseif e.attack and e.attack.phase then
+                        outlineAnim = anims.attack or anims.move
+                    elseif e.isBlocking or (e.status and e.status.shielded) then
+                        outlineAnim = anims.shield or anims.idle
+                    elseif e.status and e.status.frozen then
+                        outlineAnim = anims.idle or anims.move
+                    elseif e.aiState == 'idle' then
+                        outlineAnim = anims.idle or anims.move
+                    else
+                        outlineAnim = anims.move or anims.idle
+                    end
                 end
             end
             
