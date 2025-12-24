@@ -337,6 +337,8 @@ function projectiles.updatePlayerBullets(state, dt)
             else
                 for j = #state.enemies, 1, -1 do
                     local e = state.enemies[j]
+                    -- 跳过正在死亡的敌人，它们不应该阻挡子弹
+                    if e.isDying then goto continue_enemy_check end
                     if util.checkCollision(b, e) then
                         -- Special weapon-specific collision handling
                         if b.type == 'oil_bottle' then
@@ -438,6 +440,7 @@ function projectiles.updatePlayerBullets(state, dt)
                             end
                         end
                     end
+                    ::continue_enemy_check::
                 end
                 -- [[ Bullet-to-bullet cancellation removed: Only melee attacks should cancel bullets ]]
 

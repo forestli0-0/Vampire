@@ -1138,6 +1138,21 @@ function enemies.update(state, dt)
             coldMult = 1 - slowPct
         end
         
+        -- === 死亡状态检查 ===
+        -- 正在播放死亡动画的敌人不应该移动或攻击
+        if e.isDying then
+            -- 更新死亡动画计时器
+            e.dyingTimer = (e.dyingTimer or 0) - dt
+            if e.dyingTimer <= 0 then
+                -- 死亡动画播完，标记为可移除
+                e.readyToRemove = true
+            end
+            -- 跳过移动和攻击逻辑，但不跳过死亡处理逻辑
+            if not e.readyToRemove then
+                goto continue_enemy_loop
+            end
+        end
+        
         -- === AI STATE ACTIVATION ===
         -- Check if enemy should activate (start chasing)
         local dx = p.x - e.x
@@ -2168,6 +2183,21 @@ function enemies.update(state, dt)
         end
 
         if e.health <= 0 then
+            -- 死亡动画延迟处理
+            if not e.isDying then
+                -- 刚进入死亡状态，开始播放死亡动画
+                e.isDying = true
+                e.dyingTimer = 0.5  -- 死亡动画播放时长
+                e.health = 0  -- 确保血量为0
+                e.attack = nil  -- 停止攻击
+                goto continue_enemy_loop  -- 等待下一帧处理
+            end
+            
+            -- 如果还没准备好移除，跳过（计时器在前面已更新）
+            if not e.readyToRemove then
+                goto continue_enemy_loop
+            end
+            
             if e.isDummy then
                 resetDummy(e)
             else

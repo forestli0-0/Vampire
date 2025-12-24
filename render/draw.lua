@@ -1012,10 +1012,50 @@ function draw.renderWorld(state)
             end
         end
 
-        -- Base draw: Use skeleton animation frames for all enemies (tinted by color, scaled by size)
-        local skeletonFrames = state.enemySprites and state.enemySprites['skeleton_frames']
-        if skeletonFrames and #skeletonFrames > 0 and not e.anim then
-            -- Calculate animation frame (8 FPS, offset by enemy id for variety)
+        -- Base draw: 优先使用新版骷髅精灵表动画，否则回退到旧版
+        local skeletonAnims = state.skeletonAnims
+        if skeletonAnims and not e.anim then
+            -- 新版精灵表动画系统 - 根据敌人状态选择动画
+            local anim = nil
+            
+            -- 根据敌人状态选择动画（优先级从高到低）
+            if e.isDying then
+                -- 死亡状态（正在播放死亡动画）
+                anim = skeletonAnims.death
+            elseif e.flashTimer and e.flashTimer > 0 then
+                -- 受击状态 (正在闪烁)
+                anim = skeletonAnims.hit
+            elseif e.attack and e.attack.phase then
+                -- 攻击状态 (任何攻击阶段)
+                anim = skeletonAnims.attack
+            elseif e.isBlocking or (e.status and e.status.shielded) then
+                -- 防御状态
+                anim = skeletonAnims.shield
+            elseif e.aiState == 'chase' then
+                -- 追击状态 = 移动动画
+                anim = skeletonAnims.walk
+            else
+                -- 待机状态 (idle 或其他)
+                anim = skeletonAnims.idle or skeletonAnims.walk
+            end
+            
+            -- 回退到默认动画
+            if not anim then anim = state.skeletonDefaultAnim end
+            
+            if anim then
+                -- 计算缩放
+                local spriteVisualHeight = 40  -- 0.6 比例
+                local targetSize = e.size or 24
+                local scale = targetSize / spriteVisualHeight
+                local sx = (e.facing or 1) * scale
+                local sy = scale
+                
+                love.graphics.setColor(col)
+                anim:draw(e.x, e.y, 0, sx, sy)
+            end
+        elseif state.enemySprites and state.enemySprites['skeleton_frames'] and #state.enemySprites['skeleton_frames'] > 0 and not e.anim then
+            -- 旧版单帧格式回退
+            local skeletonFrames = state.enemySprites['skeleton_frames']
             local animSpeed = 8  -- frames per second
             local numFrames = #skeletonFrames
             local timeOffset = (e.spawnTime or 0) * 0.37  -- Unique offset per enemy
@@ -1041,6 +1081,7 @@ function draw.renderWorld(state)
             love.graphics.setColor(col)
             love.graphics.rectangle('fill', e.x - e.size/2, e.y - e.size/2, e.size, e.size)
         end
+
 
         -- Reset shader after drawing
         if flashShader then

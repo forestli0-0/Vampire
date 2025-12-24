@@ -353,19 +353,82 @@ function assets.init(state)
         state.enemySprites['default_bullet'] = defaultEnemyBullet
     end
 
+
     state.enemySprites['skeleton_frames'] = {}
-    for i = 1, 4 do
-        local img = loadImage('assets/characters/skeleton/move_' .. i .. '.PNG')
-        if img then
-            img:setFilter('nearest', 'nearest')
-            table.insert(state.enemySprites['skeleton_frames'], img)
+    
+    -- 尝试加载新版精灵表格式 (assets/sprites/Skeleton/)
+    local skeletonWalkSheet = loadImage('assets/sprites/Skeleton/Walk.png')
+    if skeletonWalkSheet then
+        -- 新精灵表格式: 每帧 150x150
+        skeletonWalkSheet:setFilter('nearest', 'nearest')
+        local frameW, frameH = 150, 150
+        local walkFrames = animation.newFramesFromGrid(skeletonWalkSheet, frameW, frameH)
+        
+        -- 创建骷髅动画集合
+        state.skeletonAnims = {
+            walk = animation.newAnimation(skeletonWalkSheet, walkFrames, {fps = 8, loop = true}),
+        }
+        
+        -- Attack 动画 (8帧)
+        local attackSheet = loadImage('assets/sprites/Skeleton/Attack.png')
+        if attackSheet then
+            attackSheet:setFilter('nearest', 'nearest')
+            local attackFrames = animation.newFramesFromGrid(attackSheet, frameW, frameH)
+            state.skeletonAnims.attack = animation.newAnimation(attackSheet, attackFrames, {fps = 12, loop = false})
         end
-    end
-    if #state.enemySprites['skeleton_frames'] == 0 then
-        local fallback = loadImage('assets/characters/skeleton/move_1.PNG')
-        if fallback then
-            fallback:setFilter('nearest', 'nearest')
-            table.insert(state.enemySprites['skeleton_frames'], fallback)
+        
+        -- Idle 动画 (4帧)
+        local idleSheet = loadImage('assets/sprites/Skeleton/Idle.png')
+        if idleSheet then
+            idleSheet:setFilter('nearest', 'nearest')
+            local idleFrames = animation.newFramesFromGrid(idleSheet, frameW, frameH)
+            state.skeletonAnims.idle = animation.newAnimation(idleSheet, idleFrames, {fps = 6, loop = true})
+        end
+        
+        -- Death 动画 (4帧)
+        local deathSheet = loadImage('assets/sprites/Skeleton/Death.png')
+        if deathSheet then
+            deathSheet:setFilter('nearest', 'nearest')
+            local deathFrames = animation.newFramesFromGrid(deathSheet, frameW, frameH)
+            state.skeletonAnims.death = animation.newAnimation(deathSheet, deathFrames, {fps = 8, loop = false})
+        end
+        
+        -- Take Hit 动画 (4帧)
+        local hitSheet = loadImage('assets/sprites/Skeleton/Take Hit.png')
+        if hitSheet then
+            hitSheet:setFilter('nearest', 'nearest')
+            local hitFrames = animation.newFramesFromGrid(hitSheet, frameW, frameH)
+            state.skeletonAnims.hit = animation.newAnimation(hitSheet, hitFrames, {fps = 10, loop = false})
+        end
+        
+        -- Shield 动画 (4帧)
+        local shieldSheet = loadImage('assets/sprites/Skeleton/Shield.png')
+        if shieldSheet then
+            shieldSheet:setFilter('nearest', 'nearest')
+            local shieldFrames = animation.newFramesFromGrid(shieldSheet, frameW, frameH)
+            state.skeletonAnims.shield = animation.newAnimation(shieldSheet, shieldFrames, {fps = 8, loop = true})
+        end
+        
+        -- 设置默认动画为 walk
+        state.skeletonDefaultAnim = state.skeletonAnims.walk
+        state.skeletonFrameSize = frameW  -- 用于绘制时计算缩放
+        
+        print("[Assets] 已加载新版骷髅精灵表动画")
+    else
+        -- 回退到旧版单帧格式 (assets/characters/skeleton/)
+        for i = 1, 4 do
+            local img = loadImage('assets/characters/skeleton/move_' .. i .. '.PNG')
+            if img then
+                img:setFilter('nearest', 'nearest')
+                table.insert(state.enemySprites['skeleton_frames'], img)
+            end
+        end
+        if #state.enemySprites['skeleton_frames'] == 0 then
+            local fallback = loadImage('assets/characters/skeleton/move_1.PNG')
+            if fallback then
+                fallback:setFilter('nearest', 'nearest')
+                table.insert(state.enemySprites['skeleton_frames'], fallback)
+            end
         end
     end
 end
