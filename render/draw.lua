@@ -1012,48 +1012,59 @@ function draw.renderWorld(state)
             end
         end
 
-        -- Base draw: 优先使用新版骷髅精灵表动画，否则回退到旧版
-        local skeletonAnims = state.skeletonAnims
-        if skeletonAnims and not e.anim then
-            -- 新版精灵表动画系统 - 根据敌人状态选择动画
-            local anim = nil
+        -- Base draw: 根据敌人类型选择对应的动画集
+        local enemyAnimSets = state.enemyAnimSets
+        local enemyAnimsMod = state.enemyAnims
+        
+        if enemyAnimSets and enemyAnimsMod and not e.anim then
+            -- 根据敌人类型获取对应的动画集
+            local animKey = enemyAnimsMod.getAnimKeyForType(e.kind or 'skeleton')
+            local anims = enemyAnimSets[animKey] or enemyAnimSets['skeleton']
             
-            -- 根据敌人状态选择动画（优先级从高到低）
-            if e.isDying then
-                -- 死亡状态（正在播放死亡动画）
-                anim = skeletonAnims.death
-            elseif e.flashTimer and e.flashTimer > 0 then
-                -- 受击状态 (正在闪烁)
-                anim = skeletonAnims.hit
-            elseif e.attack and e.attack.phase then
-                -- 攻击状态 (任何攻击阶段)
-                anim = skeletonAnims.attack
-            elseif e.isBlocking or (e.status and e.status.shielded) then
-                -- 防御状态
-                anim = skeletonAnims.shield
-            elseif e.aiState == 'chase' then
-                -- 追击状态 = 移动动画
-                anim = skeletonAnims.walk
-            else
-                -- 待机状态 (idle 或其他)
-                anim = skeletonAnims.idle or skeletonAnims.walk
-            end
-            
-            -- 回退到默认动画
-            if not anim then anim = state.skeletonDefaultAnim end
-            
-            if anim then
-                -- 计算缩放
-                local spriteVisualHeight = 40  -- 0.6 比例
-                local targetSize = e.size or 24
-                local scale = targetSize / spriteVisualHeight
-                local sx = (e.facing or 1) * scale
-                local sy = scale
+            if anims then
+                -- 根据敌人状态选择动画（优先级从高到低）
+                local anim = nil
                 
-                love.graphics.setColor(col)
-                anim:draw(e.x, e.y, 0, sx, sy)
+                if e.isDying then
+                    -- 死亡状态（正在播放死亡动画）
+                    anim = anims.death
+                elseif e.flashTimer and e.flashTimer > 0 then
+                    -- 受击状态 (正在闪烁)
+                    anim = anims.hit
+                elseif e.attack and e.attack.phase then
+                    -- 攻击状态 (任何攻击阶段)
+                    anim = anims.attack
+                elseif e.isBlocking or (e.status and e.status.shielded) then
+                    -- 防御状态
+                    anim = anims.shield or anims.idle
+                elseif e.status and e.status.frozen then
+                    -- 冻结状态 = 静止
+                    anim = anims.idle or anims.move
+                elseif e.aiState == 'idle' then
+                    -- 待机状态（敌人未激活）
+                    anim = anims.idle or anims.move
+                else
+                    -- 追击状态（aiState == 'chase' 或 nil）= 移动动画
+                    anim = anims.move or anims.idle
+                end
+                
+                -- 回退到默认动画
+                if not anim then anim = anims.move or anims.idle end
+                
+                if anim then
+                    -- 计算缩放
+                    local frameSize = enemyAnimsMod.getFrameSize(animKey)
+                    local spriteVisualHeight = frameSize * 0.27  -- 可见区域约占 27%
+                    local targetSize = e.size or 24
+                    local scale = targetSize / spriteVisualHeight
+                    local sx = (e.facing or 1) * scale
+                    local sy = scale
+                    
+                    love.graphics.setColor(col)
+                    anim:draw(e.x, e.y, 0, sx, sy)
+                end
             end
-        elseif state.enemySprites and state.enemySprites['skeleton_frames'] and #state.enemySprites['skeleton_frames'] > 0 and not e.anim then
+        elseif state.skeletonAnims and not e.anim then
             -- 旧版单帧格式回退
             local skeletonFrames = state.enemySprites['skeleton_frames']
             local animSpeed = 8  -- frames per second

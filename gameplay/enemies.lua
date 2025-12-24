@@ -536,12 +536,13 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY, opts)
         facing = 1,
         spawnTime = love.timer.getTime()  -- For animation phase offset
     })
-    if state.loadMoveAnimationFromFolder then
-        local animKey = def.animKey or def.animName or type
-        local anim, animEmit = state.loadMoveAnimationFromFolder(animKey, 4, 8)
-        if anim then state.enemies[#state.enemies].anim = anim end
-        if animEmit then state.enemies[#state.enemies].animEmissive = animEmit end
-    end
+    -- 旧动画系统已禁用，改用 enemy_anims 模块的通用动画系统
+    -- if state.loadMoveAnimationFromFolder then
+    --     local animKey = def.animKey or def.animName or type
+    --     local anim, animEmit = state.loadMoveAnimationFromFolder(animKey, 4, 8)
+    --     if anim then state.enemies[#state.enemies].anim = anim end
+    --     if animEmit then state.enemies[#state.enemies].animEmissive = animEmit end
+    -- end
     local spawned = state.enemies[#state.enemies]
     ensureStatus(spawned)
     if spawned and spawned.isElite and spawned.eliteMod and state and state.texts and not opts.suppressSpawnText then

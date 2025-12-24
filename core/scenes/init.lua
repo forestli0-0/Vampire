@@ -176,12 +176,14 @@ local function updatePlaying(state, dt)
     -- 使用顿帧调整后的dt，使敌人在顿帧期间放慢
     enemies.update(state, enemyDt)       -- 敌人AI、攻击、死亡
     
-    -- ==================== 骷髅精灵表动画更新 ====================
-    -- 新版骷髅动画每帧只更新一次，避免绘制时重复更新导致速度过快
-    if state.skeletonAnims then
-        for _, anim in pairs(state.skeletonAnims) do
-            if anim and anim.update then
-                anim:update(dt)
+    -- ==================== 敌人动画更新 ====================
+    -- 更新所有敌人动画集，每帧只更新一次，避免绘制时重复更新导致速度过快
+    if state.enemyAnimSets then
+        for animSetKey, animSet in pairs(state.enemyAnimSets) do
+            for animName, anim in pairs(animSet) do
+                if anim and anim.update then
+                    anim:update(dt)
+                end
             end
         end
     end
