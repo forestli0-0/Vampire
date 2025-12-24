@@ -9,6 +9,112 @@ local enemies = {}
 local SHIELD_REGEN_DELAY = 2.5
 local SHIELD_REGEN_RATE = 0.25 -- fraction of max shield per second
 
+--------------------------------------------------------------------------------
+-- AI 状态机常量与辅助函数
+--------------------------------------------------------------------------------
+
+-- AI 状态常量
+local AI_STATES = {
+    IDLE = 'idle',       -- 未发现玩家，原地待机
+    CHASE = 'chase',     -- 追击玩家
+    ATTACK = 'attack',   -- 正在执行攻击
+    RETREAT = 'retreat', -- 受伤后撤退
+    KITING = 'kiting',   -- 保持距离射击（远程敌人）
+    BERSERK = 'berserk', -- 低血量狂暴（Boss）
+}
+
+-- 默认AI行为配置
+local DEFAULT_AI_BEHAVIOR = {
+    type = 'melee',
+    retreatThreshold = 0.25,   -- 血量低于25%时考虑撤退
+    retreatDuration = 1.2,     -- 撤退持续时间（秒）
+    retreatDistance = 80,      -- 撤退目标距离
+    retreatCooldown = 5.0,     -- 撤退冷却时间
+}
+
+-- 获取敌人AI行为配置
+local function getAIBehavior(e)
+    local def = enemyDefs[e.kind] or {}
+    local behavior = def.aiBehavior or {}
+    -- 合并默认配置
+    return {
+        type = behavior.type or DEFAULT_AI_BEHAVIOR.type,
+        retreatThreshold = behavior.retreatThreshold or DEFAULT_AI_BEHAVIOR.retreatThreshold,
+        retreatDuration = behavior.retreatDuration or DEFAULT_AI_BEHAVIOR.retreatDuration,
+        retreatDistance = behavior.retreatDistance or DEFAULT_AI_BEHAVIOR.retreatDistance,
+        retreatCooldown = behavior.retreatCooldown or DEFAULT_AI_BEHAVIOR.retreatCooldown,
+        noRetreat = behavior.noRetreat or false,
+        preferredRange = behavior.preferredRange,  -- 远程敌人理想距离
+        kiteRange = behavior.kiteRange,            -- 开始风筝的距离阈值
+        berserkThreshold = behavior.berserkThreshold or 0.25,
+        berserkSpeedMult = behavior.berserkSpeedMult or 1.4,
+        berserkDamageMult = behavior.berserkDamageMult or 1.25,
+    }
+end
+
+-- 状态转换函数
+local function setAIState(e, newState, reason)
+    if e.aiState ~= newState then
+        e.prevAiState = e.aiState
+        e.aiState = newState
+        e.aiStateTimer = 0
+        e.aiStateReason = reason
+        -- logger.debug('[AI] ' .. (e.kind or 'enemy') .. ' -> ' .. newState .. ' (' .. (reason or '') .. ')')
+    end
+end
+
+-- 检查是否应该撤退
+local function shouldRetreat(e, behavior, recentDamage)
+    -- Boss不撤退（进入狂暴）
+    if e.isBoss then return false end
+    -- 配置为不撤退的敌人
+    if behavior.noRetreat then return false end
+    -- 已经在撤退中
+    if e.aiState == AI_STATES.RETREAT then return false end
+    -- 撤退冷却中
+    if (e.retreatCooldownTimer or 0) > 0 then return false end
+    
+    local hpRatio = (e.health or 0) / (e.maxHealth or 1)
+    local threshold = behavior.retreatThreshold or 0.25
+    
+    -- 血量低于阈值时撤退
+    if hpRatio < threshold then
+        return true
+    end
+    
+    -- 短时间内受到大量伤害时也撤退
+    if recentDamage and recentDamage > (e.maxHealth or 1) * 0.3 then
+        return true
+    end
+    
+    return false
+end
+
+-- 检查远程敌人是否应该风筝
+local function shouldKite(e, distToPlayer, behavior)
+    -- 只有远程类型敌人会风筝
+    if behavior.type ~= 'ranged' then return false end
+    -- 没有配置风筝距离
+    if not behavior.kiteRange then return false end
+    -- 已经在撤退中
+    if e.aiState == AI_STATES.RETREAT then return false end
+    
+    -- 玩家太近时开始风筝
+    return distToPlayer < behavior.kiteRange
+end
+
+-- 检查Boss是否应该进入狂暴
+local function shouldBerserk(e, behavior)
+    if not e.isBoss then return false end
+    if e.aiState == AI_STATES.BERSERK then return false end
+    if e.berserkTriggered then return false end  -- 只触发一次
+    
+    local hpRatio = (e.health or 0) / (e.maxHealth or 1)
+    return hpRatio < (behavior.berserkThreshold or 0.25)
+end
+
+--------------------------------------------------------------------------------
+
 local enemyDropDefs = (dropRates and dropRates.enemy) or {}
 
 local _calculator = nil
@@ -661,6 +767,9 @@ function enemies.damageEnemy(state, e, dmg, knock, kForce, isCrit, opts)
         e.status.shieldLocked = true
     end
     local appliedTotal = shieldHit + healthHit
+    
+    -- 追踪最近伤害（用于触发撤退行为）
+    e.recentDamage = (e.recentDamage or 0) + healthHit
 
     local color = {1,1,1}
     local scale = 1
@@ -1159,14 +1268,24 @@ function enemies.update(state, dt)
         local dx = p.x - e.x
         local dy = p.y - e.y
         local distToPlayerSq = dx * dx + dy * dy
+        local distToPlayer = math.sqrt(distToPlayerSq)
         local aggroRange = e.aggroRange or 350
         local aggroRangeSq = aggroRange * aggroRange
         
-        if e.aiState == 'idle' then
+        -- 获取AI行为配置
+        local aiBehavior = getAIBehavior(e)
+        
+        -- 更新撤退冷却计时器
+        if e.retreatCooldownTimer and e.retreatCooldownTimer > 0 then
+            e.retreatCooldownTimer = e.retreatCooldownTimer - dt
+        end
+        
+        -- === 扩展AI状态机 ===
+        if e.aiState == AI_STATES.IDLE or e.aiState == 'idle' then
+            -- 发现玩家
             if distToPlayerSq < aggroRangeSq then
-                -- Player is close, activate!
-                e.aiState = 'chase'
-                -- Show "!" indicator
+                setAIState(e, AI_STATES.CHASE, 'player_detected')
+                -- 显示"!"指示器
                 if state.texts then
                     table.insert(state.texts, {x = e.x, y = e.y - 30, text = "!", color = {1, 0.8, 0.2}, life = 0.5, scale = 1.2})
                 end
@@ -1174,6 +1293,62 @@ function enemies.update(state, dt)
                 -- Still idle, skip movement and attack logic
                 goto continue_enemy_loop
             end
+            
+        elseif e.aiState == AI_STATES.CHASE or e.aiState == 'chase' then
+            -- 检查Boss是否应该进入狂暴
+            if shouldBerserk(e, aiBehavior) then
+                setAIState(e, AI_STATES.BERSERK, 'low_hp_rage')
+                e.berserkTriggered = true
+                e.berserkSpeedMult = aiBehavior.berserkSpeedMult or 1.4
+                e.berserkDamageMult = aiBehavior.berserkDamageMult or 1.25
+                -- 显示狂暴提示
+                if state.texts then
+                    table.insert(state.texts, {x = e.x, y = e.y - 40, text = "狂暴!", color = {1, 0.2, 0.2}, life = 1.5, scale = 1.5})
+                end
+            -- 检查是否应该撤退
+            elseif shouldRetreat(e, aiBehavior, e.recentDamage) then
+                setAIState(e, AI_STATES.RETREAT, 'low_hp')
+                e.retreatStartX = e.x
+                e.retreatStartY = e.y
+                -- 计算撤退方向（远离玩家）
+                local awayAng = math.atan2(e.y - p.y, e.x - p.x)
+                e.retreatDirX = math.cos(awayAng)
+                e.retreatDirY = math.sin(awayAng)
+                -- 显示撤退提示
+                if state.texts then
+                    table.insert(state.texts, {x = e.x, y = e.y - 25, text = "!", color = {0.8, 0.8, 0.2}, life = 0.4, scale = 0.9})
+                end
+            -- 检查远程单位是否应该风筝
+            elseif shouldKite(e, distToPlayer, aiBehavior) then
+                setAIState(e, AI_STATES.KITING, 'too_close')
+            end
+            
+        elseif e.aiState == AI_STATES.RETREAT then
+            e.aiStateTimer = (e.aiStateTimer or 0) + dt
+            local retreatDuration = aiBehavior.retreatDuration or 1.2
+            -- 撤退完成
+            if e.aiStateTimer >= retreatDuration then
+                setAIState(e, AI_STATES.CHASE, 'retreat_complete')
+                e.retreatCooldownTimer = aiBehavior.retreatCooldown or 5.0
+                e.recentDamage = 0  -- 重置累积伤害
+            end
+            
+        elseif e.aiState == AI_STATES.KITING then
+            local preferredRange = aiBehavior.preferredRange or 280
+            local kiteRange = aiBehavior.kiteRange or 140
+            
+            -- 玩家太远，恢复追击
+            if distToPlayer > preferredRange * 1.3 then
+                setAIState(e, AI_STATES.CHASE, 'player_too_far')
+            -- 玩家不再太近
+            elseif distToPlayer > kiteRange * 1.5 then
+                setAIState(e, AI_STATES.CHASE, 'safe_distance')
+            end
+            -- 否则保持kiting状态
+            
+        elseif e.aiState == AI_STATES.BERSERK then
+            -- Boss狂暴状态：持续追击，不会转换到其他状态
+            -- 只有死亡才会退出
         end
         -- === END AI STATE ACTIVATION ===
         
@@ -2148,8 +2323,56 @@ function enemies.update(state, dt)
         elseif e.attack and e.attack.phase == 'windup' then
             -- windup: hold position (telegraph fairness)
         else
-            local vx = (math.cos(moveAng) * e.speed + pushX)
-            local vy = (math.sin(moveAng) * e.speed + pushY)
+            -- === 根据AI状态决定移动方向和速度 ===
+            local moveVx, moveVy
+            local speedMult = 1.0
+            
+            if e.aiState == AI_STATES.RETREAT then
+                -- 撤退状态：远离玩家
+                local awayAng = math.atan2(e.y - p.y, e.x - p.x)
+                moveVx = math.cos(awayAng) * e.speed
+                moveVy = math.sin(awayAng) * e.speed
+                speedMult = 1.3  -- 撤退时略快
+                
+            elseif e.aiState == AI_STATES.KITING then
+                -- 风筝状态：保持理想距离，绕行射击
+                local preferredRange = aiBehavior.preferredRange or 280
+                local kiteRange = aiBehavior.kiteRange or 140
+                
+                if distToPlayer < kiteRange then
+                    -- 太近，后撤
+                    local awayAng = math.atan2(e.y - p.y, e.x - p.x)
+                    moveVx = math.cos(awayAng) * e.speed
+                    moveVy = math.sin(awayAng) * e.speed
+                    speedMult = 1.2
+                elseif distToPlayer > preferredRange then
+                    -- 太远，靠近
+                    moveVx = math.cos(moveAng) * e.speed
+                    moveVy = math.sin(moveAng) * e.speed
+                else
+                    -- 理想距离，绕行（侧移）
+                    local circleDir = ((e.x + e.y) % 2 < 1) and 1 or -1  -- 随机绕行方向
+                    local circleAng = angToTarget + math.pi/2 * circleDir
+                    moveVx = math.cos(circleAng) * e.speed * 0.6
+                    moveVy = math.sin(circleAng) * e.speed * 0.6
+                end
+                
+            elseif e.aiState == AI_STATES.BERSERK then
+                -- 狂暴状态：快速追击
+                moveVx = math.cos(moveAng) * e.speed
+                moveVy = math.sin(moveAng) * e.speed
+                speedMult = e.berserkSpeedMult or 1.4
+                
+            else
+                -- 默认追击行为 (CHASE 状态)
+                moveVx = math.cos(moveAng) * e.speed
+                moveVy = math.sin(moveAng) * e.speed
+            end
+            
+            -- 应用速度倍率和推力
+            local vx = moveVx * speedMult + pushX
+            local vy = moveVy * speedMult + pushY
+            
             if world and world.enabled and world.moveCircle then
                 e.x, e.y = world:moveCircle(e.x, e.y, (e.size or 16) / 2, vx * dt, vy * dt)
             else

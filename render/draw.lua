@@ -1151,6 +1151,62 @@ function draw.renderWorld(state)
             love.graphics.setLineWidth(1)
         end
         
+        -- === AI状态视觉反馈 ===
+        -- 撤退状态：黄色脉冲光芒
+        if e.aiState == 'retreat' then
+            local pulse = 0.5 + 0.5 * math.sin(love.timer.getTime() * 10)
+            local size = (e.size or 24) / 2 + 2
+            love.graphics.setColor(0.9, 0.8, 0.2, 0.3 + 0.2 * pulse)
+            love.graphics.setLineWidth(2)
+            love.graphics.circle('line', e.x, e.y, size + 3 * pulse)
+            -- 撤退方向指示线
+            if e.retreatDirX and e.retreatDirY then
+                local lineLen = 20
+                love.graphics.setColor(0.9, 0.8, 0.2, 0.5)
+                love.graphics.line(e.x, e.y, e.x + e.retreatDirX * lineLen, e.y + e.retreatDirY * lineLen)
+            end
+            love.graphics.setLineWidth(1)
+        end
+        
+        -- 风筝状态：蓝色虚线圈
+        if e.aiState == 'kiting' then
+            local size = (e.size or 24) / 2 + 8
+            love.graphics.setColor(0.4, 0.7, 1, 0.35)
+            love.graphics.setLineWidth(1)
+            -- 绘制虚线圈效果
+            local segments = 8
+            for i = 1, segments do
+                local ang1 = (i - 1) / segments * math.pi * 2 + love.timer.getTime() * 2
+                local ang2 = ang1 + math.pi / segments * 0.7
+                love.graphics.arc('line', 'open', e.x, e.y, size, ang1, ang2)
+            end
+            love.graphics.setLineWidth(1)
+        end
+        
+        -- 狂暴状态：红色火焰光环
+        if e.aiState == 'berserk' then
+            local pulse = 0.6 + 0.4 * math.sin(love.timer.getTime() * 8)
+            local size = (e.size or 24) / 2 + 10
+            -- 外层红色光晕
+            love.graphics.setColor(1, 0.2, 0.1, 0.25 * pulse)
+            love.graphics.circle('fill', e.x, e.y, size * pulse)
+            -- 内层亮红圈
+            love.graphics.setColor(1, 0.3, 0.1, 0.5 + 0.3 * pulse)
+            love.graphics.setLineWidth(3)
+            love.graphics.circle('line', e.x, e.y, size * 0.7)
+            -- 火焰粒子效果（简化版）
+            for i = 1, 4 do
+                local ang = love.timer.getTime() * 3 + i * math.pi / 2
+                local dist = size * 0.5 + size * 0.2 * math.sin(love.timer.getTime() * 6 + i)
+                local fx = e.x + math.cos(ang) * dist
+                local fy = e.y + math.sin(ang) * dist
+                love.graphics.setColor(1, 0.5, 0.1, 0.6 * pulse)
+                love.graphics.circle('fill', fx, fy, 3 + pulse * 2)
+            end
+            love.graphics.setLineWidth(1)
+        end
+        -- === END AI状态视觉反馈 ===
+        
         if e.status and e.status.static then
             local r = (e.size or 16) * 0.75
             vfx.drawElectricAura(e.x, e.y, r, 0.9)

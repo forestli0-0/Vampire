@@ -27,6 +27,12 @@ local enemyDefs = {
         attacks = {
             melee = {range = 45, windup = 0.4, cooldown = 1.2, damage = 18, w = 6},  -- +50% dmg
             throw = {range = 200, rangeMin = 60, windup = 0.5, cooldown = 2.0, damage = 15, bulletSpeed = 365, bulletLife = 2, bulletSize = 8, w = 3}  -- +50% dmg
+        },
+        -- AI行为配置：近战型
+        aiBehavior = {
+            type = 'melee',
+            retreatThreshold = 0.2,
+            retreatDuration = 1.0,
         }
     },
     bat = {
@@ -48,6 +54,14 @@ local enemyDefs = {
         healthType = 'INFESTED',
         attacks = {
             burst = {range = 400, rangeMin = 80, windup = 0.6, count = 3, spread = 0.4, bulletSpeed = 340, bulletDamage = 18, bulletLife = 4, bulletSize = 10, cooldown = 3.5, w = 10}  -- +50% dmg
+        },
+        -- AI行为配置：远程型（风筝）
+        aiBehavior = {
+            type = 'ranged',
+            preferredRange = 320,
+            kiteRange = 140,
+            retreatThreshold = 0.2,
+            retreatDuration = 0.8,
         }
     },
     charger = {
@@ -59,6 +73,12 @@ local enemyDefs = {
         attacks = {
             charge = {range = 320, rangeMin = 80, windup = 0.55, distance = 260, speed = 500, cooldown = 1.6, damage = 40, telegraphWidth = 40, w = 8},  -- +43% dmg
             slam = {range = 80, windup = 0.6, radius = 60, cooldown = 1.4, damage = 25, w = 5}  -- +39% dmg
+        },
+        -- AI行为配置：冲锋型（更鲁莽）
+        aiBehavior = {
+            type = 'charger',
+            retreatThreshold = 0.15,
+            retreatDuration = 0.6,
         }
     },
     spore_mortar = {
@@ -178,7 +198,15 @@ local enemyDefs = {
         noDrops = true,
         healthType = 'FOSSILIZED',
         shieldType = 'PROTO_SHIELD',
-        armorType = 'INFESTED_SINEW'
+        armorType = 'INFESTED_SINEW',
+        -- AI行为配置：Boss狂暴
+        aiBehavior = {
+            type = 'boss',
+            berserkThreshold = 0.25,
+            berserkSpeedMult = 1.5,
+            berserkDamageMult = 1.35,
+            noRetreat = true,
+        }
     },
     -- ========== Batch 1: Simple Ranged Enemies (WF-style) ==========
     -- Lancer: Basic ranged rifleman, single accurate shots
@@ -192,6 +220,13 @@ local enemyDefs = {
             shoot = {range = 350, rangeMin = 100, windup = 0.6, cooldown = 1.2, 
                      count = 1, spread = 0.05, bulletSpeed = 585, bulletDamage = 15,  -- cooldown 1.8 → 1.2
                      bulletLife = 3, bulletSize = 6, w = 10}
+        },
+        -- AI行为配置：远程型（风筝）
+        aiBehavior = {
+            type = 'ranged',
+            preferredRange = 280,
+            kiteRange = 120,
+            retreatThreshold = 0.25,
         }
     },
     -- Heavy Gunner: Sustained fire suppression, armored
@@ -207,6 +242,12 @@ local enemyDefs = {
             burst = {range = 320, rangeMin = 80, windup = 0.4, cooldown = 2.0,
                      count = 6, spread = 0.35, bulletSpeed = 495, bulletDamage = 10,  -- 6 → 10
                      bulletLife = 2.5, bulletSize = 5, w = 10}
+        },
+        -- AI行为配置：远程型（不风筝，坦克）
+        aiBehavior = {
+            type = 'ranged',
+            preferredRange = 200,
+            retreatThreshold = 0.15,  -- 重装不容易逃跑
         }
     },
     -- Ballista: Sniper with long windup, high damage, telegraph line
@@ -263,6 +304,12 @@ local enemyDefs = {
         healAura = {radius = 160, healRate = 12},  -- heals 12 HP/sec to nearby enemies (8 → 12)
         attacks = {
             melee = {range = 55, windup = 0.6, cooldown = 2.2, damage = 18, w = 10}  -- 12 → 18
+        },
+        -- AI行为配置：支援型（更容易撤退）
+        aiBehavior = {
+            type = 'support',
+            retreatThreshold = 0.4,  -- 治疗者更容易撤退
+            retreatDuration = 1.8,
         }
     },
     -- Volatile Runner: Fast suicidal exploder
@@ -276,6 +323,11 @@ local enemyDefs = {
         attacks = {
             suicide = {range = 35, windup = 0.15, cooldown = 999,
                        damage = 50, explosionRadius = 80, w = 10}  -- 35 → 50
+        },
+        -- AI行为配置：自爆型（不撤退）
+        aiBehavior = {
+            type = 'suicide',
+            noRetreat = true,
         }
     },
     -- Nullifier: Bubble that blocks player abilities
