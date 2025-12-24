@@ -960,8 +960,8 @@ function draw.renderWorld(state)
         love.graphics.setColor(0,0,0,0.25)
         love.graphics.ellipse('fill', e.x, e.y + (e.size or 16) * 0.55, shadowR, shadowY)
 
-        -- Outline for elites/bosses (drawn behind base)
-        if e.isBoss or e.isElite then
+        -- Outline for elites/bosses (drawn behind base, skip if dying)
+        if (e.isBoss or e.isElite) and not e.isDying then
             local outlineCol
             if e.isBoss then
                 outlineCol = {1, 0.6, 0.2, 0.85}
@@ -969,12 +969,33 @@ function draw.renderWorld(state)
                 outlineCol = {1, 0.15, 0.15, 0.75}
             end
             local t = e.isBoss and 2 or 1
-            if e.anim then
-                local sx = e.facing or 1
-                drawOutlineAnim(e.anim, e.x, e.y, 0, sx, 1, t, outlineCol)
+            
+            -- 获取敌人的当前动画（使用新动画系统）
+            local outlineAnim = e.anim
+            if not outlineAnim and state.enemyAnimSets and state.enemyAnims then
+                local animKey = state.enemyAnims.getAnimKeyForType(e.kind or 'skeleton')
+                local anims = state.enemyAnimSets[animKey] or state.enemyAnimSets['skeleton']
+                if anims then
+                    outlineAnim = anims.move or anims.idle
+                end
+            end
+            
+            if outlineAnim then
+                -- 计算正确的缩放（与主体绘制保持一致）
+                local animKey = state.enemyAnims and state.enemyAnims.getAnimKeyForType(e.kind or 'skeleton') or 'skeleton'
+                local frameSize = state.enemyAnims and state.enemyAnims.getFrameSize(animKey) or 150
+                local spriteVisualHeight = frameSize * 0.27
+                local targetSize = e.size or 24
+                local scale = targetSize / spriteVisualHeight
+                local sx = (e.facing or 1) * scale
+                local sy = scale
+                drawOutlineAnim(outlineAnim, e.x, e.y, 0, sx, sy, t, outlineCol)
             else
+                -- 回退：绘制空心轮廓矩形（而不是填充矩形）
                 love.graphics.setColor(outlineCol)
-                drawOutlineRect(e.x, e.y, e.size or 16, t)
+                love.graphics.setLineWidth(t + 1)
+                love.graphics.rectangle('line', e.x - (e.size or 16) / 2 - t, e.y - (e.size or 16) / 2 - t, (e.size or 16) + t * 2, (e.size or 16) + t * 2)
+                love.graphics.setLineWidth(1)
                 love.graphics.setColor(1, 1, 1, 1)
             end
         end
