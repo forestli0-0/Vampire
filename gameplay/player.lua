@@ -371,6 +371,8 @@ function player.tryDash(state, dirX, dirY)
     local dash = ensureDashState(p)
     if not dash or (dash.maxCharges or 0) <= 0 then return false end
     if (dash.timer or 0) > 0 then return false end
+    -- 如果正在 Bullet Jump，不触发普通 dash
+    if (p.bulletJumpTimer or 0) > 0 then return false end
     if (dash.charges or 0) <= 0 then return false end
 
     local dx, dy = dirX, dirY
@@ -575,6 +577,9 @@ function player.keypressed(state, key)
             if len < 0.001 then dx, len = (p.facing or 1), 1 end
             
             dash.charges = dash.charges - 1
+            -- 清除普通 dash timer，防止 Bullet Jump 结束后又触发普通 dash
+            dash.timer = 0
+            
             p.bulletJumpTimer = BULLET_JUMP_DURATION
             p.bjDx, p.bjDy = (dx/len), (dy/len)
             
@@ -880,6 +885,17 @@ function player.updateMovement(state, dt)
     p.isMoving = moving
     local mdx, mdy = p.x - ox, p.y - oy
     p.movedDist = math.sqrt(mdx * mdx + mdy * mdy)
+    
+    -- 保存移动方向（用于8向动画）
+    -- 使用实际移动方向，如果没移动则保持上一次的方向
+    if p.movedDist > 0.1 then
+        p.moveDirX = mdx
+        p.moveDirY = mdy
+    elseif moving and (dx ~= 0 or dy ~= 0) then
+        -- 正在尝试移动但碰到墙，使用输入方向
+        p.moveDirX = dx
+        p.moveDirY = dy
+    end
     
     -- VOLT PASSIVE: Static Discharge - accumulate electric charge while moving
     -- Only for Volt class

@@ -220,54 +220,69 @@ function assets.init(state)
         state.bgTile = { image = bgTexture, w = tileW, h = tileH }
     end
 
-    -- Player animation: load from assets or generate a placeholder sheet.
-    local playerAnim, playerAnimEmit = loadMoveAnimationFromFolder('player', 4, 8)
-    if playerAnim then
-        state.playerAnim = playerAnim
-        state.playerAnimEmissive = playerAnimEmit
+    -- Player animation: 加载8向动画集
+    local playerAnimsLoader = require('render.player_anims')
+    state.playerAnimSets = playerAnimsLoader.loadAllAnimSets()
+    
+    -- 兼容性：默认动画指向南向跑步动画
+    if state.playerAnimSets and state.playerAnimSets.run then
+        state.playerAnim = state.playerAnimSets.run.S
+        print('[Assets] 已加载玩家8向动画集')
     else
-        local frameW, frameH = 32, 32
-        local animDuration = 0.8
-        local cols, rows = 6, 2
-        local sheetData = love.image.newImageData(frameW * cols, frameH * rows)
-        for row = 0, rows - 1 do
-            for col = 0, cols - 1 do
-                local baseR = 0.45 + 0.05 * row
-                local baseG = 0.75 - 0.04 * col
-                local baseB = 0.55
-                for x = col * frameW, (col + 1) * frameW - 1 do
+        -- 回退到旧版单向动画
+        local playerAnim, playerAnimEmit = loadMoveAnimationFromFolder('player', 4, 8)
+        if playerAnim then
+            state.playerAnim = playerAnim
+            state.playerAnimEmissive = playerAnimEmit
+            print('[Assets] 使用旧版单向动画')
+        else
+            local frameW, frameH = 32, 32
+            local animDuration = 0.8
+            local cols, rows = 6, 2
+            local sheetData = love.image.newImageData(frameW * cols, frameH * rows)
+            for row = 0, rows - 1 do
+                for col = 0, cols - 1 do
+                    local baseR = 0.45 + 0.05 * row
+                    local baseG = 0.75 - 0.04 * col
+                    local baseB = 0.55
+                    for x = col * frameW, (col + 1) * frameW - 1 do
+                        for y = row * frameH, (row + 1) * frameH - 1 do
+                            local xf = (x - col * frameW) / frameW
+                            local yf = (y - row * frameH) / frameH
+                            local shade = (math.sin((col + 1) * 0.6) * 0.05) + (yf * 0.08)
+                            local r = baseR + shade
+                            local g = baseG - shade * 0.5
+                            local b = baseB + shade * 0.4
+                            if yf < 0.35 and xf > 0.3 and xf < 0.7 then
+                                r = r + 0.1; g = g + 0.1; b = b + 0.1
+                            end
+                            if yf > 0.75 then
+                                r = r - 0.05 * math.sin(col + row)
+                                g = g - 0.05 * math.cos(col + row)
+                            end
+                            sheetData:setPixel(x, y, r, g, b, 1)
+                        end
+                    end
+                    for x = col * frameW, (col + 1) * frameW - 1 do
+                        sheetData:setPixel(x, row * frameH, 0, 0, 0, 1)
+                        sheetData:setPixel(x, (row + 1) * frameH - 1, 0, 0, 0, 1)
+                    end
                     for y = row * frameH, (row + 1) * frameH - 1 do
-                        local xf = (x - col * frameW) / frameW
-                        local yf = (y - row * frameH) / frameH
-                        local shade = (math.sin((col + 1) * 0.6) * 0.05) + (yf * 0.08)
-                        local r = baseR + shade
-                        local g = baseG - shade * 0.5
-                        local b = baseB + shade * 0.4
-                        if yf < 0.35 and xf > 0.3 and xf < 0.7 then
-                            r = r + 0.1; g = g + 0.1; b = b + 0.1
-                        end
-                        if yf > 0.75 then
-                            r = r - 0.05 * math.sin(col + row)
-                            g = g - 0.05 * math.cos(col + row)
-                        end
-                        sheetData:setPixel(x, y, r, g, b, 1)
+                        sheetData:setPixel(col * frameW, y, 0, 0, 0, 1)
+                        sheetData:setPixel((col + 1) * frameW - 1, y, 0, 0, 0, 1)
                     end
                 end
-                for x = col * frameW, (col + 1) * frameW - 1 do
-                    sheetData:setPixel(x, row * frameH, 0, 0, 0, 1)
-                    sheetData:setPixel(x, (row + 1) * frameH - 1, 0, 0, 0, 1)
-                end
-                for y = row * frameH, (row + 1) * frameH - 1 do
-                    sheetData:setPixel(col * frameW, y, 0, 0, 0, 1)
-                    sheetData:setPixel((col + 1) * frameW - 1, y, 0, 0, 0, 1)
-                end
             end
+            local sheet = love.graphics.newImage(sheetData)
+            sheet:setFilter('nearest', 'nearest')
+            state.playerAnim = animation.newAnimation(sheet, frameW, frameH, animDuration)
+            state.playerAnimEmissive = nil
+            print('[Assets] 使用生成的占位动画')
         end
-        local sheet = love.graphics.newImage(sheetData)
-        sheet:setFilter('nearest', 'nearest')
-        state.playerAnim = animation.newAnimation(sheet, frameW, frameH, animDuration)
-        state.playerAnimEmissive = nil
     end
+    
+    -- 保存动画加载器引用
+    state.playerAnimsLoader = playerAnimsLoader
 
     local weaponKeys = {
         'wand','holy_wand','axe','death_spiral','fire_wand','oil_bottle','heavy_hammer','dagger','static_orb','garlic','ice_ring',

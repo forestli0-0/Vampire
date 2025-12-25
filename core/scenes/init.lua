@@ -189,9 +189,8 @@ local function updatePlaying(state, dt)
     end
 
     -- ==================== 玩家动画更新 ====================
-    if state.playerAnim then
-        -- ==================== 动画状态机逻辑 ====================
-        -- 根据玩家状态决定动画行为
+    if state.playerAnimSets or state.playerAnim then
+        -- ==================== 8向动画状态机逻辑 ====================
         local p = state.player
         local dash = p.dash or {}
         local melee = p.meleeState or {}
@@ -199,43 +198,96 @@ local function updatePlaying(state, dt)
         -- 确定当前动画状态
         local animState = 'idle'
         local animSpeed = 1.0
+        local animSetKey = 'run'  -- 使用的动画集
         
-        if (dash.timer or 0) > 0 or (p.bulletJumpTimer or 0) > 0 then
-            -- 冲刺/Bullet Jump：快速播放动画
+        -- 检测冲刺/Bullet Jump状态
+        local isDashing = (dash.timer or 0) > 0
+        local isBulletJumping = (p.bulletJumpTimer or 0) > 0
+        local isInDashState = isDashing or isBulletJumping
+        
+        if isInDashState then
+            -- 冲刺/Bullet Jump：使用滑行动画
             animState = 'dash'
-            animSpeed = 2.5
+            animSetKey = 'slide'
+            animSpeed = 2.0
+            
+            -- 检测是否刚进入冲刺状态（从非冲刺变为冲刺）
+            -- 使用组合标志追踪：只有当之前没有任何冲刺状态时才重置动画
+            local wasInAnyDash = p.wasDashing or p.wasBulletJumping
+            if not wasInAnyDash then
+                -- 刚开始冲刺，重置动画到第一帧
+                if state.playerAnim and state.playerAnim.gotoFrame then
+                    state.playerAnim:gotoFrame(1)
+                end
+            end
+            
+            -- 更新状态追踪
+            p.wasDashing = isDashing
+            p.wasBulletJumping = isBulletJumping
         elseif melee.phase and melee.phase ~= 'idle' then
-            -- 近战攻击：根据攻击类型调整速度
+            -- 近战攻击：使用跑步动画但快速播放
             animState = 'attack'
+            animSetKey = 'run'
             if melee.attackType == 'heavy' then
-                animSpeed = 0.8  -- 重击慢一些
+                animSpeed = 0.8
             else
-                animSpeed = 1.5  -- 轻击快一些
+                animSpeed = 1.5
             end
         elseif p.isSliding then
-            -- 滑行：中速播放
-            animState = 'slide'
-            animSpeed = 1.8
+            -- Shift 滑行状态：使用跑步动画（滑行动画只用于 Space 闪避）
+            animState = 'slide_run'
+            animSetKey = 'run'
+            animSpeed = 1.2  -- 稍快一点表示滑行状态
+            p.wasDashing = false
+            p.wasBulletJumping = false
         elseif p.isMoving then
-            -- 移动中：正常速度
+            -- 移动中：使用跑步动画
             animState = 'run'
+            animSetKey = 'run'
             animSpeed = 1.0
+            p.wasDashing = false
+            p.wasBulletJumping = false
         else
-            -- 静止：慢速呼吸感
+            -- 静止：使用待机动画
             animState = 'idle'
-            animSpeed = 0.3
+            animSetKey = 'idle'  -- 使用专门的待机动画集
+            animSpeed = 1.0      -- 待机动画本身就是慢速设计的（6FPS）
+            p.wasDashing = false
+            p.wasBulletJumping = false
         end
         
         -- 保存状态供其他系统使用
         p.animState = animState
         
-        -- 根据状态播放动画
-        if animState == 'idle' then
-            -- Idle状态：慢速播放，给一个"呼吸"效果
-            if not state.playerAnim.playing then state.playerAnim:play(false) end
-            state.playerAnim:update(dt * animSpeed)
-        else
-            -- 其他状态：正常播放
+        -- ==================== 8向动画方向选择 ====================
+        if state.playerAnimSets and state.playerAnimsLoader then
+            -- 使用 moveDirX/moveDirY（在 player.updateMovement 中保存）
+            local vx = p.moveDirX or 0
+            local vy = p.moveDirY or 0
+            
+            -- 使用上一次移动方向作为默认（站立时保持方向）
+            local dir = p.animDirection or 'S'
+            
+            -- 如果有移动方向，更新动画方向
+            if math.abs(vx) > 0.01 or math.abs(vy) > 0.01 then
+                dir = state.playerAnimsLoader.getDirectionFromVelocity(vx, vy)
+                p.animDirection = dir
+            end
+            
+            -- 选择正确的动画集和方向
+            local animSet = state.playerAnimSets[animSetKey]
+            if animSet and animSet[dir] then
+                -- 如果动画切换了，需要重设
+                local newAnim = animSet[dir]
+                if state.playerAnim ~= newAnim then
+                    state.playerAnim = newAnim
+                    if newAnim.play then newAnim:play(true) end
+                end
+            end
+        end
+        
+        -- 更新当前动画
+        if state.playerAnim then
             if not state.playerAnim.playing then state.playerAnim:play(false) end
             state.playerAnim:update(dt * animSpeed)
         end

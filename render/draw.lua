@@ -1502,10 +1502,15 @@ function draw.renderWorld(state)
     -- 玩家阴影
     do
         local size = state.player.size or 20
+        -- 8向动画使用64x64精灵，需要更大的影子偏移
+        local use8Dir = state.playerAnimSets ~= nil
+        local spriteSize = use8Dir and 64 or size
         local shadowR = size * 0.7
         local shadowY = shadowR * 0.35
+        -- 影子偏移：精灵高度的一半减去一点（让影子在脚下）
+        local shadowOffset = use8Dir and (spriteSize * 0.4) or (size * 0.55)
         love.graphics.setColor(0,0,0,0.25)
-        love.graphics.ellipse('fill', state.player.x, state.player.y + size * 0.55, shadowR, shadowY)
+        love.graphics.ellipse('fill', state.player.x, state.player.y + shadowOffset, shadowR, shadowY)
     end
 
     -- 宠物（占位绘制：后续可替换为独立动画/皮肤）
@@ -1649,21 +1654,30 @@ function draw.renderWorld(state)
 
     -- Player outline (drawn behind base)
     if state.playerAnim then
+        -- 8向动画不需要水平翻转
+        local use8Dir = state.playerAnimSets ~= nil
+        local outlineFacingScale = use8Dir and 1 or (state.player.facing >= 0 and 1 or -1)
+        
         if isSmearing then
-            -- 涂抹帧：使用旋转+拉伸
+            -- 涂抹帧：使用拉伸（8向动画不旋转）
             love.graphics.push()
             love.graphics.translate(state.player.x, state.player.y)
-            love.graphics.rotate(smearRotation)
+            
+            -- 8向动画时不旋转
+            if not use8Dir then
+                love.graphics.rotate(smearRotation)
+            end
+            
             love.graphics.setColor(0.9, 0.95, 1, 0.55)
-            state.playerAnim:draw(0, 0, 0, smearScaleX * (state.player.facing >= 0 and 1 or -1), smearScaleY)
+            state.playerAnim:draw(0, 0, 0, smearScaleX * outlineFacingScale, smearScaleY)
             -- 绘制拖影副本（涂抹帧的"中间帧"）
             if smearScaleX > 1.2 then
                 love.graphics.setColor(0.8, 0.9, 1, 0.25)
-                state.playerAnim:draw(-8 * smearScaleX, 0, 0, smearScaleX * 0.9 * (state.player.facing >= 0 and 1 or -1), smearScaleY * 0.95)
+                state.playerAnim:draw(-8 * smearScaleX, 0, 0, smearScaleX * 0.9 * outlineFacingScale, smearScaleY * 0.95)
             end
             love.graphics.pop()
         else
-            drawOutlineAnim(state.playerAnim, state.player.x, state.player.y, 0, state.player.facing * transformSX, transformSY, 1, {0.9, 0.95, 1, 0.55})
+            drawOutlineAnim(state.playerAnim, state.player.x, state.player.y, 0, outlineFacingScale * transformSX, transformSY, 1, {0.9, 0.95, 1, 0.55})
         end
     else
         love.graphics.setColor(0.9, 0.95, 1, 0.55)
@@ -1673,15 +1687,25 @@ function draw.renderWorld(state)
 
     if state.playerAnim then
         if blink then love.graphics.setColor(1,1,1,0.35) else love.graphics.setColor(1,1,1) end
+        
+        -- 8向动画不需要水平翻转，因为每个方向有独立动画
+        local use8Dir = state.playerAnimSets ~= nil
+        local facingScale = use8Dir and 1 or (state.player.facing >= 0 and 1 or -1)
+        
         if isSmearing then
             -- 涂抹帧主体
             love.graphics.push()
             love.graphics.translate(state.player.x, state.player.y)
-            love.graphics.rotate(smearRotation)
-            state.playerAnim:draw(0, 0, 0, smearScaleX * (state.player.facing >= 0 and 1 or -1), smearScaleY)
+            
+            -- 8向动画时不旋转（因为精灵本身已有正确朝向），只使用拉伸
+            if not use8Dir then
+                love.graphics.rotate(smearRotation)
+            end
+            
+            state.playerAnim:draw(0, 0, 0, smearScaleX * facingScale, smearScaleY)
             love.graphics.pop()
         else
-            state.playerAnim:draw(state.player.x, state.player.y, 0, state.player.facing * transformSX, transformSY)
+            state.playerAnim:draw(state.player.x, state.player.y, 0, facingScale * transformSX, transformSY)
         end
     else
         if blink then love.graphics.setColor(1,1,1) else love.graphics.setColor(0,1,0) end
