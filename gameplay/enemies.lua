@@ -119,6 +119,12 @@ end
 local enemyDropDefs = (dropRates and dropRates.enemy) or {}
 
 local _calculator = nil
+local function getCalculator()
+    if _calculator then return _calculator end
+    _calculator = require('gameplay.calculator')
+    return _calculator
+end
+
 local function buildDamageModsForTicks(e)
     return status.buildDamageModsForTicks(e)
 end
