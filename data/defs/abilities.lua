@@ -384,7 +384,6 @@ local function build(helpers)
                                     e.health = (e.health or 0) - damage
                                 end
                                 enemies.applyStatus(state, e, 'MAGNETIC', damage, nil, {duration = debuffTime})
-                                enemies.applyStatus(state, e, 'MAGNETIC', damage, nil, {duration = debuffTime})
                                 if state.spawnEffect then state.spawnEffect('static', e.x, e.y, 0.5) end
                             end
                         end
@@ -606,7 +605,7 @@ local function build(helpers)
                     if state.texts then 
                         table.insert(state.texts, {
                             x = p.x, y = p.y - 50, 
-                            text = string.format("极速! +%d%%", math.floor(0.5 * str * 100)), 
+                            text = string.format("极速! +%d%%", math.floor(0.25 * str * 100)), 
                             color = {0.3, 0.8, 1}, 
                             life = 2.0
                         }) 
