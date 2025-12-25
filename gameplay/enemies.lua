@@ -5,114 +5,28 @@ local pets = require('gameplay.pets')
 local dropRates = require('data.defs.drop_rates')
 local status = require('gameplay.status')
 
+-- 引入子模块
+local enemyAI = require('gameplay.enemies.ai')
+local enemyLoot = require('gameplay.enemies.loot')
+
 local enemies = {}
 
 local SHIELD_REGEN_DELAY = 2.5
 local SHIELD_REGEN_RATE = 0.25 -- fraction of max shield per second
 
 --------------------------------------------------------------------------------
--- AI 状态机常量与辅助函数
+-- AI 状态机常量与辅助函数（使用子模块）
 --------------------------------------------------------------------------------
 
--- AI 状态常量
-local AI_STATES = {
-    IDLE = 'idle',       -- 未发现玩家，原地待机
-    CHASE = 'chase',     -- 追击玩家
-    ATTACK = 'attack',   -- 正在执行攻击
-    RETREAT = 'retreat', -- 受伤后撤退
-    KITING = 'kiting',   -- 保持距离射击（远程敌人）
-    BERSERK = 'berserk', -- 低血量狂暴（Boss）
-}
+-- AI 状态常量（从子模块导出，保持向后兼容）
+local AI_STATES = enemyAI.STATES
 
--- 默认AI行为配置
-local DEFAULT_AI_BEHAVIOR = {
-    type = 'melee',
-    retreatThreshold = 0.25,   -- 血量低于25%时考虑撤退
-    retreatDuration = 1.2,     -- 撤退持续时间（秒）
-    retreatDistance = 80,      -- 撤退目标距离
-    retreatCooldown = 5.0,     -- 撤退冷却时间
-}
-
--- 获取敌人AI行为配置
-local function getAIBehavior(e)
-    local def = enemyDefs[e.kind] or {}
-    local behavior = def.aiBehavior or {}
-    -- 合并默认配置
-    return {
-        type = behavior.type or DEFAULT_AI_BEHAVIOR.type,
-        retreatThreshold = behavior.retreatThreshold or DEFAULT_AI_BEHAVIOR.retreatThreshold,
-        retreatDuration = behavior.retreatDuration or DEFAULT_AI_BEHAVIOR.retreatDuration,
-        retreatDistance = behavior.retreatDistance or DEFAULT_AI_BEHAVIOR.retreatDistance,
-        retreatCooldown = behavior.retreatCooldown or DEFAULT_AI_BEHAVIOR.retreatCooldown,
-        noRetreat = behavior.noRetreat or false,
-        preferredRange = behavior.preferredRange,  -- 远程敌人理想距离
-        kiteRange = behavior.kiteRange,            -- 开始风筝的距离阈值
-        berserkThreshold = behavior.berserkThreshold or 0.25,
-        berserkSpeedMult = behavior.berserkSpeedMult or 1.4,
-        berserkDamageMult = behavior.berserkDamageMult or 1.25,
-    }
-end
-
--- 状态转换函数
-local function setAIState(e, newState, reason)
-    if e.aiState ~= newState then
-        e.prevAiState = e.aiState
-        e.aiState = newState
-        e.aiStateTimer = 0
-        e.aiStateReason = reason
-        -- logger.debug('[AI] ' .. (e.kind or 'enemy') .. ' -> ' .. newState .. ' (' .. (reason or '') .. ')')
-    end
-end
-
--- 检查是否应该撤退
-local function shouldRetreat(e, behavior, recentDamage)
-    -- Boss不撤退（进入狂暴）
-    if e.isBoss then return false end
-    -- 配置为不撤退的敌人
-    if behavior.noRetreat then return false end
-    -- 已经在撤退中
-    if e.aiState == AI_STATES.RETREAT then return false end
-    -- 撤退冷却中
-    if (e.retreatCooldownTimer or 0) > 0 then return false end
-    
-    local hpRatio = (e.health or 0) / (e.maxHealth or 1)
-    local threshold = behavior.retreatThreshold or 0.25
-    
-    -- 血量低于阈值时撤退
-    if hpRatio < threshold then
-        return true
-    end
-    
-    -- 短时间内受到大量伤害时也撤退
-    if recentDamage and recentDamage > (e.maxHealth or 1) * 0.3 then
-        return true
-    end
-    
-    return false
-end
-
--- 检查远程敌人是否应该风筝
-local function shouldKite(e, distToPlayer, behavior)
-    -- 只有远程类型敌人会风筝
-    if behavior.type ~= 'ranged' then return false end
-    -- 没有配置风筝距离
-    if not behavior.kiteRange then return false end
-    -- 已经在撤退中
-    if e.aiState == AI_STATES.RETREAT then return false end
-    
-    -- 玩家太近时开始风筝
-    return distToPlayer < behavior.kiteRange
-end
-
--- 检查Boss是否应该进入狂暴
-local function shouldBerserk(e, behavior)
-    if not e.isBoss then return false end
-    if e.aiState == AI_STATES.BERSERK then return false end
-    if e.berserkTriggered then return false end  -- 只触发一次
-    
-    local hpRatio = (e.health or 0) / (e.maxHealth or 1)
-    return hpRatio < (behavior.berserkThreshold or 0.25)
-end
+-- 使用子模块的函数
+local getAIBehavior = enemyAI.getBehavior
+local setAIState = enemyAI.setState
+local shouldRetreat = enemyAI.shouldRetreat
+local shouldKite = enemyAI.shouldKite
+local shouldBerserk = enemyAI.shouldBerserk
 
 --------------------------------------------------------------------------------
 
@@ -2279,158 +2193,8 @@ function enemies.update(state, dt)
                         end
 
 
-                        local exploreMode = (state.runMode == 'explore') or (state.world and state.world.enabled)
-                        if exploreMode then
-                            local gain = e.isElite and 6 or 1
-                            if not e.isElite and math.random() < 0.12 then gain = gain + 1 end
-                            if state.gainGold then
-                                state.gainGold(gain, {source = 'kill', enemy = e, x = e.x, y = e.y - 20, life = 0.55})
-                            else
-                                state.runCurrency = (state.runCurrency or 0) + gain
-                                table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " GOLD", color = {0.95, 0.9, 0.45}, life = 0.55})
-                            end
-        
-                            -- === RESOURCE DROPS (Warframe-style rates) ===
-                            state.floorPickups = state.floorPickups or {}
-                            local pl = state.player
-                            local eRatio = (pl and pl.energy or 0) / (pl and pl.maxEnergy or 100)
-                            local hRatio = (pl and pl.hp or 0) / (pl and pl.maxHp or 100)
-                            
-                            -- WF drop rates: very low base, slight pity boost when critical
-                            -- Normal: health 3%, energy 2%, ammo 3%
-                            -- Pity (low resources): health 6%, energy 5%, ammo 5%
-                            local drop = enemyDropDefs
-                            local pity = drop.pity or {}
-                            local healthChance = (hRatio < (pity.hpThreshold or 0.3)) and (pity.healthLow or 0.06) or (pity.health or 0.03)
-                            local energyChance = (eRatio < (pity.energyThreshold or 0.25)) and (pity.energyLow or 0.05) or (pity.energy or 0.02)
-                            local ammoChance = drop.ammoChance or 0.03
-                            local exploreDef = drop.explore or {}
-                            local eliteDef = exploreDef.elite or {}
-                            local normalDef = exploreDef.normal or {}
-                            
-                            if e.isElite then
-                                -- Elite drops: higher but not guaranteed (WF eximus style)
-                                if math.random() < (eliteDef.healthOrb or 0.20) then
-                                    table.insert(state.floorPickups, {x=e.x + 15, y=e.y, size=12, kind='health_orb', amount=25})
-                                end
-                                if math.random() < (eliteDef.energyOrb or 0.15) then
-                                    table.insert(state.floorPickups, {x=e.x - 15, y=e.y, size=12, kind='energy_orb', amount=35})
-                                end
-                                if math.random() < (eliteDef.ammo or 0.12) then
-                                    table.insert(state.floorPickups, {x=e.x, y=e.y + 15, size=12, kind='ammo', amount=30})
-                                end
-                                -- Pet module chip drop removed (now managed via room/event rewards)
-                            else
-                                -- Normal enemy drops (WF-style low rates)
-                                local roll = math.random()
-                                if roll < healthChance then
-                                    table.insert(state.floorPickups, {x=e.x, y=e.y, size=10, kind='health_orb', amount=15})
-                                elseif roll < healthChance + energyChance then
-                                    table.insert(state.floorPickups, {x=e.x, y=e.y, size=10, kind='energy_orb', amount=25})
-                                end
-                                if math.random() < ammoChance then
-                                    table.insert(state.floorPickups, {x=e.x + 5, y=e.y - 5, size=10, kind='ammo', amount=15})
-                                end
-                            end
-                            
-                            -- MOD DROP for exploreMode (floor pickup)
-                            local modDropChance = e.isElite and (eliteDef.modDrop or 0.80) or (normalDef.modDrop or 0.25)
-                            if math.random() < modDropChance then
-                                table.insert(state.floorPickups, {
-                                    x = e.x,
-                                    y = e.y,
-                                    size = 12,
-                                    kind = 'mod_card',
-                                    bonusRareChance = e.isElite and (eliteDef.bonusRare or 0.5) or 0
-                                })
-                            end
-                        else
-                            local roomsMode = (state.runMode == 'rooms')
-                            -- WF-style drops: health orb, energy orb, resources, rare MOD
-                            state.floorPickups = state.floorPickups or {}  -- IMPORTANT: Ensure floorPickups is initialized!
-                            local drop = enemyDropDefs
-                            local pity = drop.pity or {}
-                            local ammoChance = drop.ammoChance or 0.03
-                            local roomsDef = drop.rooms or {}
-                            local eliteDef = roomsDef.elite or {}
-                            local normalDef = roomsDef.normal or {}
-                            
-                            if e.isElite then
-                                -- Elite drops: WF eximus style (higher but not guaranteed)
-                                local gain = 8 + math.floor((state.rooms and state.rooms.roomIndex) or 1)
-                                if state.gainGold then
-                                    state.gainGold(gain, {source = 'kill', enemy = e, x = e.x, y = e.y - 20, life = 0.65})
-                                else
-                                    state.runCurrency = (state.runCurrency or 0) + gain
-                                    table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " CREDITS", color = {0.95, 0.9, 0.45}, life = 0.65})
-                                end
-                                
-                                -- Health orb (20% chance - WF style)
-                                if math.random() < (eliteDef.healthOrb or 0.20) then
-                                    table.insert(state.floorPickups, {x=e.x + 15, y=e.y, size=12, kind='health_orb'})
-                                end
-                                -- Energy orb (12% chance - WF style)
-                                if math.random() < (eliteDef.energyOrb or 0.12) then
-                                    table.insert(state.floorPickups, {x=e.x - 15, y=e.y, size=12, kind='energy_orb'})
-                                end
-                                -- Ammo drop (30% for elite - 弹药更充足!)
-                                if math.random() < (eliteDef.ammo or 0.30) then
-                                    table.insert(state.floorPickups, {x=e.x, y=e.y + 15, size=12, kind='ammo', amount=30})
-                                end
-                                -- MOD drop (15% for elite - 降低!)
-                                if math.random() < (eliteDef.modDrop or 0.15) then
-                                    table.insert(state.floorPickups, {
-                                        x = e.x,
-                                        y = e.y,
-                                        size = 12,
-                                        kind = 'mod_card',
-                                        bonusRareChance = eliteDef.bonusRare or 0.5
-                                    })
-                                end
-                            else
-                                -- Normal enemy drops (WF-style low rates)
-                                local p = state.player
-                                local eRatio = (p and p.energy or 0) / (p and p.maxEnergy or 100)
-                                local hRatio = (p and p.hp or 0) / (p and p.maxHp or 100)
-                                
-                                -- WF drop rates: very low base, slight pity boost
-                                local healthChance = (hRatio < (pity.hpThreshold or 0.3)) and (pity.healthLow or 0.06) or (pity.health or 0.03)
-                                local energyChance = (eRatio < (pity.energyThreshold or 0.25)) and (pity.energyLow or 0.05) or (pity.energy or 0.02)
-                                local creditChance = normalDef.credit or 0.08
-
-                                local roll = math.random()
-                                if roll < healthChance then
-                                    table.insert(state.floorPickups, {x=e.x, y=e.y, size=10, kind='health_orb'})
-                                elseif roll < healthChance + energyChance then
-                                    table.insert(state.floorPickups, {x=e.x, y=e.y, size=10, kind='energy_orb'})
-                                elseif roll < healthChance + energyChance + creditChance then
-                                    -- Credits drop
-                                    local gain = 1 + (math.random() < 0.3 and 1 or 0)
-                                    if state.gainGold then
-                                        state.gainGold(gain, {source = 'kill', enemy = e, x = e.x, y = e.y - 20, life = 0.55})
-                                    else
-                                        state.runCurrency = (state.runCurrency or 0) + gain
-                                        table.insert(state.texts, {x = e.x, y = e.y - 20, text = "+" .. tostring(gain) .. " CREDITS", color = {0.95, 0.9, 0.45}, life = 0.55})
-                                    end
-                                end
-                                
-                                -- Ammo drop (18% for normal - 弹药充足!)
-                                local normalAmmoChance = normalDef.ammo or 0.18
-                                if math.random() < normalAmmoChance then
-                                    table.insert(state.floorPickups, {x=e.x + 5, y=e.y - 5, size=10, kind='ammo', amount=20})
-                                end
-                                -- Normal enemy MOD drop (5% chance - 大幅降低!)
-                                if math.random() < (normalDef.modDrop or 0.05) then
-                                    table.insert(state.floorPickups, {
-                                        x = e.x,
-                                        y = e.y,
-                                        size = 12,
-                                        kind = 'mod_card',
-                                        bonusRareChance = 0
-                                    })
-                                end
-                            end
-                        end
+                        -- 使用 loot 子模块处理掉落
+                        enemyLoot.process(state, e)
                     end
                     logger.kill(state, e)
                     table.remove(state.enemies, i)
