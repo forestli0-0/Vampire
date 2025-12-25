@@ -955,10 +955,11 @@ function draw.renderWorld(state)
     end
 
     for _, e in ipairs(state.enemies) do
-        local shadowR = (e.size or 16) * 0.6
+        local visualSize = e.visualSize or e.size or 16  -- 使用视觉大小
+        local shadowR = visualSize * 0.6
         local shadowY = shadowR * 0.4
         love.graphics.setColor(0,0,0,0.25)
-        love.graphics.ellipse('fill', e.x, e.y + (e.size or 16) * 0.55, shadowR, shadowY)
+        love.graphics.ellipse('fill', e.x, e.y + visualSize * 0.55, shadowR, shadowY)
 
         -- Outline for elites/bosses (drawn behind base, skip if dying)
         if (e.isBoss or e.isElite) and not e.isDying then
@@ -999,7 +1000,7 @@ function draw.renderWorld(state)
                 local animKey = state.enemyAnims and state.enemyAnims.getAnimKeyForType(e.kind or 'skeleton') or 'skeleton'
                 local frameSize = state.enemyAnims and state.enemyAnims.getFrameSize(animKey) or 150
                 local spriteVisualHeight = frameSize * 0.27
-                local targetSize = e.size or 24
+                local targetSize = e.visualSize or e.size or 24  -- 使用视觉大小进行缩放
                 local scale = targetSize / spriteVisualHeight
                 local sx = (e.facing or 1) * scale
                 local sy = scale
@@ -1090,7 +1091,7 @@ function draw.renderWorld(state)
                     -- 计算缩放
                     local frameSize = enemyAnimsMod.getFrameSize(animKey)
                     local spriteVisualHeight = frameSize * 0.27  -- 可见区域约占 27%
-                    local targetSize = e.size or 24
+                    local targetSize = e.visualSize or e.size or 24  -- 使用视觉大小
                     local scale = targetSize / spriteVisualHeight
                     local sx = (e.facing or 1) * scale
                     local sy = scale
@@ -1110,7 +1111,7 @@ function draw.renderWorld(state)
             
             -- Calculate scale based on enemy size (skeleton base is ~24px tall)
             local baseSize = 24
-            local targetSize = e.size or 24
+            local targetSize = e.visualSize or e.size or 24  -- 使用视觉大小进行缩放
             local scale = targetSize / baseSize
             local sx = (e.facing or 1) * scale
             local sy = scale

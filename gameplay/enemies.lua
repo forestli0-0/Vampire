@@ -516,6 +516,7 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY, opts)
     local shield = def.shield or 0
     local armor = def.armor or 0
     local size = def.size
+    local visualSize = def.visualSize or size  -- 视觉大小，默认等于碰撞箱大小
     local speed = def.speed
 
     local eliteMod = nil
@@ -567,7 +568,8 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY, opts)
     if isElite then
         hp = hp * 5
         shield = shield * 5
-        size = size * 1.5
+        size = size * 1.25  -- 精英怪碰撞箱放大1.25倍
+        visualSize = visualSize * 1.5  -- 精英怪视觉大小放大1.5倍（更显眼）
         tenacity = math.max(tenacity, 0.15)
 
         local mods = {}
@@ -621,7 +623,8 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY, opts)
         isDummy = def.isDummy,
         speed = speed,
         color = color,
-        size = size,
+        size = size,  -- 碰撞箱大小
+        visualSize = visualSize,  -- 视觉显示大小
         isElite = isElite,
         eliteMod = eliteMod,
         eliteDamageMult = eliteDamageMult,
