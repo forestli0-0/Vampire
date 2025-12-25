@@ -13,7 +13,7 @@ C:\Users\15291\Desktop\Vampire\data\defs\catalog\weapons\deprecated.lua: 95 / 2 
 C:\Users\15291\Desktop\Vampire\data\defs\catalog\weapons\legacy.lua: 120 / 2 / 1 / 0
 C:\Users\15291\Desktop\Vampire\data\defs\catalog\augments.lua: 22 / 5 / 7 / 2
 C:\Users\15291\Desktop\Vampire\data\defs\catalog\pets.lua: 23 / 2 / 0 / 0
-C:\Users\15291\Desktop\Vampire\data\defs\catalog\weapons.lua: 14 / 4 / 0 / 2
+C:\Users\15291\Desktop\Vampire\data\defs\catalog\weapons.lua: 13 / 4 / 0 / 2
 C:\Users\15291\Desktop\Vampire\data\defs\mods\companion.lua: 85 / 4 / 2 / 0
 C:\Users\15291\Desktop\Vampire\data\defs\mods\warframe.lua: 92 / 2 / 0 / 0
 C:\Users\15291\Desktop\Vampire\data\defs\mods\weapon.lua: 145 / 2 / 0 / 0
@@ -35,11 +35,12 @@ C:\Users\15291\Desktop\Vampire\debug\test_scenarios.lua: 193 / 36 / 5 / 17
 C:\Users\15291\Desktop\Vampire\gameplay\abilities.lua: 753 / 97 / 72 / 109
 C:\Users\15291\Desktop\Vampire\gameplay\augments.lua: 398 / 31 / 1 / 72
 C:\Users\15291\Desktop\Vampire\gameplay\calculator.lua: 879 / 96 / 80 / 104
-C:\Users\15291\Desktop\Vampire\gameplay\enemies.lua: 2772 / 223 / 194 / 329
+C:\Users\15291\Desktop\Vampire\gameplay\enemies.lua: 2457 / 218 / 188 / 300
 C:\Users\15291\Desktop\Vampire\gameplay\enemy_defs.lua: 2 / 1 / 0 / 0
 C:\Users\15291\Desktop\Vampire\gameplay\pets.lua: 520 / 62 / 6 / 61
 C:\Users\15291\Desktop\Vampire\gameplay\player.lua: 1137 / 152 / 105 / 135
 C:\Users\15291\Desktop\Vampire\gameplay\projectiles.lua: 627 / 55 / 38 / 105
+C:\Users\15291\Desktop\Vampire\gameplay\status.lua: 338 / 14 / 6 / 33
 C:\Users\15291\Desktop\Vampire\gameplay\weapons.lua: 1112 / 148 / 106 / 135
 C:\Users\15291\Desktop\Vampire\render\animation.lua: 386 / 53 / 81 / 44
 C:\Users\15291\Desktop\Vampire\render\animation_events.lua: 177 / 25 / 60 / 19
@@ -47,12 +48,13 @@ C:\Users\15291\Desktop\Vampire\render\animation_state.lua: 430 / 45 / 82 / 50
 C:\Users\15291\Desktop\Vampire\render\animation_transform.lua: 282 / 36 / 88 / 23
 C:\Users\15291\Desktop\Vampire\render\assets.lua: 388 / 34 / 8 / 63
 C:\Users\15291\Desktop\Vampire\render\bloom.lua: 495 / 72 / 12 / 27
-C:\Users\15291\Desktop\Vampire\render\draw.lua: 2960 / 330 / 225 / 312
+C:\Users\15291\Desktop\Vampire\render\draw.lua: 2537 / 267 / 190 / 286
 C:\Users\15291\Desktop\Vampire\render\effects.lua: 280 / 26 / 0 / 34
 C:\Users\15291\Desktop\Vampire\render\enemy_anims.lua: 224 / 31 / 43 / 16
 C:\Users\15291\Desktop\Vampire\render\hitstop.lua: 230 / 28 / 48 / 21
 C:\Users\15291\Desktop\Vampire\render\pipeline.lua: 355 / 56 / 11 / 41
 C:\Users\15291\Desktop\Vampire\render\player_anims.lua: 281 / 33 / 55 / 23
+C:\Users\15291\Desktop\Vampire\render\shaders.lua: 141 / 19 / 0 / 5
 C:\Users\15291\Desktop\Vampire\render\vfx.lua: 892 / 145 / 11 / 47
 C:\Users\15291\Desktop\Vampire\render\weapon_trail.lua: 286 / 47 / 50 / 33
 C:\Users\15291\Desktop\Vampire\systems\pickups\floor_handlers\combat.lua: 138 / 8 / 8 / 21
@@ -120,10 +122,10 @@ C:\Users\15291\Desktop\Vampire\conf.lua: 40 / 5 / 5 / 1
 C:\Users\15291\Desktop\Vampire\main.lua: 126 / 21 / 23 / 15
 
 SUMMARY:
-Files: 119
-Total lines: 37334
-Blank lines: 4617
-Comment lines (starting with --): 3610
-End lines (only 'end'): 4023
-Approx. code lines (excluding blank, comment, and ends): 25084
+Files: 121
+Total lines: 37074
+Blank lines: 4582
+Comment lines (starting with --): 3575
+End lines (only 'end'): 4006
+Approx. code lines (excluding blank, comment, and ends): 24911
 

@@ -7,7 +7,6 @@ local function merge(source)
 end
 
 merge(require('data.defs.catalog.weapons.active'))
-merge(require('data.defs.catalog.weapons.legacy'))
-merge(require('data.defs.catalog.weapons.deprecated'))
+merge(require('data.defs.catalog.weapons.active'))
 
 return catalog
