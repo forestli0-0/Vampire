@@ -1,63 +1,129 @@
 ﻿Per-file counts (path : total / blank / comment):
-C:\Users\15291\Desktop\Vampire\ui\screens\arsenal_screen.lua: 690 / 118 / 74
-C:\Users\15291\Desktop\Vampire\ui\screens\gameover.lua: 176 / 28 / 18
-C:\Users\15291\Desktop\Vampire\ui\screens\hud.lua: 594 / 76 / 60
-C:\Users\15291\Desktop\Vampire\ui\screens\ingame_menu.lua: 802 / 124 / 65
-C:\Users\15291\Desktop\Vampire\ui\screens\levelup.lua: 348 / 55 / 37
-C:\Users\15291\Desktop\Vampire\ui\screens\shop.lua: 366 / 66 / 37
-C:\Users\15291\Desktop\Vampire\ui\widgets\bar.lua: 331 / 60 / 41
-C:\Users\15291\Desktop\Vampire\ui\widgets\button.lua: 235 / 45 / 36
-C:\Users\15291\Desktop\Vampire\ui\widgets\panel.lua: 151 / 28 / 20
-C:\Users\15291\Desktop\Vampire\ui\widgets\scroll_container.lua: 184 / 41 / 45
-C:\Users\15291\Desktop\Vampire\ui\widgets\slot.lua: 371 / 66 / 61
-C:\Users\15291\Desktop\Vampire\ui\widgets\text.lua: 256 / 47 / 34
-C:\Users\15291\Desktop\Vampire\ui\widgets\tooltip.lua: 201 / 43 / 34
-C:\Users\15291\Desktop\Vampire\ui\widgets\widget.lua: 465 / 86 / 89
-C:\Users\15291\Desktop\Vampire\ui\core.lua: 758 / 153 / 116
-C:\Users\15291\Desktop\Vampire\ui\demo.lua: 341 / 44 / 25
-C:\Users\15291\Desktop\Vampire\ui\init.lua: 239 / 42 / 86
-C:\Users\15291\Desktop\Vampire\ui\scaling.lua: 142 / 24 / 34
-C:\Users\15291\Desktop\Vampire\ui\theme.lua: 245 / 38 / 59
-C:\Users\15291\Desktop\Vampire\abilities.lua: 1145 / 110 / 78
-C:\Users\15291\Desktop\Vampire\animation.lua: 135 / 17 / 7
-C:\Users\15291\Desktop\Vampire\arsenal.lua: 706 / 82 / 38
-C:\Users\15291\Desktop\Vampire\augments.lua: 398 / 31 / 1
-C:\Users\15291\Desktop\Vampire\benchmark.lua: 271 / 23 / 10
-C:\Users\15291\Desktop\Vampire\biomes.lua: 83 / 8 / 0
-C:\Users\15291\Desktop\Vampire\bloom.lua: 466 / 68 / 11
-C:\Users\15291\Desktop\Vampire\calculator.lua: 827 / 86 / 42
-C:\Users\15291\Desktop\Vampire\campaign.lua: 167 / 24 / 1
-C:\Users\15291\Desktop\Vampire\conf.lua: 40 / 5 / 5
-C:\Users\15291\Desktop\Vampire\debugmenu.lua: 401 / 21 / 2
-C:\Users\15291\Desktop\Vampire\director.lua: 103 / 11 / 6
-C:\Users\15291\Desktop\Vampire\draw.lua: 2192 / 258 / 164
-C:\Users\15291\Desktop\Vampire\enemies.lua: 2432 / 176 / 110
-C:\Users\15291\Desktop\Vampire\enemy_defs.lua: 300 / 3 / 13
-C:\Users\15291\Desktop\Vampire\input.lua: 93 / 13 / 13
-C:\Users\15291\Desktop\Vampire\logger.lua: 140 / 15 / 0
-C:\Users\15291\Desktop\Vampire\main.lua: 342 / 36 / 33
-C:\Users\15291\Desktop\Vampire\mission.lua: 454 / 52 / 10
-C:\Users\15291\Desktop\Vampire\mods.lua: 861 / 117 / 104
-C:\Users\15291\Desktop\Vampire\pets.lua: 520 / 63 / 3
-C:\Users\15291\Desktop\Vampire\pickups.lua: 579 / 45 / 32
-C:\Users\15291\Desktop\Vampire\player.lua: 970 / 138 / 96
-C:\Users\15291\Desktop\Vampire\projectiles.lua: 525 / 50 / 37
-C:\Users\15291\Desktop\Vampire\rooms.lua: 744 / 87 / 57
-C:\Users\15291\Desktop\Vampire\state.lua: 2330 / 119 / 86
-C:\Users\15291\Desktop\Vampire\stats_rules.lua: 68 / 9 / 9
-C:\Users\15291\Desktop\Vampire\testmode.lua: 114 / 21 / 0
-C:\Users\15291\Desktop\Vampire\test_calculator.lua: 234 / 31 / 53
-C:\Users\15291\Desktop\Vampire\test_scenarios.lua: 193 / 36 / 5
-C:\Users\15291\Desktop\Vampire\upgrades.lua: 488 / 47 / 21
-C:\Users\15291\Desktop\Vampire\util.lua: 22 / 4 / 0
-C:\Users\15291\Desktop\Vampire\vfx.lua: 853 / 136 / 5
-C:\Users\15291\Desktop\Vampire\weapons.lua: 1079 / 147 / 110
-C:\Users\15291\Desktop\Vampire\world.lua: 861 / 103 / 26
+C:\Users\15291\Desktop\Vampire\core\scenes\init.lua: 659 / 95 / 188 / 69
+C:\Users\15291\Desktop\Vampire\core\arsenal.lua: 1156 / 127 / 248 / 137
+C:\Users\15291\Desktop\Vampire\core\input.lua: 249 / 27 / 155 / 9
+C:\Users\15291\Desktop\Vampire\core\logger.lua: 142 / 15 / 0 / 22
+C:\Users\15291\Desktop\Vampire\core\state.lua: 587 / 54 / 43 / 59
+C:\Users\15291\Desktop\Vampire\core\util.lua: 22 / 4 / 0 / 2
+C:\Users\15291\Desktop\Vampire\data\defs\catalog\augments\mechanics.lua: 159 / 2 / 1 / 13
+C:\Users\15291\Desktop\Vampire\data\defs\catalog\augments\mobility.lua: 242 / 9 / 1 / 21
+C:\Users\15291\Desktop\Vampire\data\defs\catalog\augments\projectiles.lua: 208 / 9 / 1 / 15
+C:\Users\15291\Desktop\Vampire\data\defs\catalog\weapons\active.lua: 257 / 2 / 0 / 0
+C:\Users\15291\Desktop\Vampire\data\defs\catalog\weapons\deprecated.lua: 95 / 2 / 9 / 0
+C:\Users\15291\Desktop\Vampire\data\defs\catalog\weapons\legacy.lua: 120 / 2 / 1 / 0
+C:\Users\15291\Desktop\Vampire\data\defs\catalog\augments.lua: 22 / 5 / 7 / 2
+C:\Users\15291\Desktop\Vampire\data\defs\catalog\pets.lua: 23 / 2 / 0 / 0
+C:\Users\15291\Desktop\Vampire\data\defs\catalog\weapons.lua: 14 / 4 / 0 / 2
+C:\Users\15291\Desktop\Vampire\data\defs\mods\companion.lua: 85 / 4 / 2 / 0
+C:\Users\15291\Desktop\Vampire\data\defs\mods\warframe.lua: 92 / 2 / 0 / 0
+C:\Users\15291\Desktop\Vampire\data\defs\mods\weapon.lua: 145 / 2 / 0 / 0
+C:\Users\15291\Desktop\Vampire\data\defs\abilities.lua: 771 / 53 / 17 / 77
+C:\Users\15291\Desktop\Vampire\data\defs\biomes.lua: 41 / 2 / 0 / 0
+C:\Users\15291\Desktop\Vampire\data\defs\campaign.lua: 26 / 2 / 0 / 0
+C:\Users\15291\Desktop\Vampire\data\defs\catalog.lua: 14 / 4 / 0 / 2
+C:\Users\15291\Desktop\Vampire\data\defs\drop_rates.lua: 44 / 2 / 0 / 0
+C:\Users\15291\Desktop\Vampire\data\defs\enemies.lua: 446 / 30 / 37 / 0
+C:\Users\15291\Desktop\Vampire\data\defs\mission.lua: 53 / 2 / 0 / 0
+C:\Users\15291\Desktop\Vampire\data\defs\mods.lua: 8 / 3 / 0 / 0
+C:\Users\15291\Desktop\Vampire\data\defs\mod_rewards.lua: 10 / 2 / 0 / 0
+C:\Users\15291\Desktop\Vampire\data\defs\progression.lua: 16 / 2 / 0 / 0
+C:\Users\15291\Desktop\Vampire\debug\benchmark.lua: 273 / 23 / 10 / 21
+C:\Users\15291\Desktop\Vampire\debug\debugmenu.lua: 425 / 22 / 2 / 44
+C:\Users\15291\Desktop\Vampire\debug\testmode.lua: 114 / 21 / 0 / 14
+C:\Users\15291\Desktop\Vampire\debug\test_calculator.lua: 234 / 31 / 53 / 14
+C:\Users\15291\Desktop\Vampire\debug\test_scenarios.lua: 193 / 36 / 5 / 17
+C:\Users\15291\Desktop\Vampire\gameplay\abilities.lua: 753 / 97 / 72 / 109
+C:\Users\15291\Desktop\Vampire\gameplay\augments.lua: 398 / 31 / 1 / 72
+C:\Users\15291\Desktop\Vampire\gameplay\calculator.lua: 879 / 96 / 80 / 104
+C:\Users\15291\Desktop\Vampire\gameplay\enemies.lua: 2772 / 223 / 194 / 329
+C:\Users\15291\Desktop\Vampire\gameplay\enemy_defs.lua: 2 / 1 / 0 / 0
+C:\Users\15291\Desktop\Vampire\gameplay\pets.lua: 520 / 62 / 6 / 61
+C:\Users\15291\Desktop\Vampire\gameplay\player.lua: 1137 / 152 / 105 / 135
+C:\Users\15291\Desktop\Vampire\gameplay\projectiles.lua: 627 / 55 / 38 / 105
+C:\Users\15291\Desktop\Vampire\gameplay\weapons.lua: 1112 / 148 / 106 / 135
+C:\Users\15291\Desktop\Vampire\render\animation.lua: 386 / 53 / 81 / 44
+C:\Users\15291\Desktop\Vampire\render\animation_events.lua: 177 / 25 / 60 / 19
+C:\Users\15291\Desktop\Vampire\render\animation_state.lua: 430 / 45 / 82 / 50
+C:\Users\15291\Desktop\Vampire\render\animation_transform.lua: 282 / 36 / 88 / 23
+C:\Users\15291\Desktop\Vampire\render\assets.lua: 388 / 34 / 8 / 63
+C:\Users\15291\Desktop\Vampire\render\bloom.lua: 495 / 72 / 12 / 27
+C:\Users\15291\Desktop\Vampire\render\draw.lua: 2960 / 330 / 225 / 312
+C:\Users\15291\Desktop\Vampire\render\effects.lua: 280 / 26 / 0 / 34
+C:\Users\15291\Desktop\Vampire\render\enemy_anims.lua: 224 / 31 / 43 / 16
+C:\Users\15291\Desktop\Vampire\render\hitstop.lua: 230 / 28 / 48 / 21
+C:\Users\15291\Desktop\Vampire\render\pipeline.lua: 355 / 56 / 11 / 41
+C:\Users\15291\Desktop\Vampire\render\player_anims.lua: 281 / 33 / 55 / 23
+C:\Users\15291\Desktop\Vampire\render\vfx.lua: 892 / 145 / 11 / 47
+C:\Users\15291\Desktop\Vampire\render\weapon_trail.lua: 286 / 47 / 50 / 33
+C:\Users\15291\Desktop\Vampire\systems\pickups\floor_handlers\combat.lua: 138 / 8 / 8 / 21
+C:\Users\15291\Desktop\Vampire\systems\pickups\floor_handlers\mission.lua: 20 / 3 / 1 / 2
+C:\Users\15291\Desktop\Vampire\systems\pickups\floor_handlers\pets.lua: 85 / 9 / 2 / 12
+C:\Users\15291\Desktop\Vampire\systems\pickups\floor_handlers\shop.lua: 128 / 8 / 1 / 8
+C:\Users\15291\Desktop\Vampire\systems\pickups\chests.lua: 103 / 9 / 3 / 17
+C:\Users\15291\Desktop\Vampire\systems\pickups\floor.lua: 90 / 14 / 8 / 16
+C:\Users\15291\Desktop\Vampire\systems\pickups\gems.lua: 58 / 8 / 4 / 9
+C:\Users\15291\Desktop\Vampire\systems\pickups\xp.lua: 70 / 12 / 4 / 9
+C:\Users\15291\Desktop\Vampire\systems\upgrades\apply_handlers\augment.lua: 19 / 2 / 0 / 3
+C:\Users\15291\Desktop\Vampire\systems\upgrades\apply_handlers\mod.lua: 29 / 4 / 1 / 5
+C:\Users\15291\Desktop\Vampire\systems\upgrades\apply_handlers\passive.lua: 7 / 1 / 1 / 1
+C:\Users\15291\Desktop\Vampire\systems\upgrades\apply_handlers\pet.lua: 13 / 2 / 0 / 2
+C:\Users\15291\Desktop\Vampire\systems\upgrades\apply_handlers\pet_module.lua: 19 / 2 / 0 / 3
+C:\Users\15291\Desktop\Vampire\systems\upgrades\apply_handlers\pet_upgrade.lua: 18 / 2 / 0 / 1
+C:\Users\15291\Desktop\Vampire\systems\upgrades\apply_handlers\weapon.lua: 19 / 2 / 0 / 2
+C:\Users\15291\Desktop\Vampire\systems\upgrades\apply.lua: 38 / 7 / 3 / 8
+C:\Users\15291\Desktop\Vampire\systems\upgrades\core.lua: 37 / 7 / 1 / 8
+C:\Users\15291\Desktop\Vampire\systems\upgrades\options.lua: 35 / 6 / 1 / 6
+C:\Users\15291\Desktop\Vampire\systems\upgrades\options_helpers.lua: 124 / 13 / 0 / 22
+C:\Users\15291\Desktop\Vampire\systems\upgrades\options_pick.lua: 24 / 3 / 2 / 3
+C:\Users\15291\Desktop\Vampire\systems\upgrades\options_pool.lua: 254 / 27 / 7 / 50
+C:\Users\15291\Desktop\Vampire\systems\upgrades\options_rules.lua: 96 / 8 / 4 / 22
+C:\Users\15291\Desktop\Vampire\systems\upgrades\queue.lua: 22 / 7 / 0 / 3
+C:\Users\15291\Desktop\Vampire\systems\upgrades\queue_helpers.lua: 68 / 10 / 0 / 11
+C:\Users\15291\Desktop\Vampire\systems\analytics.lua: 269 / 44 / 30 / 27
+C:\Users\15291\Desktop\Vampire\systems\mods.lua: 1040 / 149 / 110 / 152
+C:\Users\15291\Desktop\Vampire\systems\pickups.lua: 9 / 3 / 0 / 0
+C:\Users\15291\Desktop\Vampire\systems\progression.lua: 57 / 9 / 0 / 6
+C:\Users\15291\Desktop\Vampire\systems\stats_rules.lua: 68 / 9 / 9 / 6
+C:\Users\15291\Desktop\Vampire\systems\upgrades.lua: 9 / 3 / 0 / 0
+C:\Users\15291\Desktop\Vampire\ui\screens\arsenal_screen.lua: 825 / 132 / 76 / 68
+C:\Users\15291\Desktop\Vampire\ui\screens\gameover.lua: 179 / 28 / 18 / 9
+C:\Users\15291\Desktop\Vampire\ui\screens\hud.lua: 703 / 70 / 51 / 56
+C:\Users\15291\Desktop\Vampire\ui\screens\ingame_menu.lua: 702 / 107 / 62 / 54
+C:\Users\15291\Desktop\Vampire\ui\screens\levelup.lua: 381 / 59 / 36 / 33
+C:\Users\15291\Desktop\Vampire\ui\screens\shop.lua: 402 / 71 / 37 / 28
+C:\Users\15291\Desktop\Vampire\ui\widgets\bar.lua: 331 / 60 / 41 / 42
+C:\Users\15291\Desktop\Vampire\ui\widgets\button.lua: 266 / 52 / 36 / 24
+C:\Users\15291\Desktop\Vampire\ui\widgets\panel.lua: 180 / 31 / 21 / 17
+C:\Users\15291\Desktop\Vampire\ui\widgets\scroll_container.lua: 184 / 41 / 45 / 15
+C:\Users\15291\Desktop\Vampire\ui\widgets\slot.lua: 456 / 78 / 61 / 48
+C:\Users\15291\Desktop\Vampire\ui\widgets\text.lua: 291 / 55 / 35 / 39
+C:\Users\15291\Desktop\Vampire\ui\widgets\tooltip.lua: 201 / 43 / 34 / 17
+C:\Users\15291\Desktop\Vampire\ui\widgets\widget.lua: 479 / 89 / 89 / 69
+C:\Users\15291\Desktop\Vampire\ui\core.lua: 773 / 157 / 118 / 111
+C:\Users\15291\Desktop\Vampire\ui\demo.lua: 341 / 44 / 25 / 10
+C:\Users\15291\Desktop\Vampire\ui\hud_model.lua: 164 / 19 / 0 / 15
+C:\Users\15291\Desktop\Vampire\ui\ingame_menu_model.lua: 150 / 16 / 0 / 19
+C:\Users\15291\Desktop\Vampire\ui\init.lua: 246 / 43 / 87 / 31
+C:\Users\15291\Desktop\Vampire\ui\minimap.lua: 261 / 54 / 38 / 22
+C:\Users\15291\Desktop\Vampire\ui\mods_model.lua: 210 / 26 / 0 / 31
+C:\Users\15291\Desktop\Vampire\ui\scaling.lua: 142 / 24 / 34 / 15
+C:\Users\15291\Desktop\Vampire\ui\theme.lua: 245 / 38 / 59 / 15
+C:\Users\15291\Desktop\Vampire\world\biomes.lua: 45 / 7 / 0 / 8
+C:\Users\15291\Desktop\Vampire\world\campaign.lua: 176 / 24 / 1 / 18
+C:\Users\15291\Desktop\Vampire\world\chapter.lua: 556 / 95 / 73 / 63
+C:\Users\15291\Desktop\Vampire\world\director.lua: 103 / 11 / 6 / 15
+C:\Users\15291\Desktop\Vampire\world\mission.lua: 468 / 52 / 10 / 70
+C:\Users\15291\Desktop\Vampire\world\rooms.lua: 768 / 89 / 53 / 94
+C:\Users\15291\Desktop\Vampire\world\spawner.lua: 302 / 54 / 54 / 36
+C:\Users\15291\Desktop\Vampire\world\world.lua: 861 / 103 / 26 / 137
+C:\Users\15291\Desktop\Vampire\conf.lua: 40 / 5 / 5 / 1
+C:\Users\15291\Desktop\Vampire\main.lua: 126 / 21 / 23 / 15
 
 SUMMARY:
-Files: 55
-Total lines: 28955
-Blank lines: 3509
-Comment lines (starting with --): 2217
-Approx. code lines: 23229
+Files: 119
+Total lines: 37334
+Blank lines: 4617
+Comment lines (starting with --): 3610
+End lines (only 'end'): 4023
+Approx. code lines (excluding blank, comment, and ends): 25084
 
