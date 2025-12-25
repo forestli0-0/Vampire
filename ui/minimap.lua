@@ -10,7 +10,7 @@ local minimap = {}
 local CONFIG = {
     -- Position and size
     x = 10,
-    y = 10,
+    y = 580,
     width = 150,
     height = 100,
     
