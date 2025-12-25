@@ -23,7 +23,7 @@ local hitstop = {
     -- 队列系统：避免顿帧叠加过长
     queue = {},
     maxQueueSize = 3,
-    minInterval = 0.05,   -- 两次顿帧之间的最小间隔
+    minInterval = 0.08,   -- 增加最小间隔，匹配主流步枪 CD
     lastTriggerTime = 0,
 }
 
@@ -34,16 +34,17 @@ local hitstop = {
 hitstop.presets = {
     -- 轻击命中
     light = {
-        duration = 0.06,
-        screenShake = 2,
-        timeScale = 0.05,
+        duration = 0.03,        -- 缩短到 0.03s，确保 0.08s CD 的武器有恢复空间
+        screenShake = 1.5,
+        timeScale = 0.1,        -- 减弱减速程度
         affectsPlayer = false,
+        noGlobalSlowdown = true,
     },
     -- 重击命中
     heavy = {
-        duration = 0.10,
+        duration = 0.08,        -- 缩短到 0.08s
         screenShake = 4,
-        timeScale = 0.02,
+        timeScale = 0.05,
         affectsPlayer = false,
     },
     -- 终结技命中
@@ -62,10 +63,11 @@ hitstop.presets = {
     },
     -- Boss受击
     boss_hit = {
-        duration = 0.09,
-        screenShake = 5,
-        timeScale = 0.02,
+        duration = 0.04,        -- 关键：必须显著小于 Braton 的 0.08s CD
+        screenShake = 3,
+        timeScale = 0.05,       -- 提高基础速度，避免完全静止
         affectsPlayer = false,
+        noGlobalSlowdown = true, -- 新增标志：指示是否跳过全局敌人减速
     },
     -- 玩家受击（短暂，增加紧迫感）
     player_hit = {
@@ -130,6 +132,7 @@ function hitstop.trigger(preset, opts)
     hitstop.affectsEnemies = config.affectsEnemies ~= false
     hitstop.affectsProjectiles = config.affectsProjectiles or false
     hitstop.affectsEffects = config.affectsEffects or false
+    hitstop.noGlobalSlowdown = config.noGlobalSlowdown or false
     hitstop.lastTriggerTime = now
     
     return true

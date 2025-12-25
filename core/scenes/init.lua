@@ -110,10 +110,12 @@ local function updatePlaying(state, dt)
     -- 自定义特效更新回调（如果有）
     if state.updateEffects then state.updateEffects(dt) end
 
-    -- ==================== 顿帧系统更新 ====================
-    -- 顿帧会影响敌人的更新速度，但不影响玩家输入和UI
+    -- 顿帧会影响实体的更新速度
     local hitstopDt = hitstop.update(dt)
-    local enemyDt = hitstop.shouldPause('enemy') and hitstopDt or dt
+    
+    -- 如果是局部顿帧（如常规受击），不减速全局敌人，由敌人内部 handle 局部减速
+    local useGlobalSlowdown = hitstop.shouldPause('enemy') and not hitstop.noGlobalSlowdown
+    local enemyDt = useGlobalSlowdown and hitstopDt or dt
     
     -- 添加顿帧产生的额外屏幕震动
     local hitstopShake = hitstop.getScreenShake()

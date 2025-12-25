@@ -806,6 +806,18 @@ function enemies.update(state, dt)
     for i = #state.enemies, 1, -1 do
         local e = state.enemies[i]
         ensureStatus(e)
+        
+        -- === 局部顿帧处理 ===
+        local localDt = dt
+        if e.hitstopTimer and e.hitstopTimer > 0 then
+            e.hitstopTimer = e.hitstopTimer - dt
+            localDt = dt * (e.hitstopTimeScale or 0.05)
+            if e.hitstopTimer <= 0 then
+                e.hitstopTimer = 0
+            end
+        end
+        -- 使用 localDt 替换后续逻辑中的 dt
+        local dt = localDt 
         local def = enemyDefs[e.kind] or enemyDefs.skeleton
         local tenacity = clamp(e.tenacity or 0, 0, 0.95)
         local hardCcImmune = (e.hardCcImmune == true) or (def and def.hardCcImmune == true) or false
@@ -2738,6 +2750,22 @@ function enemies.update(state, dt)
         
         ::continue_enemy_loop::
     end
+end
+
+--- 为敌人应用局部顿帧
+---@param e table 敌人对象
+---@param preset table|string 预设或名称
+function enemies.applyLocalHitstop(e, preset)
+    local hitstop = require('render.hitstop')
+    local config = {}
+    if type(preset) == 'string' and hitstop.presets[preset] then
+        config = hitstop.presets[preset]
+    elseif type(preset) == 'table' then
+        config = preset
+    end
+    
+    e.hitstopTimer = config.duration or 0.05
+    e.hitstopTimeScale = config.timeScale or 0.05
 end
 
 return enemies

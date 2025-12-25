@@ -678,6 +678,11 @@ function calculator.applyDamage(state, enemy, instance, opts)
             end
             
             hitstop.trigger(hitstopPreset)
+            
+            -- 同时应用局部顿帧，确保目标受到减速影响（即使 noGlobalSlowdown 为 true）
+            if enemies.applyLocalHitstop then
+                enemies.applyLocalHitstop(enemy, hitstopPreset)
+            end
         end
 
         if instance.knock then
