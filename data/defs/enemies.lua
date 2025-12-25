@@ -64,7 +64,7 @@ local enemyDefs = {
         color = {0.8, 0.8, 0.8},
         healthType = 'FLESH',  -- 血肉类型（影响伤害计算）
         attacks = {
-            melee = {range = 45, windup = 0.4, cooldown = 1.2, damage = 18, w = 6},  -- 近战攻击：范围45，前摇0.4秒，冷却1.2秒，伤害18，权重6
+            melee = {range = 55, windup = 0.4, cooldown = 1.2, damage = 18, w = 6},  -- 近战攻击：范围55，前摇0.4秒，冷却1.2秒，伤害18，权重6
             throw = {range = 200, rangeMin = 60, windup = 0.5, cooldown = 2.0, damage = 15, bulletSpeed = 365, bulletLife = 2, bulletSize = 8, w = 3}  -- 投掷攻击：范围200-60，前摇0.5秒，冷却2秒，伤害15，子弹速度365，存活2秒，权重3
         },
         -- AI行为配置：近战型
@@ -84,7 +84,7 @@ local enemyDefs = {
         color = {0.6, 0, 1},
         healthType = 'FLESH',  -- 血肉类型
         attacks = {
-            melee = {range = 35, windup = 0.25, cooldown = 0.6, damage = 12, w = 5},  -- 近战：快速攻击，前摇0.25秒，冷却0.6秒
+            melee = {range = 45, windup = 0.25, cooldown = 0.6, damage = 12, w = 5},  -- 近战：快速攻击，前摇0.25秒，冷却0.6秒，范围45
             leap = {range = 150, rangeMin = 50, windup = 0.3, distance = 100, speed = 600, cooldown = 1.4, damage = 18, w = 4}  -- 跳跃攻击：范围150-50，前摇0.3秒，跳跃距离100，速度600，伤害18
         }
     },
@@ -225,7 +225,7 @@ local enemyDefs = {
         shieldType = 'SHIELD',  -- 护盾类型
         armorType = 'FERRITE_ARMOR',  -- 铁素护甲
         attacks = {
-            melee = {range = 50, windup = 0.5, cooldown = 2.0, damage = 15, w = 5},  -- 近战攻击：范围50，前摇0.5秒，冷却2秒，伤害15
+            melee = {range = 60, windup = 0.5, cooldown = 2.0, damage = 15, w = 5},  -- 近战攻击：范围60，前摇0.5秒，冷却2秒，伤害15
             shield_bash = {range = 120, windup = 0.4, distance = 80, speed = 400, cooldown = 3.0, damage = 18, knockback = 100, telegraphWidth = 30, w = 4}  -- 盾击：范围120，前摇0.4秒，冲锋距离80，速度400，伤害18，击退100，预警宽度30
         }
     },
@@ -241,7 +241,7 @@ local enemyDefs = {
         healthType = 'CLONED_FLESH',  -- 克隆血肉类型
         armorType = 'ALLOY_ARMOR',  -- 合金护甲（更高防御）
         attacks = {
-            melee = {range = 60, windup = 0.7, cooldown = 2.5, damage = 25, w = 5},  -- 近战攻击：范围60，前摇0.7秒，冷却2.5秒，伤害25
+            melee = {range = 70, windup = 0.7, cooldown = 2.5, damage = 25, w = 5},  -- 近战攻击：范围70，前摇0.7秒，冷却2.5秒，伤害25
             slam = {range = 100, windup = 1.0, radius = 100, cooldown = 4.0, damage = 35, w = 4}  -- 范围攻击：范围100，前摇1秒，半径100，伤害35
         }
     },
@@ -379,7 +379,7 @@ local enemyDefs = {
         attacks = {
             grapple = {range = 280, rangeMin = 80, windup = 0.5, cooldown = 5.0,
                        pullDistance = 120, damage = 12, telegraphWidth = 12, w = 6},  -- 钩爪：范围280-80，前摇0.5秒，冷却5秒，拉动距离120，伤害12，预警宽度12
-            melee = {range = 45, windup = 0.35, cooldown = 1.5, damage = 15, w = 5}  -- 近战：范围45，前摇0.35秒，冷却1.5秒，伤害15
+            melee = {range = 55, windup = 0.35, cooldown = 1.5, damage = 15, w = 5}  -- 近战：范围55，前摇0.35秒，冷却1.5秒，伤害15
         }
     },
     
@@ -393,7 +393,7 @@ local enemyDefs = {
         healthType = 'INFESTED',  -- 感染类型
         healAura = {radius = 160, healRate = 12},  -- 治疗光环：半径160，每秒治疗12点生命值（8 → 12）
         attacks = {
-            melee = {range = 55, windup = 0.6, cooldown = 2.2, damage = 18, w = 10}  -- 近战：范围55，前摇0.6秒，冷却2.2秒，伤害18
+            melee = {range = 65, windup = 0.6, cooldown = 2.2, damage = 18, w = 10}  -- 近战：范围65，前摇0.6秒，冷却2.2秒，伤害18
         },
         -- AI行为配置：支援型（更容易撤退）
         aiBehavior = {

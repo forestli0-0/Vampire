@@ -2326,6 +2326,34 @@ function enemies.update(state, dt)
         elseif e.attack and e.attack.phase == 'windup' then
             -- windup: hold position (telegraph fairness)
         else
+            -- === 检查近战敌人是否应该停止移动（等待攻击冷却） ===
+            local shouldHoldPosition = false
+            if attacks and not e.attack and (e.attackCooldown or 0) > 0 then
+                -- 遍历攻击配置，检查是否有近战攻击且在范围内
+                local dx = targetX - e.x
+                local dy = targetY - e.y
+                local distSq = dx * dx + dy * dy
+                for key, cfg in pairs(attacks) do
+                    if type(cfg) == 'table' and (key == 'melee' or key == 'slam') then
+                        local maxR = cfg.range or cfg.rangeMax or 80
+                        -- 如果已经在攻击范围内（加一点余量），就停止移动
+                        if distSq <= (maxR * 1.2) * (maxR * 1.2) then
+                            shouldHoldPosition = true
+                            break
+                        end
+                    end
+                end
+            end
+            
+            if shouldHoldPosition then
+                -- 在攻击范围内等待冷却，只应用推力不主动移动
+                if world and world.enabled and world.moveCircle then
+                    e.x, e.y = world:moveCircle(e.x, e.y, (e.size or 16) / 2, pushX * dt, pushY * dt)
+                else
+                    e.x = e.x + pushX * dt
+                    e.y = e.y + pushY * dt
+                end
+            else
             -- === 根据AI状态决定移动方向和速度 ===
             local moveVx, moveVy
             local speedMult = 1.0
@@ -2382,6 +2410,7 @@ function enemies.update(state, dt)
                 e.x = e.x + vx * dt
                 e.y = e.y + vy * dt
             end
+            end  -- end of shouldHoldPosition else branch
         end
 
         local pDist = math.sqrt((p.x - e.x)^2 + (p.y - e.y)^2)
