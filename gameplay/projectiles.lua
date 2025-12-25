@@ -246,7 +246,7 @@ function projectiles.updatePlayerBullets(state, dt)
                 local radius = b.radius or (b.size or 0)
                 local r2 = radius * radius
                 local effectData = {duration = b.effectDuration or 1.2}
-                local instance = buildInstanceFromBullet(b, e, effectData)
+                local instance = buildInstanceFromBullet(b, nil, effectData)
                 for _, e in ipairs(state.enemies) do
                     local dx = e.x - b.x
                     local dy = e.y - b.y

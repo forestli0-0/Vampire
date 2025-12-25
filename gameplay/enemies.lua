@@ -96,19 +96,6 @@ local function clamp(x, lo, hi)
     return x
 end
 
-local function chooseWeighted(pool)
-    local total = 0
-    for _, it in ipairs(pool or {}) do
-        total = total + (it.w or 0)
-    end
-    if total <= 0 then return pool and pool[1] end
-    local r = math.random() * total
-    for _, it in ipairs(pool) do
-        r = r - (it.w or 0)
-        if r <= 0 then return it end
-    end
-    return pool[#pool]
-end
 
 function enemies.applyStatus(state, e, effectType, baseDamage, weaponTags, effectData)
     status.applyStatus(state, e, effectType, baseDamage, weaponTags, effectData)
@@ -251,13 +238,6 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY, opts)
         facing = 1,
         spawnTime = love.timer.getTime()  -- For animation phase offset
     })
-    -- 旧动画系统已禁用，改用 enemy_anims 模块的通用动画系统
-    -- if state.loadMoveAnimationFromFolder then
-    --     local animKey = def.animKey or def.animName or type
-    --     local anim, animEmit = state.loadMoveAnimationFromFolder(animKey, 4, 8)
-    --     if anim then state.enemies[#state.enemies].anim = anim end
-    --     if animEmit then state.enemies[#state.enemies].animEmissive = animEmit end
-    -- end
     local spawned = state.enemies[#state.enemies]
     ensureStatus(spawned)
     if spawned and spawned.isElite and spawned.eliteMod and state and state.texts and not opts.suppressSpawnText then
@@ -659,13 +639,15 @@ function enemies.update(state, dt)
                         applyDotTick(state, e, 'ELECTRIC', tick, {noSfx=true})
                         
                         local conductionTargets = {}
+                        local world = state.world
                         for _, o in ipairs(state.enemies) do
                             if o ~= e and o.health > 0 then
                                 local dx = o.x - e.x
                                 local dy = o.y - e.y
                                 if dx*dx + dy*dy <= r2 then
                                     local blocked = false
-                                    if useLos and world:segmentHitsWall(e.x, e.y, o.x, o.y) then
+                                    -- 检查视线遮挡
+                                    if world and world.enabled and world.segmentHitsWall and world:segmentHitsWall(e.x, e.y, o.x, o.y) then
                                         blocked = true
                                     end
                                     
