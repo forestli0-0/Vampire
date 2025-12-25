@@ -260,7 +260,7 @@ function status.applyStatus(state, e, effectType, baseDamage, weaponTags, effect
         end
     elseif effect == 'STATIC' then
         local dur = math.max((effectData and effectData.duration) or 3.0, 0)
-        local radius = (effectData and (effectData.radius or effectData.range)) or 140
+        local radius = (effectData and (effectData.radius or effectData.range)) or 50
         local hadStatic = (e.status.staticTimer or 0) > 0
         e.status.static = true
         e.status.staticTimer = math.max(e.status.staticTimer or 0, dur)

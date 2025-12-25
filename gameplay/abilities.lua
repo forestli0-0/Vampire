@@ -681,7 +681,7 @@ function abilities.updateActiveEffects(state, dt)
                             active = true,
                             timer = wave.teslaNodeDuration or wave.stunDuration,
                             dps = wave.teslaNodeDPS or 15,
-                            range = wave.teslaNodeRange or 120,
+                            range = wave.teslaNodeRange or 160,
                             damageTickTimer = 0
                         }
                         if state.spawnEffect then state.spawnEffect('shock', e.x, e.y, 1.0) end

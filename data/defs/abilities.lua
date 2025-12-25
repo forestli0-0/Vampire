@@ -667,7 +667,7 @@ local function build(helpers)
                     local dur = p.stats.abilityDuration or 1.0
                 
                     -- Discharge properties (NO enemy count limit - hits ALL enemies in range)
-                    local maxRadius = 350 * rng
+                    local maxRadius = 300 * rng
                     local damage = math.floor(20 * str)  -- Reduced from 40 for balance
                     local stunDuration = 2 * dur  -- Reduced from 4s
                     local expandSpeed = 400  -- pixels per second
@@ -688,9 +688,9 @@ local function build(helpers)
                         chainDamage = math.floor(damage * 0.3),  -- Secondary chain damage
                         chainRange = 150 * rng,
                         -- TESLA NODE SYSTEM: enemies become nodes that chain damage to each other
-                        teslaNodeDuration = stunDuration,
+                        teslaNodeDuration = 4 * dur,  -- 节点持续时间比眩晕更久
                         teslaNodeDPS = math.floor(15 * str),  -- Damage per second between nodes
-                        teslaNodeRange = 120 * rng  -- Range for node-to-node chains
+                        teslaNodeRange = 160 * rng  -- Range for node-to-node chains
                     }
                 
                     -- Create VFX data for the expanding ring
