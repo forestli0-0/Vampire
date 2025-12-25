@@ -165,35 +165,30 @@ function enemies.spawnEnemy(state, type, isElite, spawnX, spawnY, opts)
         visualSize = visualSize * 1.5  -- 精英怪视觉大小放大1.5倍（更显眼）
         tenacity = math.max(tenacity, 0.15)
 
-        local mods = {}
-        table.insert(mods, {key = 'swift', w = 3})
-        table.insert(mods, {key = 'brutal', w = 3})
-        table.insert(mods, {key = 'shielded', w = 2})
-        table.insert(mods, {key = 'armored', w = 2})
-        local pick = mods[math.random(#mods)]
-        local eliteMod = pick.key
-        local eliteBulletSpeedMult = 1
+        -- 使用权重随机选择精英类型
+        local mods = {
+            {key = 'swift', w = 3},
+            {key = 'brutal', w = 3},
+            {key = 'shielded', w = 2},
+            {key = 'armored', w = 2}
+        }
+        local pick = chooseWeighted(mods)
+        eliteMod = pick and pick.key or 'brutal'
+        
+        -- 根据精英类型应用效果
         if eliteMod == 'swift' then
             speed = speed * 1.6
             eliteBulletSpeedMult = 1.3
-            color = {0.5, 1.0, 0.5}
+            color = {0.5, 1.0, 0.5}  -- 绿色 - 快速
+        elseif eliteMod == 'brutal' then
+            eliteDamageMult = 1.35 * (1 + roomIndex * 0.1)
+            color = {1.0, 0.25, 0.15}  -- 红色 - 高伤
         elseif eliteMod == 'shielded' then
             shield = shield * 2.5
-            color = {0.4, 0.85, 1.0}
+            color = {0.4, 0.85, 1.0}  -- 蓝色 - 护盾
         elseif eliteMod == 'armored' then
             armor = armor + 150
-            color = {1.0, 0.7, 0.15}
-        end
-
-        if math.random() < 0.5 then
-            eliteMod = 'swift'
-            speed = speed * 1.6
-            eliteBulletSpeedMult = 1.3
-            color = {0.85, 0.35, 1.0}
-        else
-            eliteMod = 'brutal'
-            eliteDamageMult = 1.35 * (1 + roomIndex * 0.1)  -- Elite damage scales with room
-            color = {1.0, 0.25, 0.15}
+            color = {1.0, 0.7, 0.15}  -- 金色 - 护甲
         end
     end
 
