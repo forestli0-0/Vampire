@@ -1646,10 +1646,13 @@ function draw.renderWorld(state)
     
     -- 挤压拉伸变换（原有代码，保留兼容）
     local transformSX, transformSY = 1, 1
+    local transformOX, transformOY = 0, 0
     if p.transform then
         local t = p.transform
-        transformSX = (t.scaleX or 1) + (t.offsetX or 0)
-        transformSY = (t.scaleY or 1) + (t.offsetY or 0)
+        transformSX = t.scaleX or 1
+        transformSY = t.scaleY or 1
+        transformOX = t.offsetX or 0
+        transformOY = t.offsetY or 0
     end
 
     -- Player outline (drawn behind base)
@@ -1659,13 +1662,16 @@ function draw.renderWorld(state)
         local outlineFacingScale = use8Dir and 1 or (state.player.facing >= 0 and 1 or -1)
         
         if isSmearing then
-            -- 涂抹帧：使用拉伸（8向动画不旋转）
+            -- 涂抹帧：使用拉伸
             love.graphics.push()
             love.graphics.translate(state.player.x, state.player.y)
             
-            -- 8向动画时不旋转
-            if not use8Dir then
-                love.graphics.rotate(smearRotation)
+            -- 沿位移方向旋转坐标轴以应用拉伸
+            love.graphics.rotate(smearRotation)
+            
+            -- 如果是8向动画，将内容旋回，实现"沿位移方向拉伸但精灵不旋转"
+            if use8Dir then
+                love.graphics.rotate(-smearRotation)
             end
             
             love.graphics.setColor(0.9, 0.95, 1, 0.55)
@@ -1677,7 +1683,7 @@ function draw.renderWorld(state)
             end
             love.graphics.pop()
         else
-            drawOutlineAnim(state.playerAnim, state.player.x, state.player.y, 0, outlineFacingScale * transformSX, transformSY, 1, {0.9, 0.95, 1, 0.55})
+            drawOutlineAnim(state.playerAnim, state.player.x + transformOX, state.player.y + transformOY, 0, outlineFacingScale * transformSX, transformSY, 1, {0.9, 0.95, 1, 0.55})
         end
     else
         love.graphics.setColor(0.9, 0.95, 1, 0.55)
@@ -1697,15 +1703,18 @@ function draw.renderWorld(state)
             love.graphics.push()
             love.graphics.translate(state.player.x, state.player.y)
             
-            -- 8向动画时不旋转（因为精灵本身已有正确朝向），只使用拉伸
-            if not use8Dir then
-                love.graphics.rotate(smearRotation)
+            -- 沿位移方向旋转坐标轴
+            love.graphics.rotate(smearRotation)
+            
+            -- 8向动画时将内容旋回，仅保留拉伸轴的对齐
+            if use8Dir then
+                love.graphics.rotate(-smearRotation)
             end
             
             state.playerAnim:draw(0, 0, 0, smearScaleX * facingScale, smearScaleY)
             love.graphics.pop()
         else
-            state.playerAnim:draw(state.player.x, state.player.y, 0, facingScale * transformSX, transformSY)
+            state.playerAnim:draw(state.player.x + transformOX, state.player.y + transformOY, 0, facingScale * transformSX, transformSY)
         end
     else
         if blink then love.graphics.setColor(1,1,1) else love.graphics.setColor(0,1,0) end
