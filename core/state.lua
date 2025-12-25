@@ -43,13 +43,13 @@ local function defaultProfile()
         modRanks = {},
         -- 武器特定的赛前 MOD 配置 (8槽系统)
         weaponMods = {
-            wand = {
+            braton = {
                 slots = {}
             }
         },
         warframeMods = {slots = {}},
         companionMods = {slots = {}},
-        modTargetWeapon = 'wand',
+        modTargetWeapon = 'braton',
         modTargetCategory = 'weapons',
         modSystemVersion = 2,
 
@@ -88,7 +88,7 @@ function state.loadProfile()
     -- 确保基础字段存在
     profile.modRanks = profile.modRanks or {}
     profile.weaponMods = profile.weaponMods or {}
-    profile.modTargetWeapon = profile.modTargetWeapon or 'wand'
+    profile.modTargetWeapon = profile.modTargetWeapon or 'braton'
     profile.modTargetCategory = profile.modTargetCategory or 'weapons'
     profile.equippedMods = profile.equippedMods or {} -- legacy
     profile.modOrder = profile.modOrder or {} -- legacy
@@ -151,8 +151,8 @@ function state.loadProfile()
             local legacyOrder = profile.modOrder or {}
             local hasLegacy = (next(legacyEq) ~= nil) or (type(legacyOrder) == 'table' and #legacyOrder > 0)
             if hasLegacy then
-                profile.weaponMods.wand = profile.weaponMods.wand or {slots = {}}
-                local lo = profile.weaponMods.wand
+                profile.weaponMods.braton = profile.weaponMods.braton or {slots = {}}
+                local lo = profile.weaponMods.braton
                 local slots = lo.slots or {}
                 local idx = 1
 
@@ -245,7 +245,7 @@ function state.loadProfile()
     profile.petRanks = profile.petRanks or {}
     profile.currency = profile.currency or 0
     if next(profile.weaponMods) == nil then
-        profile.weaponMods.wand = {slots = {}}
+        profile.weaponMods.braton = {slots = {}}
     end
     profile.weaponMods[profile.modTargetWeapon] = profile.weaponMods[profile.modTargetWeapon] or {slots = {}}
     return profile
@@ -457,7 +457,7 @@ function state.init()
                 abilityStrength = 1.05
             },
             startMelee = 'skana',
-            startRanged = 'lato',
+            startRanged = 'braton',
             preferredUpgrades = {'skana', 'dual_zoren', 'braton', 'lato'},
             ability = {
                 name = "Slash Dash",
@@ -478,7 +478,7 @@ function state.init()
                 abilityStrength = 1.10,
                 abilityRange = 1.05
             },
-            startMelee = 'karyst',
+            startMelee = 'skana',
             startRanged = 'braton',
             preferredUpgrades = {'braton', 'lanka', 'atomos', 'static_orb'},
             ability = {
@@ -500,8 +500,8 @@ function state.init()
                 abilityStrength = 1.15,    
                 statusChance = 0.10        
             },
-            startWeapon = 'static_orb',    
-            startSecondary = 'atomos',     
+            startWeapon = 'braton',    
+            startSecondary = 'lato',     
             preferredUpgrades = {'lanka', 'thunder_loop', 'atomos', 'braton'},
             ability = {
                 name = "Shock",

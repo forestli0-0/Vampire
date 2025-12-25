@@ -825,8 +825,8 @@ function arsenal.startRun(state, opts)
     -- 武器发放逻辑 (Warframe 风格: 1个远程 + 1个近战)
     if not state.inventory.weaponSlots.ranged and not state.inventory.weaponSlots.melee then
         local defaultLoadout = {
-            ranged = 'wand',      
-            melee = 'heavy_hammer' 
+            ranged = 'braton',      
+            melee = 'skana' 
         }
 
         -- 应用军械库选中的武器作为初始装备之一
@@ -1056,7 +1056,7 @@ function arsenal.draw(state)
     local list = a.modList or {}
 
     -- 获取当前选中的武器和宠物信息
-    local weaponKey = (state.profile and state.profile.modTargetWeapon) or 'wand'
+    local weaponKey = (state.profile and state.profile.modTargetWeapon) or 'braton'
     local weaponDef = state.catalog and state.catalog[weaponKey]
     local weaponName = (weaponDef and weaponDef.name) or weaponKey
     local category = getModCategory(state.profile)
