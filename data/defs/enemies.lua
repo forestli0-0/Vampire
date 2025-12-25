@@ -251,23 +251,25 @@ local enemyDefs = {
         hp = 3600,
         shield = 1500,
         armor = 250,
-        speed = 50,
+        speed = 65,  -- 50 → 65 基础速度提升
         size = 48,  -- 碰撞箱大小（Boss碰撞箱）
         visualSize = 64,  -- 视觉大小（Boss）
         color = {0.9, 0.25, 0.25},
         spawnDistance = 620,  -- 生成距离620
-        bulletSpeed = 220,  -- 子弹速度
-        bulletDamage = 22,  -- 16 → 22 子弹伤害提升
+        bulletSpeed = 320,  -- 220 → 320 子弹速度大幅提升
+        bulletDamage = 30,  -- 22 → 30 子弹伤害提升
         bulletLife = 6,  -- 子弹存活6秒
-        bulletSize = 14,  -- 子弹大小14
-        contactDamage = 20,  -- 14 → 20 接触伤害提升
-        tenacity = 0.9,  -- 韧性（减少控制效果）
+        bulletSize = 16,  -- 14 → 16 子弹稍大更容易命中
+        contactDamage = 35,  -- 20 → 35 接触伤害大幅提升
+        tenacity = 0.95,  -- 0.9 → 0.95 韧性提升
         hardCcImmune = true,  -- 免疫硬控
         attacks = {
-            -- 3种可读的Boss招式：锥形弹幕（远程）、范围攻击（AOE）、冲锋（直线冲刺）
-            burst = {rangeMin = 260, range = 1200, w = 5, windup = 0.75, count = 7, spread = 0.95, bulletSpeed = 240, bulletDamage = 20, bulletLife = 6, bulletSize = 14, cooldown = 2.2, telegraphWidth = 58, telegraphLength = 520, interruptible = false},  -- 锥形弹幕：范围260-1200，发射7发，散射0.95弧度，预警宽度58，长度520，不可打断
-            slam  = {range = 760, w = 3, windup = 1.25, radius = 150, cooldown = 2.8, damage = 30, interruptible = false},  -- 范围攻击：范围760，前摇1.25秒，半径150，伤害30，不可打断
-            charge = {range = 420, w = 3, windup = 0.70, distance = 420, speed = 720, cooldown = 2.6, damage = 35, telegraphWidth = 56, interruptible = false}  -- 冲锋：范围420，前摇0.7秒，距离420，速度720，伤害35，预警宽度56，不可打断
+            -- 增强版招式：更快、伤害更高、冷却更短
+            burst = {rangeMin = 200, range = 1200, w = 5, windup = 0.55, count = 9, spread = 1.1, bulletSpeed = 380, bulletDamage = 32, bulletLife = 5, bulletSize = 16, cooldown = 1.6, telegraphWidth = 70, telegraphLength = 600, interruptible = false},  -- 弹幕增强：更快前摇，更多子弹，更高弹速和伤害
+            slam  = {range = 760, w = 4, windup = 0.9, radius = 180, cooldown = 2.0, damage = 50, interruptible = false},  -- AOE增强：更大范围，更高伤害，更快施法
+            charge = {range = 500, w = 4, windup = 0.50, distance = 480, speed = 900, cooldown = 1.8, damage = 55, telegraphWidth = 65, interruptible = false},  -- 冲锋增强：更远距离，更快速度，更高伤害
+            -- 新增：快速连射弹幕（狂暴阶段更频繁）
+            rapid_burst = {rangeMin = 150, range = 800, w = 3, windup = 0.35, count = 5, spread = 0.5, bulletSpeed = 450, bulletDamage = 25, bulletLife = 4, bulletSize = 12, cooldown = 1.2, telegraphWidth = 40, telegraphLength = 400, interruptible = false}  -- 快速弹幕：短前摇快速射击
         },
         animKey = 'plant',  -- 使用植物动画
         isBoss = true,  -- 标记为Boss
@@ -275,12 +277,14 @@ local enemyDefs = {
         healthType = 'FOSSILIZED',  -- 化石类型（Boss特有）
         shieldType = 'PROTO_SHIELD',  -- 原型护盾（Boss特有）
         armorType = 'INFESTED_SINEW',  -- 感染肌腱（Boss特有）
-        -- AI行为配置：Boss狂暴
+        -- AI行为配置：Boss狂暴（更激进）
         aiBehavior = {
             type = 'boss',  -- Boss类型
-            berserkThreshold = 0.25,  -- 血量低于25%时狂暴
-            berserkSpeedMult = 1.5,  -- 狂暴速度提升1.5倍
-            berserkDamageMult = 1.35,  -- 狂暴伤害提升1.35倍
+            berserkThreshold = 0.35,  -- 0.25 → 0.35 更早进入狂暴
+            berserkSpeedMult = 1.8,  -- 1.5 → 1.8 狂暴速度更快
+            berserkDamageMult = 1.6,  -- 1.35 → 1.6 狂暴伤害更高
+            aggressiveness = 1.5,  -- 新增：攻击频率倍率
+            predictPlayer = true,  -- 新增：预测玩家移动
             noRetreat = true,  -- Boss永不撤退
         }
     },

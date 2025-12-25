@@ -853,7 +853,14 @@ function draw.renderWorld(state)
                 local anims = state.enemyAnimSets[animKey] or state.enemyAnimSets['skeleton']
                 if anims then
                     -- 根据敌人状态选择动画（与主体绘制保持一致）
-                    if e.flashTimer and e.flashTimer > 0 then
+                    -- Boss只在有hitAnimTimer时播放受击动画，普通敌人用flashTimer
+                    local showHitAnim = false
+                    if e.isBoss then
+                        showHitAnim = e.hitAnimTimer and e.hitAnimTimer > 0
+                    else
+                        showHitAnim = e.flashTimer and e.flashTimer > 0
+                    end
+                    if showHitAnim then
                         outlineAnim = anims.hit or anims.move
                     elseif e.attack and e.attack.phase then
                         outlineAnim = anims.attack or anims.move
@@ -938,24 +945,34 @@ function draw.renderWorld(state)
                 if e.isDying then
                     -- 死亡状态（正在播放死亡动画）
                     anim = anims.death
-                elseif e.flashTimer and e.flashTimer > 0 then
-                    -- 受击状态 (正在闪烁)
-                    anim = anims.hit
-                elseif e.attack and e.attack.phase then
-                    -- 攻击状态 (任何攻击阶段)
-                    anim = anims.attack
-                elseif e.isBlocking or (e.status and e.status.shielded) then
-                    -- 防御状态
-                    anim = anims.shield or anims.idle
-                elseif e.status and e.status.frozen then
-                    -- 冻结状态 = 静止
-                    anim = anims.idle or anims.move
-                elseif e.aiState == 'idle' then
-                    -- 待机状态（敌人未激活）
-                    anim = anims.idle or anims.move
                 else
-                    -- 追击状态（aiState == 'chase' 或 nil）= 移动动画
-                    anim = anims.move or anims.idle
+                    -- Boss只在有hitAnimTimer时播放受击动画，普通敌人用flashTimer
+                    local showHitAnim = false
+                    if e.isBoss then
+                        showHitAnim = e.hitAnimTimer and e.hitAnimTimer > 0
+                    else
+                        showHitAnim = e.flashTimer and e.flashTimer > 0
+                    end
+                    
+                    if showHitAnim then
+                        -- 受击状态 (正在闪烁)
+                        anim = anims.hit
+                    elseif e.attack and e.attack.phase then
+                        -- 攻击状态 (任何攻击阶段)
+                        anim = anims.attack
+                    elseif e.isBlocking or (e.status and e.status.shielded) then
+                        -- 防御状态
+                        anim = anims.shield or anims.idle
+                    elseif e.status and e.status.frozen then
+                        -- 冻结状态 = 静止
+                        anim = anims.idle or anims.move
+                    elseif e.aiState == 'idle' then
+                        -- 待机状态（敌人未激活）
+                        anim = anims.idle or anims.move
+                    else
+                        -- 追击状态（aiState == 'chase' 或 nil）= 移动动画
+                        anim = anims.move or anims.idle
+                    end
                 end
                 
                 -- 回退到默认动画

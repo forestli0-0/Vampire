@@ -484,6 +484,13 @@ function enemies.update(state, dt)
             e.flashTimer = e.flashTimer - dt
             if e.flashTimer < 0 then e.flashTimer = 0 end
         end
+        
+        -- 更新受击动画计时器（与顿帧关联）
+        if e.hitAnimTimer and e.hitAnimTimer > 0 then
+            e.hitAnimTimer = e.hitAnimTimer - dt
+            if e.hitAnimTimer < 0 then e.hitAnimTimer = 0 end
+        end
+
 
         if e.status.frozen then
             e.status.frozenTimer = (e.status.frozenTimer or 0) - dt
@@ -1424,13 +1431,24 @@ function enemies.update(state, dt)
                         local w = cfg.w or cfg.weight or 1
                         if e.isBoss then
                             local phase = e.bossPhase or 1
+                            local isBerserk = (e.aiState == AI_STATES.BERSERK)
+                            
+                            -- Boss 阶段性权重调整
                             if key == 'burst' then
                                 if phase == 1 then w = w * 1.20
                                 elseif phase == 3 then w = w * 0.85 end
                             elseif key == 'slam' then
                                 if phase == 2 then w = w * 1.15 end
+                                -- 狂暴时 AOE 更频繁
+                                if isBerserk then w = w * 1.4 end
                             elseif key == 'charge' then
                                 if phase == 3 then w = w * 1.25 end
+                                -- 狂暴时猛冲更频繁
+                                if isBerserk then w = w * 1.6 end
+                            elseif key == 'rapid_burst' then
+                                -- 快速弹幕在狂暴阶段大幅增加
+                                if isBerserk then w = w * 2.5
+                                elseif phase >= 2 then w = w * 1.5 end
                             end
                         end
                         if w > 0 then
@@ -1439,6 +1457,7 @@ function enemies.update(state, dt)
                     end
                 end
             end
+
 
             local pick = (#pool > 0) and chooseWeighted(pool) or nil
             if pick then
@@ -1520,8 +1539,8 @@ function enemies.update(state, dt)
                     if state.spawnTelegraphCircle then
                         state.spawnTelegraphCircle(targetX, targetY, radius, windup, circleOpts)
                     end
-                elseif key == 'burst' then
-                    local windup = math.max(0.45, (cfg.windup or 0.6) * windupMult)
+                elseif key == 'burst' or key == 'rapid_burst' then
+                    local windup = math.max(0.35, (cfg.windup or 0.6) * windupMult)
                     local count = cfg.count or 5
                     local spread = cfg.spread or 0.8
                     local bulletSpeed = (cfg.bulletSpeed or (e.bulletSpeed or 180)) * (e.eliteBulletSpeedMult or 1)
@@ -1531,22 +1550,60 @@ function enemies.update(state, dt)
                     local cooldown = cfg.cooldown or 2.5
                     local len = cfg.telegraphLength or cfg.distance or 360
                     local width = cfg.telegraphWidth or 46
+                    
+                    -- === Boss 玩家移动预测瞄准 ===
+                    local aimAng = angToTarget
+                    local aiBehavior = getAIBehavior(e)
+                    if e.isBoss and aiBehavior.predictPlayer then
+                        -- 获取玩家速度向量
+                        local pvx = p.vx or 0
+                        local pvy = p.vy or 0
+                        local playerSpeed = math.sqrt(pvx * pvx + pvy * pvy)
+                        
+                        -- 只在玩家移动时预测
+                        if playerSpeed > 30 then
+                            local dx = p.x - e.x
+                            local dy = p.y - e.y
+                            local distToP = math.sqrt(dx * dx + dy * dy)
+                            
+                            -- 预测时间 = 距离 / 子弹速度
+                            local predTime = distToP / bulletSpeed
+                            -- 增加预测偏差使其更准但不完美
+                            local predMult = 0.65 + 0.15 * (e.bossPhase or 1)  -- Phase 1: 65%, Phase 3: 95%
+                            
+                            -- 预测玩家未来位置
+                            local predX = p.x + pvx * predTime * predMult
+                            local predY = p.y + pvy * predTime * predMult
+                            
+                            -- 使用预测位置计算瞄准角度
+                            aimAng = math.atan2(predY - e.y, predX - e.x)
+                        end
+                    end
+                    
                     if e.isBoss then
-                        windup = math.max(0.55, windup * (1 - phaseK * 0.05))
+                        windup = math.max(0.35, windup * (1 - phaseK * 0.08))
                         count = count + phaseK * 2
                         spread = spread * (1 + phaseK * 0.16)
-                        bulletSpeed = bulletSpeed * (1 + phaseK * 0.06)
-                        bulletDamage = bulletDamage * (1 + phaseK * 0.10)
+                        bulletSpeed = bulletSpeed * (1 + phaseK * 0.08)
+                        bulletDamage = bulletDamage * (1 + phaseK * 0.12)
                         len = len * (1 + phaseK * 0.05)
                         width = width * (1 + phaseK * 0.10)
-                        cooldown = math.max(1.2, cooldown * (1 - phaseK * 0.10))
+                        cooldown = math.max(0.8, cooldown * (1 - phaseK * 0.12))
+                        
+                        -- 狂暴阶段进一步加强
+                        if e.aiState == AI_STATES.BERSERK then
+                            bulletSpeed = bulletSpeed * 1.2
+                            bulletDamage = bulletDamage * (aiBehavior.berserkDamageMult or 1.6)
+                            cooldown = cooldown * 0.7
+                            count = count + 2
+                        end
                     end
                     e.attack = {
                         type = 'burst',
                         phase = 'windup',
                         timer = windup,
                         interruptible = interruptible,
-                        ang = angToTarget, -- lock direction for fairness/readability
+                        ang = aimAng, -- 使用预测角度
                         count = count,
                         spread = spread,
                         bulletSpeed = bulletSpeed,
@@ -1561,11 +1618,12 @@ function enemies.update(state, dt)
                     if e.isBoss or e.isElite then
                         if state.spawnTelegraphLine then
                             local ex, ey = e.x, e.y
-                            state.spawnTelegraphLine(ex, ey, ex + math.cos(angToTarget) * len, ey + math.sin(angToTarget) * len, width, windup, lineOpts)
+                            state.spawnTelegraphLine(ex, ey, ex + math.cos(aimAng) * len, ey + math.sin(aimAng) * len, width, windup, lineOpts)
                         end
                     else
                         if state.texts then
                             table.insert(state.texts, {x = e.x, y = e.y - (e.size or 24) - 15, text = "!", color = {1, 0.8, 0.3, 0.8}, life = windup * 0.9, scale = 1.2})
+
                         end
                     end
                 elseif key == 'melee' then

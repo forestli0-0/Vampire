@@ -656,34 +656,54 @@ function calculator.applyDamage(state, enemy, instance, opts)
         -- 根据攻击类型和暴击等级选择顿帧预设
         if not opts.noHitstop then
             local hitstopPreset = 'light'
+            local shouldApplyHitstop = true  -- 是否应用顿帧
             
-            -- 暴击触发更强顿帧
-            if isCrit and isCrit > 0 then
-                hitstopPreset = 'critical'
-            end
-            
-            -- Boss受击使用专门预设
+            -- Boss 特殊处理：只有巨额伤害才触发顿帧
             if enemy.isBoss then
-                hitstopPreset = 'boss_hit'
+                -- Boss 只在受到巨额伤害时才顿帧
+                if totalApplied >= 300 then
+                    -- 巨额伤害：触发重击顿帧
+                    hitstopPreset = 'heavy'
+                elseif totalApplied >= 150 and isCrit and isCrit >= 2 then
+                    -- 高暴击+中等伤害：触发较弱顿帧
+                    hitstopPreset = 'boss_hit'
+                else
+                    -- 普通伤害：Boss 完全不触发顿帧
+                    shouldApplyHitstop = false
+                end
+            else
+                -- 非 Boss 敌人：正常的顿帧逻辑
+                -- 暴击触发更强顿帧
+                if isCrit and isCrit > 0 then
+                    hitstopPreset = 'critical'
+                end
+                
+                -- 大伤害触发重击顿帧
+                if totalApplied > 100 then
+                    hitstopPreset = 'heavy'
+                end
             end
             
-            -- 大伤害触发重击顿帧
-            if totalApplied > 100 then
-                hitstopPreset = 'heavy'
-            end
-            
-            -- 致命一击触发终结技顿帧
+            -- 致命一击触发终结技顿帧（对所有敌人生效）
             if enemy.health and enemy.health <= 0 and totalApplied > 50 then
                 hitstopPreset = 'finisher'
+                shouldApplyHitstop = true
             end
             
-            hitstop.trigger(hitstopPreset)
-            
-            -- 同时应用局部顿帧，确保目标受到减速影响（即使 noGlobalSlowdown 为 true）
-            if enemies.applyLocalHitstop then
-                enemies.applyLocalHitstop(enemy, hitstopPreset)
+            if shouldApplyHitstop then
+                hitstop.trigger(hitstopPreset)
+                
+                -- 同时应用局部顿帧，确保目标受到减速影响（即使 noGlobalSlowdown 为 true）
+                if enemies.applyLocalHitstop then
+                    enemies.applyLocalHitstop(enemy, hitstopPreset)
+                end
+                
+                -- 只有在顿帧触发时才播放受击动画
+                enemy.hitAnimTimer = 0.15
             end
+
         end
+
 
         if instance.knock then
             local a = math.atan2(enemy.y - state.player.y, enemy.x - state.player.x)
