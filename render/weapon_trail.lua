@@ -99,36 +99,34 @@ function trail.drawSlash()
                     
                     -- 透明度计算：基础透明度更高
                     local alpha = math.max(0, 1 - fadeProgress) * t.intensity * layerMult
-                    if alpha <= 0.01 then goto continue end
-                    
-                    -- 线宽计算：保持较粗
-                    local baseWidth = t.width * widthMult
-                    local lineWidth = math.max(2, baseWidth * (1 - fadeProgress * 0.5))
-                    
-                    -- 颜色计算：内层更亮
-                    local colorMult = layer == 1 and 1.2 or 1.0
-                    love.graphics.setColor(
-                        math.min(1, t.color[1] * colorMult), 
-                        math.min(1, t.color[2] * colorMult), 
-                        math.min(1, t.color[3] * colorMult), 
-                        alpha
-                    )
-                    love.graphics.setLineWidth(lineWidth)
-                    
-                    -- 绘制弧段
-                    local avgRange = (p1.range + p2.range) / 2
-                    local avgX = (p1.x + p2.x) / 2
-                    local avgY = (p1.y + p2.y) / 2
-                    
-                    local startAngle = math.min(p1.angle, p2.angle)
-                    local endAngle = math.max(p1.angle, p2.angle)
-                    if endAngle - startAngle > math.pi then
-                        startAngle, endAngle = endAngle, startAngle + 2 * math.pi
+                    if alpha > 0.01 then
+                        -- 线宽计算：保持较粗
+                        local baseWidth = t.width * widthMult
+                        local lineWidth = math.max(2, baseWidth * (1 - fadeProgress * 0.5))
+                        
+                        -- 颜色计算：内层更亮
+                        local colorMult = layer == 1 and 1.2 or 1.0
+                        love.graphics.setColor(
+                            math.min(1, t.color[1] * colorMult), 
+                            math.min(1, t.color[2] * colorMult), 
+                            math.min(1, t.color[3] * colorMult), 
+                            alpha
+                        )
+                        love.graphics.setLineWidth(lineWidth)
+                        
+                        -- 绘制弧段
+                        local avgRange = (p1.range + p2.range) / 2
+                        local avgX = (p1.x + p2.x) / 2
+                        local avgY = (p1.y + p2.y) / 2
+                        
+                        local startAngle = math.min(p1.angle, p2.angle)
+                        local endAngle = math.max(p1.angle, p2.angle)
+                        if endAngle - startAngle > math.pi then
+                            startAngle, endAngle = endAngle, startAngle + 2 * math.pi
+                        end
+                        
+                        love.graphics.arc('line', 'open', avgX, avgY, avgRange, startAngle, endAngle)
                     end
-                    
-                    love.graphics.arc('line', 'open', avgX, avgY, avgRange, startAngle, endAngle)
-                    
-                    ::continue::
                 end
             end
         end

@@ -75,27 +75,26 @@ return function(pickups)
                         end
                         logger.pickup(state, 'boss_reward')
                         table.remove(state.chests, i)
-                        goto continue_chest
-                    end
-    
-                    local rewardType = c and c.rewardType or nil
+                    else
+                        -- 普通宝箱处理
+                        local rewardType = c and c.rewardType or nil
 
-                    -- Chests now always grant a 3-choice MOD selection.
-                    upgrades.queueLevelUp(state, 'mod_drop', {
-                        allowedTypes = {mod = true, augment = true},
-                        source = 'chest'
-                    })
-                    table.insert(state.texts, {x=p.x, y=p.y-50, text="MOD FOUND!", color={0.2, 1, 0.2}, life=1.5})
-                    logger.pickup(state, 'chest_mod')
+                        -- Chests now always grant a 3-choice MOD selection.
+                        upgrades.queueLevelUp(state, 'mod_drop', {
+                            allowedTypes = {mod = true, augment = true},
+                            source = 'chest'
+                        })
+                        table.insert(state.texts, {x=p.x, y=p.y-50, text="MOD FOUND!", color={0.2, 1, 0.2}, life=1.5})
+                        logger.pickup(state, 'chest_mod')
     
-                    if state and state.augments and state.augments.dispatch then
-                        ctx = ctx or {kind = 'chest', amount = 1, player = p, chest = c}
-                        state.augments.dispatch(state, 'postPickup', ctx)
+                        if state and state.augments and state.augments.dispatch then
+                            ctx = ctx or {kind = 'chest', amount = 1, player = p, chest = c}
+                            state.augments.dispatch(state, 'postPickup', ctx)
+                        end
+                        table.remove(state.chests, i)
                     end
-                    table.remove(state.chests, i)
                 end
             end
-            ::continue_chest::
         end
     end
     

@@ -8,6 +8,7 @@ local status = require('gameplay.status')
 -- 引入子模块
 local enemyAI = require('gameplay.enemies.ai')
 local enemyLoot = require('gameplay.enemies.loot')
+local enemyAttacks = require('gameplay.enemies.attacks')
 
 local enemies = {}
 
@@ -28,9 +29,10 @@ local shouldRetreat = enemyAI.shouldRetreat
 local shouldKite = enemyAI.shouldKite
 local shouldBerserk = enemyAI.shouldBerserk
 
---------------------------------------------------------------------------------
+-- 攻击系统工具函数（从子模块导出）
+local chooseWeighted = enemyAttacks.chooseWeighted
 
-local enemyDropDefs = (dropRates and dropRates.enemy) or {}
+--------------------------------------------------------------------------------
 
 local _calculator = nil
 local function getCalculator()
