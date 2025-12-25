@@ -701,115 +701,113 @@ function draw.renderWorld(state)
     -- 地面道具
     for _, item in ipairs(state.floorPickups) do
         -- Flashing effect for items about to despawn
-        local skip = false
         if item.flashing then
             local flash = math.sin(love.timer.getTime() * 12) > 0
-            if not flash then skip = true end
+            if not flash then goto skip_pickup end
         end
         
-        if not skip then
-            local sprite = state.pickupSprites and state.pickupSprites[item.kind]
-            
-            local isGlow = (item.kind == 'magnet' or item.kind == 'chicken' or item.kind == 'chest_xp' or item.kind == 'chest_reward' or item.kind == 'pet_contract' or item.kind == 'pet_revive' or item.kind == 'shop_terminal' or item.kind == 'pet_module_chip' or item.kind == 'pet_upgrade_chip')
-            if isGlow then love.graphics.setBlendMode("add") end
+        local sprite = state.pickupSprites and state.pickupSprites[item.kind]
+        
+        local isGlow = (item.kind == 'magnet' or item.kind == 'chicken' or item.kind == 'chest_xp' or item.kind == 'chest_reward' or item.kind == 'pet_contract' or item.kind == 'pet_revive' or item.kind == 'shop_terminal' or item.kind == 'pet_module_chip' or item.kind == 'pet_upgrade_chip')
+        if isGlow then love.graphics.setBlendMode("add") end
 
-            if sprite then
-                local sw, sh = sprite:getWidth(), sprite:getHeight()
-                local size = (item.size or 16)
-                local scale = size / sw
-                scale = scale * 2
-                love.graphics.setColor(1,1,1)
-                love.graphics.draw(sprite, item.x, item.y, 0, scale, scale, sw/2, sh/2)
-            else
-                if item.kind == 'chicken' then
-                    love.graphics.setColor(1, 0.9, 0.6) -- Brighter gold
-                    love.graphics.circle('fill', item.x, item.y, 8)
-                    love.graphics.setColor(1, 1, 0.9)
-                    love.graphics.circle('fill', item.x, item.y - 2, 5)
-                    love.graphics.setColor(0.8, 0.4, 0.2)
-                    love.graphics.rectangle('fill', item.x - 2, item.y + 4, 4, 4)
-                elseif item.kind == 'magnet' then
-                    love.graphics.setColor(0.2, 0.8, 1) -- Brighter blue
-                    love.graphics.setLineWidth(3)
-                    love.graphics.arc('line', 'open', item.x, item.y, 8, math.pi * 0.2, math.pi * 1.8)
-                    love.graphics.line(item.x - 6, item.y + 6, item.x - 2, item.y + 6)
-                    love.graphics.line(item.x + 2, item.y + 6, item.x + 6, item.y + 6)
-                    love.graphics.setLineWidth(1)
-                elseif item.kind == 'shop_terminal' then
-                    love.graphics.setColor(0.35, 0.95, 1.0, 0.95)
-                    love.graphics.circle('line', item.x, item.y, 12)
-                    love.graphics.circle('fill', item.x, item.y, 6)
-                    love.graphics.setColor(1, 1, 1, 0.9)
-                    love.graphics.printf("SHOP", item.x - 40, item.y + 12, 80, "center")
-                elseif item.kind == 'pet_module_chip' or item.kind == 'pet_upgrade_chip' then
-                    local isModule = (item.kind == 'pet_module_chip')
-                    if isModule then
-                        love.graphics.setColor(0.7, 0.95, 1.0, 0.95)
-                    else
-                        love.graphics.setColor(1.0, 0.92, 0.55, 0.95)
-                    end
-                    love.graphics.circle('line', item.x, item.y, 11)
-                    love.graphics.circle('fill', item.x, item.y, 5)
-                    love.graphics.setColor(1, 1, 1, 0.9)
-                    love.graphics.printf(isModule and "MOD" or "UP", item.x - 30, item.y + 12, 60, "center")
-                elseif item.kind == 'pet_contract' or item.kind == 'pet_revive' then
-                    local rk = item.roomKind
-                    if item.kind == 'pet_revive' then
-                        love.graphics.setColor(0.55, 1.0, 0.55, 0.95)
-                    elseif rk == 'shop' then
-                        love.graphics.setColor(0.35, 0.95, 1.0, 0.9)
-                    else
-                        love.graphics.setColor(0.95, 0.7, 1.0, 0.9)
-                    end
-                    love.graphics.circle('line', item.x, item.y, 10)
-                    love.graphics.circle('fill', item.x, item.y, 6)
-                    love.graphics.setColor(1, 1, 1, 0.9)
-                    local label = (item.kind == 'pet_revive') and "REVIVE" or "PET"
-                    if item.kind == 'pet_contract' and rk == 'shop' then label = "SWAP" end
-                    love.graphics.printf(label, item.x - 40, item.y + 12, 80, "center")
-                elseif item.kind == 'health_orb' then
-                    -- WF-style health orb (green glow)
-                    love.graphics.setColor(0.2, 0.9, 0.3, 0.95)
-                    love.graphics.circle('fill', item.x, item.y, 7)
-                    love.graphics.setColor(0.4, 1, 0.5, 0.6)
-                    love.graphics.circle('line', item.x, item.y, 9)
-                    love.graphics.setColor(1, 1, 1, 0.9)
-                    love.graphics.circle('fill', item.x - 2, item.y - 2, 2)
-                elseif item.kind == 'energy_orb' then
-                    -- WF-style energy orb (blue glow)
-                    love.graphics.setColor(0.2, 0.5, 1, 0.95)
-                    love.graphics.circle('fill', item.x, item.y, 7)
-                    love.graphics.setColor(0.4, 0.7, 1, 0.6)
-                    love.graphics.circle('line', item.x, item.y, 9)
-                    love.graphics.setColor(1, 1, 1, 0.9)
-                    love.graphics.circle('fill', item.x - 2, item.y - 2, 2)
-                elseif item.kind == 'mod_card' then
-                    -- WF-style MOD card drop (gold shine)
-                    love.graphics.setColor(0.95, 0.85, 0.2, 0.95)
-                    love.graphics.rectangle('fill', item.x - 6, item.y - 8, 12, 16, 2, 2)
-                    love.graphics.setColor(1, 0.95, 0.5, 0.7)
-                    love.graphics.rectangle('line', item.x - 7, item.y - 9, 14, 18, 2, 2)
-                    love.graphics.setColor(0.3, 0.25, 0.1, 0.9)
-                    love.graphics.line(item.x - 3, item.y - 4, item.x + 3, item.y - 4)
-                    love.graphics.line(item.x - 3, item.y, item.x + 3, item.y)
-                    love.graphics.line(item.x - 2, item.y + 4, item.x + 2, item.y + 4)
-                elseif item.kind == 'ammo' then
-                    -- Ammo Crate (placeholder box)
-                    love.graphics.setColor(0.5, 0.55, 0.45, 0.95)
-                    love.graphics.rectangle('fill', item.x - 10, item.y - 8, 20, 16, 3, 3)
-                    love.graphics.setColor(0.7, 0.75, 0.6, 0.9)
-                    love.graphics.rectangle('line', item.x - 11, item.y - 9, 22, 18, 3, 3)
-                    love.graphics.setColor(0.2, 0.2, 0.15, 0.9)
-                    love.graphics.setLineWidth(2)
-                    love.graphics.line(item.x - 7, item.y - 2, item.x + 7, item.y - 2)
-                    love.graphics.line(item.x - 5, item.y + 2, item.x + 5, item.y + 2)
-                    love.graphics.setLineWidth(1)
-                    love.graphics.setColor(0.9, 0.95, 0.8, 0.85)
-                    love.graphics.printf("AMMO", item.x - 30, item.y + 10, 60, "center")
+        if sprite then
+            local sw, sh = sprite:getWidth(), sprite:getHeight()
+            local size = (item.size or 16)
+            local scale = size / sw
+            local scale = scale * 2
+            love.graphics.setColor(1,1,1)
+            love.graphics.draw(sprite, item.x, item.y, 0, scale, scale, sw/2, sh/2)
+        else
+            if item.kind == 'chicken' then
+                love.graphics.setColor(1, 0.9, 0.6) -- Brighter gold
+                love.graphics.circle('fill', item.x, item.y, 8)
+                love.graphics.setColor(1, 1, 0.9)
+                love.graphics.circle('fill', item.x, item.y - 2, 5)
+                love.graphics.setColor(0.8, 0.4, 0.2)
+                love.graphics.rectangle('fill', item.x - 2, item.y + 4, 4, 4)
+            elseif item.kind == 'magnet' then
+                love.graphics.setColor(0.2, 0.8, 1) -- Brighter blue
+                love.graphics.setLineWidth(3)
+                love.graphics.arc('line', 'open', item.x, item.y, 8, math.pi * 0.2, math.pi * 1.8)
+                love.graphics.line(item.x - 6, item.y + 6, item.x - 2, item.y + 6)
+                love.graphics.line(item.x + 2, item.y + 6, item.x + 6, item.y + 6)
+                love.graphics.setLineWidth(1)
+            elseif item.kind == 'shop_terminal' then
+                love.graphics.setColor(0.35, 0.95, 1.0, 0.95)
+                love.graphics.circle('line', item.x, item.y, 12)
+                love.graphics.circle('fill', item.x, item.y, 6)
+                love.graphics.setColor(1, 1, 1, 0.9)
+                love.graphics.printf("SHOP", item.x - 40, item.y + 12, 80, "center")
+            elseif item.kind == 'pet_module_chip' or item.kind == 'pet_upgrade_chip' then
+                local isModule = (item.kind == 'pet_module_chip')
+                if isModule then
+                    love.graphics.setColor(0.7, 0.95, 1.0, 0.95)
+                else
+                    love.graphics.setColor(1.0, 0.92, 0.55, 0.95)
                 end
+                love.graphics.circle('line', item.x, item.y, 11)
+                love.graphics.circle('fill', item.x, item.y, 5)
+                love.graphics.setColor(1, 1, 1, 0.9)
+                love.graphics.printf(isModule and "MOD" or "UP", item.x - 30, item.y + 12, 60, "center")
+            elseif item.kind == 'pet_contract' or item.kind == 'pet_revive' then
+                local rk = item.roomKind
+                if item.kind == 'pet_revive' then
+                    love.graphics.setColor(0.55, 1.0, 0.55, 0.95)
+                elseif rk == 'shop' then
+                    love.graphics.setColor(0.35, 0.95, 1.0, 0.9)
+                else
+                    love.graphics.setColor(0.95, 0.7, 1.0, 0.9)
+                end
+                love.graphics.circle('line', item.x, item.y, 10)
+                love.graphics.circle('fill', item.x, item.y, 6)
+                love.graphics.setColor(1, 1, 1, 0.9)
+                local label = (item.kind == 'pet_revive') and "REVIVE" or "PET"
+                if item.kind == 'pet_contract' and rk == 'shop' then label = "SWAP" end
+                love.graphics.printf(label, item.x - 40, item.y + 12, 80, "center")
+            elseif item.kind == 'health_orb' then
+                -- WF-style health orb (green glow)
+                love.graphics.setColor(0.2, 0.9, 0.3, 0.95)
+                love.graphics.circle('fill', item.x, item.y, 7)
+                love.graphics.setColor(0.4, 1, 0.5, 0.6)
+                love.graphics.circle('line', item.x, item.y, 9)
+                love.graphics.setColor(1, 1, 1, 0.9)
+                love.graphics.circle('fill', item.x - 2, item.y - 2, 2)
+            elseif item.kind == 'energy_orb' then
+                -- WF-style energy orb (blue glow)
+                love.graphics.setColor(0.2, 0.5, 1, 0.95)
+                love.graphics.circle('fill', item.x, item.y, 7)
+                love.graphics.setColor(0.4, 0.7, 1, 0.6)
+                love.graphics.circle('line', item.x, item.y, 9)
+                love.graphics.setColor(1, 1, 1, 0.9)
+                love.graphics.circle('fill', item.x - 2, item.y - 2, 2)
+            elseif item.kind == 'mod_card' then
+                -- WF-style MOD card drop (gold shine)
+                love.graphics.setColor(0.95, 0.85, 0.2, 0.95)
+                love.graphics.rectangle('fill', item.x - 6, item.y - 8, 12, 16, 2, 2)
+                love.graphics.setColor(1, 0.95, 0.5, 0.7)
+                love.graphics.rectangle('line', item.x - 7, item.y - 9, 14, 18, 2, 2)
+                love.graphics.setColor(0.3, 0.25, 0.1, 0.9)
+                love.graphics.line(item.x - 3, item.y - 4, item.x + 3, item.y - 4)
+                love.graphics.line(item.x - 3, item.y, item.x + 3, item.y)
+                love.graphics.line(item.x - 2, item.y + 4, item.x + 2, item.y + 4)
+            elseif item.kind == 'ammo' then
+                -- Ammo Crate (placeholder box)
+                love.graphics.setColor(0.5, 0.55, 0.45, 0.95)
+                love.graphics.rectangle('fill', item.x - 10, item.y - 8, 20, 16, 3, 3)
+                love.graphics.setColor(0.7, 0.75, 0.6, 0.9)
+                love.graphics.rectangle('line', item.x - 11, item.y - 9, 22, 18, 3, 3)
+                love.graphics.setColor(0.2, 0.2, 0.15, 0.9)
+                love.graphics.setLineWidth(2)
+                love.graphics.line(item.x - 7, item.y - 2, item.x + 7, item.y - 2)
+                love.graphics.line(item.x - 5, item.y + 2, item.x + 5, item.y + 2)
+                love.graphics.setLineWidth(1)
+                love.graphics.setColor(0.9, 0.95, 0.8, 0.85)
+                love.graphics.printf("AMMO", item.x - 30, item.y + 10, 60, "center")
             end
-            if isGlow then love.graphics.setBlendMode("alpha") end
         end
+        if isGlow then love.graphics.setBlendMode("alpha") end
+        ::skip_pickup::
     end
 
     -- 经验宝石 (DEPRECATED - Legacy VS system, kept for backward compatibility)
@@ -1730,8 +1728,8 @@ function draw.renderWorld(state)
     -- 地震特效
     if state.quakeEffects then
         for _, q in ipairs(state.quakeEffects) do
-            if (q.t or 0) >= 0 then
-                local dur = q.duration or 1.2
+            if (q.t or 0) < 0 then goto continue_quake end
+            local dur = q.duration or 1.2
             local t = (q.t or 0)
             local p = math.max(0, math.min(1, t / dur))
             local cx, cy = q.x or state.player.x, q.y or state.player.y
@@ -1771,7 +1769,7 @@ function draw.renderWorld(state)
                 end
             end
             love.graphics.setLineWidth(1)
-            end
+            ::continue_quake::
         end
         love.graphics.setColor(1,1,1)
     end
@@ -1813,32 +1811,34 @@ function draw.renderWorld(state)
         local text = tostring(t.text)
         
         -- Skip very low alpha (saves draw calls for tiny/faded damage)
-        if alpha >= 0.05 then
-            -- Use state.font explicitly to ensure Chinese font support
-            -- (Don't rely on getFont which might be corrupted by other code)
-            local font = state.font or love.graphics.getFont()
-            love.graphics.setFont(font)
-            local tw = font:getWidth(text) * scale
-            local th = font:getHeight() * scale
-            local drawX = t.x - tw / 2
-            local drawY = t.y - th / 2
-            
-            -- Draw black outline for visibility (skip for very small scale)
-            if scale >= 0.6 then
-                love.graphics.setColor(0, 0, 0, alpha * 0.8)
-                for ox = -1, 1 do
-                    for oy = -1, 1 do
-                        if ox ~= 0 or oy ~= 0 then
-                            love.graphics.print(text, drawX + ox, drawY + oy, 0, scale, scale)
-                        end
+        if alpha < 0.05 then goto continue_text end
+        
+        -- Use state.font explicitly to ensure Chinese font support
+        -- (Don't rely on getFont which might be corrupted by other code)
+        local font = state.font or love.graphics.getFont()
+        love.graphics.setFont(font)
+        local tw = font:getWidth(text) * scale
+        local th = font:getHeight() * scale
+        local drawX = t.x - tw / 2
+        local drawY = t.y - th / 2
+        
+        -- Draw black outline for visibility (skip for very small scale)
+        if scale >= 0.6 then
+            love.graphics.setColor(0, 0, 0, alpha * 0.8)
+            for ox = -1, 1 do
+                for oy = -1, 1 do
+                    if ox ~= 0 or oy ~= 0 then
+                        love.graphics.print(text, drawX + ox, drawY + oy, 0, scale, scale)
                     end
                 end
             end
-            
-            -- Draw main text
-            love.graphics.setColor(t.color[1], t.color[2], t.color[3], alpha)
-            love.graphics.print(text, drawX, drawY, 0, scale, scale)
         end
+        
+        -- Draw main text
+        love.graphics.setColor(t.color[1], t.color[2], t.color[3], alpha)
+        love.graphics.print(text, drawX, drawY, 0, scale, scale)
+        
+        ::continue_text::
     end
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.pop()
