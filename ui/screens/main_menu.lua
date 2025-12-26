@@ -73,8 +73,19 @@ function mainMenu.init(state)
     end)
     menuPanel:addChild(startBtn)
     
-    local quitBtn = ui.Button.new({
+    local settingsBtn = ui.Button.new({
         x = (menuW - btnW) / 2, y = startY + btnH + 15,
+        w = btnW, h = btnH,
+        text = "设置 (SETTINGS)",
+        color = ui.theme.colors.button_normal
+    })
+    settingsBtn:on('click', function()
+        mainMenu.openSettings(state)
+    end)
+    menuPanel:addChild(settingsBtn)
+    
+    local quitBtn = ui.Button.new({
+        x = (menuW - btnW) / 2, y = startY + (btnH + 15) * 2,
         w = btnW, h = btnH,
         text = "退出游戏 (QUIT)",
         color = ui.theme.colors.button_normal
@@ -85,6 +96,24 @@ function mainMenu.init(state)
     menuPanel:addChild(quitBtn)
     
     ui.setRoot(root)
+end
+
+-- 设置界面
+local settingsScreen = nil
+local function getSettingsScreen()
+    if not settingsScreen then
+        settingsScreen = require('ui.screens.settings')
+    end
+    return settingsScreen
+end
+
+function mainMenu.openSettings(state)
+    local settings = getSettingsScreen()
+    settings.init(state, function()
+        -- 关闭设置时恢复主菜单
+        ui.setRoot(root)
+    end)
+    ui.setRoot(settings.getRoot())
 end
 
 function mainMenu.update(dt)
