@@ -9,11 +9,11 @@ local hub = {}
 
 function hub.init(state)
     local map = {
-        w = 40,
-        h = 30,
+        w = 32,
+        h = 24,
         tileSize = 32,
-        spawnX = 400,
-        spawnY = 300
+        spawnX = 16 * 32, -- 中央
+        spawnY = 12 * 32
     }
     state.hubMap = map
     
@@ -25,30 +25,52 @@ function hub.init(state)
     state.world.pixelW = map.w * map.tileSize
     state.world.pixelH = map.h * map.tileSize
     
-    -- 填充 1D 表：0 = 地板, 1 = 墙壁 (draw.renderWorld 的标准)
+    -- 填充 1D 表
+    -- 0: 基础地板 (暗灰色)
+    -- 1: 墙壁 (厚重金属)
+    -- 2: 装饰性格栅 (科技感)
+    -- 3: 能源走廊 (带蓝色自发光)
     state.world.tiles = {}
     for i = 1, map.w * map.h do
-        state.world.tiles[i] = 0
+        state.world.tiles[i] = 1 -- 默认全是墙
     end
     
-    -- 添加边界墙
-    for x = 1, map.w do
-        state.world.tiles[x] = 1 -- 顶
-        state.world.tiles[(map.h - 1) * map.w + x] = 1 -- 底
+    -- 助手函数：填充矩形区域
+    local function fillRect(tx, ty, tw, th, id)
+        for y = ty, ty + th - 1 do
+            for x = tx, tx + tw - 1 do
+                if x >= 1 and x <= map.w and y >= 1 and y <= map.h then
+                    state.world.tiles[(y - 1) * map.w + x] = id
+                end
+            end
+        end
     end
-    for y = 1, map.h do
-        state.world.tiles[(y - 1) * map.w + 1] = 1 -- 左
-        state.world.tiles[(y - 1) * map.w + map.w] = 1 -- 右
-    end
+
+    -- 绘制基地布局
+    -- 1. 中央大厅 (Cross shape)
+    fillRect(8, 8, 16, 8, 0)  -- 水平主厅
+    fillRect(12, 4, 8, 16, 0) -- 垂直主厅
+    fillRect(14, 10, 4, 4, 2) -- 中央装饰格栅
     
-    -- 玩家位置
+    -- 2. 走廊连接到功能区
+    fillRect(4, 11, 4, 2, 3)  -- 左侧走廊
+    fillRect(24, 11, 4, 2, 3) -- 右侧走廊
+    
+    -- 3. 功能房间
+    fillRect(2, 9, 3, 6, 0)   -- 左侧：军械库区
+    fillRect(2, 11, 3, 2, 2)  
+    
+    fillRect(27, 9, 3, 6, 0)  -- 右侧：出战调度
+    fillRect(27, 11, 3, 2, 2) 
+
+    -- 玩家位置：中央大厅
     state.player.x = map.spawnX
     state.player.y = map.spawnY
     
-    -- 定义交互点（军械库、出战入口）
+    -- 定义交互点（调整到新位置）
     state.hubInteractions = {
-        { x = 500, y = 300, radius = 50, type = 'arsenal', label = "[E] 进入军械库" },
-        { x = 300, y = 200, radius = 60, type = 'chapter_entry', label = "[E] 开始任务" }
+        { x = 3.5 * 32, y = 12 * 32, radius = 40, type = 'arsenal', label = "[E] 访问军械库" },
+        { x = 28.5 * 32, y = 12 * 32, radius = 40, type = 'chapter_entry', label = "[E] 开启任务" }
     }
 end
 

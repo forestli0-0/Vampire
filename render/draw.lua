@@ -5,6 +5,7 @@ local pipeline = require('render.pipeline')
 local weaponTrail = require('render.weapon_trail')  -- 武器拖影系统
 local animTransform = require('render.animation_transform')  -- 挤压拉伸变换
 local shaders = require('render.shaders')
+local ui = require('ui')
 
 local draw = {}
 
@@ -460,63 +461,51 @@ function draw.renderWorld(state)
         local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
         love.graphics.rectangle('fill', camX - 100, camY - 100, sw + 200, sh + 200)
         
-        -- 2. Draw Floor Tiles (Grass) only within the arena bounds
+        local bg = state.bgTile
         local ts = world.tileSize
-        
-        -- Clamp visible range to actual map bounds
         local minCx = math.max(1, math.floor(camX / ts) + 1)
         local maxCx = math.min(world.w, math.floor((camX + sw) / ts) + 2)
         local minCy = math.max(1, math.floor(camY / ts) + 1)
         local maxCy = math.min(world.h, math.floor((camY + sh) / ts) + 2)
-        
-        local bg = state.bgTile
-        if bg and bg.image then
-            local bw, bh = bg.w, bg.h
-            love.graphics.setColor(1, 1, 1, 1)
-            for cy = minCy, maxCy do
-                local row = (cy - 1) * world.w
-                local tileY = (cy - 1) * ts
-                for cx = minCx, maxCx do
-                    local tileIdx = row + cx
-                    if tileIdx >= 1 and tileIdx <= #world.tiles and world.tiles[tileIdx] == 0 then
-                        local tileX = (cx - 1) * ts
-                        local u = tileX % bw
-                        local v = tileY % bh
-                        local q = love.graphics.newQuad(u, v, ts, ts, bw, bh)
-                        love.graphics.draw(bg.image, q, tileX, tileY)
-                    end
-                end
-            end
-        else
-            -- Fallback: solid green floor
-            love.graphics.setColor(0.18, 0.22, 0.18, 1.0)
-            for cy = minCy, maxCy do
-                local row = (cy - 1) * world.w
-                local tileY = (cy - 1) * ts
-                for cx = minCx, maxCx do
-                    local tileIdx = row + cx
-                    if tileIdx >= 1 and tileIdx <= #world.tiles and world.tiles[tileIdx] == 0 then
-                        love.graphics.rectangle('fill', (cx - 1) * ts, tileY, ts, ts)
-                    end
-                end
-            end
-        end
 
-        -- 3. Draw Walls
-        local wallCol = (world and world.wallColor) or {0.12, 0.12, 0.14}
-        love.graphics.setColor(wallCol[1] or 0.12, wallCol[2] or 0.12, wallCol[3] or 0.14, 1.0)
         for cy = minCy, maxCy do
             local row = (cy - 1) * world.w
             local tileY = (cy - 1) * ts
             for cx = minCx, maxCx do
                 local tileIdx = row + cx
-                if tileIdx >= 1 and tileIdx <= #world.tiles and world.tiles[tileIdx] == 1 then
+                if tileIdx >= 1 and tileIdx <= #world.tiles then
+                    local tile = world.tiles[tileIdx]
                     local tileX = (cx - 1) * ts
-                    love.graphics.rectangle('fill', tileX, tileY, ts, ts)
-                    -- Subtle bevel
-                    love.graphics.setColor(0.2, 0.2, 0.25, 0.3)
-                    love.graphics.rectangle('line', tileX + 1, tileY + 1, ts - 2, ts - 2)
-                    love.graphics.setColor(wallCol[1] or 0.12, wallCol[2] or 0.12, wallCol[3] or 0.14, 1.0)
+                    
+                    if tile == 0 then -- 基础地板 (暗灰色金属面板)
+                        love.graphics.setColor(0.15, 0.16, 0.18, 1)
+                        love.graphics.rectangle('fill', tileX, tileY, ts, ts)
+                        love.graphics.setColor(1, 1, 1, 0.05)
+                        love.graphics.rectangle('line', tileX, tileY, ts, ts)
+                    elseif tile == 2 then -- 格栅地板
+                        love.graphics.setColor(0.12, 0.13, 0.15, 1)
+                        love.graphics.rectangle('fill', tileX, tileY, ts, ts)
+                        love.graphics.setColor(0.3, 0.4, 0.5, 0.3)
+                        for i = 2, ts - 2, 6 do
+                            love.graphics.rectangle('fill', tileX + i, tileY + 2, 2, ts - 4)
+                        end
+                    elseif tile == 3 then -- 能源走廊
+                        love.graphics.setColor(0.1, 0.12, 0.15, 1)
+                        love.graphics.rectangle('fill', tileX, tileY, ts, ts)
+                        local pulse = 0.4 + 0.3 * math.sin(love.timer.getTime() * 4)
+                        love.graphics.setColor(0.2, 0.5, 1, 0.2 * pulse)
+                        love.graphics.rectangle('fill', tileX + 4, tileY + 4, ts - 8, ts - 8)
+                        love.graphics.setColor(0.3, 0.7, 1, 0.4 * pulse)
+                        love.graphics.rectangle('line', tileX + 4, tileY + 4, ts - 8, ts - 8)
+                    elseif tile == 1 then -- 墙壁 (厚重金属)
+                        love.graphics.setColor(0.08, 0.09, 0.12, 1)
+                        love.graphics.rectangle('fill', tileX, tileY, ts, ts)
+                        -- 增加金属面板细节
+                        love.graphics.setColor(1, 1, 1, 0.08)
+                        love.graphics.rectangle('line', tileX + 2, tileY + 2, ts - 4, ts - 4)
+                        love.graphics.setColor(0.4, 0.5, 0.6, 0.2)
+                        love.graphics.rectangle('fill', tileX + 6, tileY + 6, ts - 12, ts - 12)
+                    end
                 end
             end
         end
@@ -704,22 +693,47 @@ function draw.renderWorld(state)
     -- HUB 交互点绘制
     if state.runMode == 'hub' and state.hubInteractions then
         for _, inter in ipairs(state.hubInteractions) do
-            -- 绘制一个发光的圆圈
-            local pulse = 0.8 + 0.2 * math.sin(love.timer.getTime() * 5)
-            love.graphics.setColor(0.4, 0.8, 1.0, 0.3 * pulse)
-            love.graphics.circle('fill', inter.x, inter.y, inter.radius)
-            love.graphics.setColor(0.4, 0.8, 1.0, 0.8)
-            love.graphics.setLineWidth(2)
-            love.graphics.circle('line', inter.x, inter.y, inter.radius)
-            love.graphics.setLineWidth(1)
+            local t = love.timer.getTime()
+            local bounce = math.sin(t * 3) * 5
+            local pulse = 0.7 + 0.3 * math.sin(t * 4)
             
-            -- 如果玩家接近，显示标签
+            -- 全息基座
+            love.graphics.setColor(0.2, 0.3, 0.5, 0.6)
+            love.graphics.rectangle('fill', inter.x - 20, inter.y + 10, 40, 10, 4, 4)
+            love.graphics.setColor(0.4, 0.7, 1.0, 0.8)
+            love.graphics.rectangle('line', inter.x - 20, inter.y + 10, 40, 10, 4, 4)
+            
+            -- 向上散射的淡蓝色光柱
+            love.graphics.setColor(0.4, 0.7, 1.0, 0.15 * pulse)
+            love.graphics.polygon('fill', inter.x - 15, inter.y + 10, inter.x + 15, inter.y + 10, inter.x + 25, inter.y - 30, inter.x - 25, inter.y - 30)
+            
+            -- 悬浮的全息控制面板（简单的几何形状代替）
+            love.graphics.push()
+            love.graphics.translate(0, bounce)
+            
+            love.graphics.setColor(0.4, 0.7, 1.0, 0.5 * pulse)
+            love.graphics.rectangle('fill', inter.x - 15, inter.y - 20, 30, 20, 2, 2)
+            love.graphics.setColor(1, 1, 1, 0.8)
+            love.graphics.rectangle('line', inter.x - 15, inter.y - 20, 30, 20, 2, 2)
+            
+            -- 面板上的装饰性“数据线”
+            love.graphics.setColor(1, 1, 1, 0.5)
+            love.graphics.line(inter.x - 10, inter.y - 12, inter.x + 10, inter.y - 12)
+            love.graphics.line(inter.x - 10, inter.y - 8, inter.x + 4, inter.y - 8)
+            
+            love.graphics.pop()
+
+            -- 接近时的发光圈
             local dx = state.player.x - inter.x
             local dy = state.player.y - inter.y
             local dist = math.sqrt(dx*dx + dy*dy)
             if dist < inter.radius + 20 then
+                love.graphics.setColor(0.4, 0.8, 1.0, 0.4 * pulse)
+                love.graphics.circle('line', inter.x, inter.y + 15, 30 + 5 * pulse)
+                
                 love.graphics.setColor(1, 1, 1, 1)
-                love.graphics.printf(inter.label, inter.x - 100, inter.y - inter.radius - 25, 200, 'center')
+                love.graphics.setFont(ui.theme.getFont('small'))
+                love.graphics.printf(inter.label, inter.x - 100, inter.y - 50 + bounce, 200, 'center')
             end
         end
     end
