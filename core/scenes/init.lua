@@ -77,6 +77,13 @@ local handlers = {}
 -- @param state 全局状态表，包含所有游戏数据
 -- @param dt delta time，自上一帧以来的时间（秒）
 local function updatePlaying(state, dt)
+    -- 首先检查暂停菜单是否激活
+    local pauseMenu = require('ui.screens.pause_menu')
+    if pauseMenu.isActive() then
+        pauseMenu.update(dt)
+        return  -- 暂停时跳过游戏逻辑更新
+    end
+    
     -- 首先检查游戏内菜单是否激活，如果激活则暂停游戏逻辑更新
     if ingameMenu.isActive() then
         ingameMenu.update(dt)
@@ -327,6 +334,7 @@ local function drawWorld(state)
         if state.runMode == 'chapter' and state.chapterMap then
             hud.drawMinimap(state)
         end
+        -- 暂停菜单现在通过 ui.setRoot 自动绘制
     end)
 end
 
@@ -482,6 +490,13 @@ function scenes.keypressed(state, key, scancode, isrepeat)
 
     -- ==================== 游戏进行中 ====================
     if state.gameState == 'PLAYING' then
+        -- 暂停菜单优先处理所有按键
+        local pauseMenu = require('ui.screens.pause_menu')
+        if pauseMenu.isActive() then
+            if pauseMenu.keypressed(key) then return true end
+            return true  -- 阻止其他输入
+        end
+        
         -- Tab键：打开/关闭游戏内菜单
         if key == 'tab' then
             ingameMenu.toggle(state)
@@ -497,11 +512,15 @@ function scenes.keypressed(state, key, scancode, isrepeat)
         -- UI系统处理
         if ui.keypressed(key) then return true end
 
-        -- Escape键：返回军械库（调试用）
+        -- Escape键：打开/关闭暂停菜单
         if key == 'escape' then
-            -- 返回基地
-            local hub = require('world.hub')
-            hub.enterHub(state)
+            local pauseMenu = require('ui.screens.pause_menu')
+            if pauseMenu.isActive() then
+                pauseMenu.resume()
+            else
+                pauseMenu.init(state)
+                state.paused = true
+            end
             return true
         end
     end
