@@ -151,7 +151,9 @@ function settings.init(state, closeCallback)
         minusBtn:on('click', function()
             volumes[volumeKey] = math.max(0, volumes[volumeKey] - 0.1)
             barFill.w = (barW - 4) * volumes[volumeKey]
-            pctText.text = math.floor(volumes[volumeKey] * 100) .. "%"
+            local newText = math.floor(volumes[volumeKey] * 100) .. "%"
+            pctText.text = newText
+            pctText.displayText = newText
             applyVolumes()
             saveVolumes()
         end)
@@ -166,7 +168,9 @@ function settings.init(state, closeCallback)
         plusBtn:on('click', function()
             volumes[volumeKey] = math.min(1, volumes[volumeKey] + 0.1)
             barFill.w = (barW - 4) * volumes[volumeKey]
-            pctText.text = math.floor(volumes[volumeKey] * 100) .. "%"
+            local newText = math.floor(volumes[volumeKey] * 100) .. "%"
+            pctText.text = newText
+            pctText.displayText = newText
             applyVolumes()
             saveVolumes()
         end)

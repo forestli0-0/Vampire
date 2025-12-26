@@ -797,6 +797,16 @@ function arsenalScreen.keypressed(gameState, key)
         return true
     end
     
+    -- ESC to close arsenal and return to Hub
+    if key == 'escape' then
+        if gameState.runMode == 'hub' then
+            gameState.gameState = 'HUB'
+            local hubUIScreen = require('ui.screens.hub_ui')
+            hubUIScreen.init(gameState)
+            return true
+        end
+    end
+    
     return false
 end
 
