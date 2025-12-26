@@ -46,6 +46,10 @@ local world = require('world.world')                  -- 世界/地图系统
 local hitstop = require('render.hitstop')             -- 顿帧系统
 local weaponTrail = require('render.weapon_trail')    -- 武器拖影系统
 
+-- 新场景模块
+local mainMenuScreen = require('ui.screens.main_menu')
+local hubUIScreen = require('ui.screens.hub_ui')
+
 -- ============================================================================
 -- 局部变量：模块状态
 -- ============================================================================
@@ -191,109 +195,7 @@ local function updatePlaying(state, dt)
     end
 
     -- ==================== 玩家动画更新 ====================
-    if state.playerAnimSets or state.playerAnim then
-        -- ==================== 8向动画状态机逻辑 ====================
-        local p = state.player
-        local dash = p.dash or {}
-        local melee = p.meleeState or {}
-        
-        -- 确定当前动画状态
-        local animState = 'idle'
-        local animSpeed = 1.0
-        local animSetKey = 'run'  -- 使用的动画集
-        
-        -- 检测冲刺/Bullet Jump状态
-        local isDashing = (dash.timer or 0) > 0
-        local isBulletJumping = (p.bulletJumpTimer or 0) > 0
-        local isInDashState = isDashing or isBulletJumping
-        
-        if isInDashState then
-            -- 冲刺/Bullet Jump：使用滑行动画
-            animState = 'dash'
-            animSetKey = 'slide'
-            animSpeed = 2.0
-            
-            -- 检测是否刚进入冲刺状态（从非冲刺变为冲刺）
-            -- 使用组合标志追踪：只有当之前没有任何冲刺状态时才重置动画
-            local wasInAnyDash = p.wasDashing or p.wasBulletJumping
-            if not wasInAnyDash then
-                -- 刚开始冲刺，重置动画到第一帧
-                if state.playerAnim and state.playerAnim.gotoFrame then
-                    state.playerAnim:gotoFrame(1)
-                end
-            end
-            
-            -- 更新状态追踪
-            p.wasDashing = isDashing
-            p.wasBulletJumping = isBulletJumping
-        elseif melee.phase and melee.phase ~= 'idle' then
-            -- 近战攻击：使用跑步动画但快速播放
-            animState = 'attack'
-            animSetKey = 'run'
-            if melee.attackType == 'heavy' then
-                animSpeed = 0.8
-            else
-                animSpeed = 1.5
-            end
-        elseif p.isSliding then
-            -- Shift 滑行状态：使用跑步动画（滑行动画只用于 Space 闪避）
-            animState = 'slide_run'
-            animSetKey = 'run'
-            animSpeed = 1.2  -- 稍快一点表示滑行状态
-            p.wasDashing = false
-            p.wasBulletJumping = false
-        elseif p.isMoving then
-            -- 移动中：使用跑步动画
-            animState = 'run'
-            animSetKey = 'run'
-            animSpeed = 1.0
-            p.wasDashing = false
-            p.wasBulletJumping = false
-        else
-            -- 静止：使用待机动画
-            animState = 'idle'
-            animSetKey = 'idle'  -- 使用专门的待机动画集
-            animSpeed = 1.0      -- 待机动画本身就是慢速设计的（6FPS）
-            p.wasDashing = false
-            p.wasBulletJumping = false
-        end
-        
-        -- 保存状态供其他系统使用
-        p.animState = animState
-        
-        -- ==================== 8向动画方向选择 ====================
-        if state.playerAnimSets and state.playerAnimsLoader then
-            -- 使用 moveDirX/moveDirY（在 player.updateMovement 中保存）
-            local vx = p.moveDirX or 0
-            local vy = p.moveDirY or 0
-            
-            -- 使用上一次移动方向作为默认（站立时保持方向）
-            local dir = p.animDirection or 'S'
-            
-            -- 如果有移动方向，更新动画方向
-            if math.abs(vx) > 0.01 or math.abs(vy) > 0.01 then
-                dir = state.playerAnimsLoader.getDirectionFromVelocity(vx, vy)
-                p.animDirection = dir
-            end
-            
-            -- 选择正确的动画集和方向
-            local animSet = state.playerAnimSets[animSetKey]
-            if animSet and animSet[dir] then
-                -- 如果动画切换了，需要重设
-                local newAnim = animSet[dir]
-                if state.playerAnim ~= newAnim then
-                    state.playerAnim = newAnim
-                    if newAnim.play then newAnim:play(true) end
-                end
-            end
-        end
-        
-        -- 更新当前动画
-        if state.playerAnim then
-            if not state.playerAnim.playing then state.playerAnim:play(false) end
-            state.playerAnim:update(dt * animSpeed)
-        end
-    end
+    player.updateAnimation(state, dt)
 
     -- ==================== 玩家状态计时器 ====================
     player.tickInvincibility(state, dt)  -- 无敌时间倒计时
@@ -317,6 +219,27 @@ end
 local function updateArsenal(state, dt)
     ui.update(dt)
     arsenal.update(state, dt)
+end
+
+--- updateMainMenu: 主菜单状态的更新函数
+local function updateMainMenu(state, dt)
+    ui.update(dt)
+    mainMenuScreen.update(dt)
+end
+
+--- updateHub: 基地状态的更新函数
+local function updateHub(state, dt)
+    -- 基地只需基础移动逻辑，不包含战斗子弹等更新
+    player.updateMovement(state, dt)
+    player.updateAnimation(state, dt)  -- 启用 HUB 中的播放动画
+    world.update(state, dt)
+    hubUIScreen.update(state, dt)
+    ui.update(dt)
+    
+    -- 更新特效（残影、光效等）
+    if state.updateEffects then
+        state.updateEffects(dt)
+    end
 end
 
 --- updateLevelUp: 升级界面的更新函数
@@ -413,6 +336,11 @@ local function drawArsenal(state)
     testmode.draw(state)
 end
 
+--- drawMainMenu: 主菜单渲染函数
+local function drawMainMenu(state)
+    ui.draw()
+end
+
 -- ============================================================================
 -- 场景处理器注册
 -- ============================================================================
@@ -421,7 +349,9 @@ end
 
 handlers.PLAYING = {update = updatePlaying, draw = drawWorld}
 handlers.ARSENAL = {update = updateArsenal, draw = drawArsenal}
-handlers.LEVEL_UP = {update = updateLevelUp, draw = drawWorld}  -- 升级时仍渲染游戏世界（背景模糊等效果）
+handlers.MAIN_MENU = {update = updateMainMenu, draw = drawMainMenu}
+handlers.HUB = {update = updateHub, draw = drawWorld} -- Hub 复用战斗世界的渲染逻辑（包含物理层渲染）
+handlers.LEVEL_UP = {update = updateLevelUp, draw = drawWorld}
 handlers.SHOP = {update = updateShop, draw = drawWorld}         -- 商店时也渲染游戏世界
 handlers.GAME_OVER = {update = updateGameOver, draw = drawWorld}
 handlers.GAME_CLEAR = handlers.GAME_CLEAR or handlers.GAME_OVER  -- 游戏通关与结束使用相同处理器
@@ -454,6 +384,13 @@ local function setCurrent(state)
     -- 进入新场景（如果有待进入回调）
     if currentScene and currentScene.enter then
         currentScene.enter(state)
+    end
+    
+    -- 特定场景初始化
+    if currentId == 'MAIN_MENU' then
+        mainMenuScreen.init(state)
+    elseif currentId == 'HUB' then
+        hubUIScreen.init(state)
     end
 end
 
@@ -562,10 +499,9 @@ function scenes.keypressed(state, key, scancode, isrepeat)
 
         -- Escape键：返回军械库（调试用）
         if key == 'escape' then
-            state.init()
-            arsenal.init(state)
-            state.gameState = 'ARSENAL'
-            arsenal.show(state)
+            -- 返回基地
+            local hub = require('world.hub')
+            hub.enterHub(state)
             return true
         end
     end

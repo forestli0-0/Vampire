@@ -186,6 +186,12 @@ function core.draw()
     -- Push scaling transform
     scaling.push()
     
+    -- Set default theme font
+    local defaultFont = theme.getFont('normal')
+    if defaultFont then
+        love.graphics.setFont(defaultFont)
+    end
+    
     -- Draw widget tree
     core.root:draw()
     

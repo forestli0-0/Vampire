@@ -1132,5 +1132,101 @@ function player.triggerMelee(state)
     end
 end
 
+-- Update player animation state machine (8-directional)
+function player.updateAnimation(state, dt)
+    if not state.playerAnimSets and not state.playerAnim then return end
+    
+    local p = state.player
+    local dash = p.dash or {}
+    local melee = p.meleeState or {}
+    
+    -- 确定当前动画状态
+    local animState = 'idle'
+    local animSpeed = 1.0
+    local animSetKey = 'run'  -- 使用的动画集
+    
+    -- 检测冲刺/Bullet Jump状态
+    local isDashing = (dash.timer or 0) > 0
+    local isBulletJumping = (p.bulletJumpTimer or 0) > 0
+    local isInDashState = isDashing or isBulletJumping
+    
+    if isInDashState then
+        -- 冲刺/Bullet Jump：使用滑行动画
+        animState = 'dash'
+        animSetKey = 'slide'
+        animSpeed = 2.0
+        
+        -- 检测是否刚进入冲刺状态（从非冲刺变为冲刺）
+        local wasInAnyDash = p.wasDashing or p.wasBulletJumping
+        if not wasInAnyDash then
+            if state.playerAnim and state.playerAnim.gotoFrame then
+                state.playerAnim:gotoFrame(1)
+            end
+        end
+        
+        p.wasDashing = isDashing
+        p.wasBulletJumping = isBulletJumping
+    elseif melee.phase and melee.phase ~= 'idle' then
+        -- 近战攻击
+        animState = 'attack'
+        animSetKey = 'run'
+        if melee.attackType == 'heavy' then
+            animSpeed = 0.8
+        else
+            animSpeed = 1.5
+        end
+    elseif p.isSliding then
+        -- Shift 滑行状态
+        animState = 'slide_run'
+        animSetKey = 'run'
+        animSpeed = 1.2
+        p.wasDashing = false
+        p.wasBulletJumping = false
+    elseif p.isMoving then
+        -- 移动中
+        animState = 'run'
+        animSetKey = 'run'
+        animSpeed = 1.0
+        p.wasDashing = false
+        p.wasBulletJumping = false
+    else
+        -- 静止
+        animState = 'idle'
+        animSetKey = 'idle'
+        animSpeed = 1.0
+        p.wasDashing = false
+        p.wasBulletJumping = false
+    end
+    
+    p.animState = animState
+    
+    -- 8向动画方向选择
+    if state.playerAnimSets and state.playerAnimsLoader then
+        local vx = p.moveDirX or 0
+        local vy = p.moveDirY or 0
+        local dir = p.animDirection or 'S'
+        
+        if math.abs(vx) > 0.01 or math.abs(vy) > 0.01 then
+            dir = state.playerAnimsLoader.getDirectionFromVelocity(vx, vy)
+            p.animDirection = dir
+        end
+        
+        local animSet = state.playerAnimSets[animSetKey]
+        if animSet and animSet[dir] then
+            local newAnim = animSet[dir]
+            if state.playerAnim ~= newAnim then
+                state.playerAnim = newAnim
+                if newAnim.play then newAnim:play(true) end
+            end
+        end
+    end
+    
+    -- 更新当前动画
+    if state.playerAnim then
+        if not state.playerAnim.playing then state.playerAnim:play(false) end
+        state.playerAnim:update(dt * animSpeed)
+    end
+end
+
 return player
 

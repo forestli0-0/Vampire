@@ -449,6 +449,9 @@ function draw.renderWorld(state)
     
     if isArena then
         -- === ARENA MODE: Void outside, grass inside ===
+        if state.runMode == 'hub' then
+            -- print("DEBUG: Hub Rendering. isArena=" .. tostring(isArena) .. " tiles=" .. tostring(#world.tiles))
+        end
         
         -- 1. First, draw a HUGE void rectangle covering everything visible and beyond
         -- This ensures anything outside the arena is pure black
@@ -696,6 +699,29 @@ function draw.renderWorld(state)
             end
         end
         love.graphics.setColor(1, 1, 1)
+    end
+
+    -- HUB 交互点绘制
+    if state.runMode == 'hub' and state.hubInteractions then
+        for _, inter in ipairs(state.hubInteractions) do
+            -- 绘制一个发光的圆圈
+            local pulse = 0.8 + 0.2 * math.sin(love.timer.getTime() * 5)
+            love.graphics.setColor(0.4, 0.8, 1.0, 0.3 * pulse)
+            love.graphics.circle('fill', inter.x, inter.y, inter.radius)
+            love.graphics.setColor(0.4, 0.8, 1.0, 0.8)
+            love.graphics.setLineWidth(2)
+            love.graphics.circle('line', inter.x, inter.y, inter.radius)
+            love.graphics.setLineWidth(1)
+            
+            -- 如果玩家接近，显示标签
+            local dx = state.player.x - inter.x
+            local dy = state.player.y - inter.y
+            local dist = math.sqrt(dx*dx + dy*dy)
+            if dist < inter.radius + 20 then
+                love.graphics.setColor(1, 1, 1, 1)
+                love.graphics.printf(inter.label, inter.x - 100, inter.y - inter.radius - 25, 200, 'center')
+            end
+        end
     end
 
     -- 地面道具

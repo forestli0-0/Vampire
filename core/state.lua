@@ -356,7 +356,7 @@ function state.init()
         pcall(function() love.filesystem.setIdentity("vampire") end)
     end
 
-    state.gameState = 'ARSENAL'
+    state.gameState = 'MAIN_MENU'
     state.benchmarkMode = false 
     state.noLevelUps = false
     state.testArena = false

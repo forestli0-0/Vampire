@@ -139,16 +139,14 @@ function gameoverScreen.rebuild(gameState)
         x = (LAYOUT.screenW - btnW) / 2,
         y = startY + btnH + gap,
         w = btnW, h = btnH,
-        text = "Return to Arsenal",
+        text = "返回基地 (HUB)",
         color = theme.colors.panel_bg -- Darker button
     })
     arsenalBtn:on('click', function()
-        -- Return to Arsenal logic
-        -- Reset game state but keep profile
-        state.gameState = 'ARSENAL'
+        -- 返回基地
         ui.core.setRoot(nil)
-        local arsenal = require('core.arsenal')
-        arsenal.show(state)
+        local hub = require('world.hub')
+        hub.enterHub(state)
     end)
     root:addChild(arsenalBtn)
     
@@ -164,11 +162,10 @@ function gameoverScreen.keypressed(key)
     end
     
     if key == 'escape' or key == 'return' or key == 'space' then
-         -- Return to Arsenal
-        state.gameState = 'ARSENAL'
+         -- 返回基地
         ui.core.setRoot(nil)
-        local arsenal = require('core.arsenal')
-        arsenal.show(state)
+        local hub = require('world.hub')
+        hub.enterHub(state)
         return true
     end
     
