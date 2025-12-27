@@ -225,13 +225,23 @@ function assets.init(state)
     if hubTexture then
         hubTexture:setFilter('nearest', 'nearest')
         state.hubTileset = hubTexture
-        local tw, th = 128, 128 -- 假设 1024x1024 里的 8x8 格子
+        local tw, th = 128, 128 -- 1024x1024 / 128 = 8x8 grid
+        local imgW, imgH = hubTexture:getDimensions()
+        
         state.hubQuads = {
-            floor  = love.graphics.newQuad(0*tw, 0*th, tw, th, hubTexture:getDimensions()),
-            grate  = love.graphics.newQuad(0*tw, 1*th, tw, th, hubTexture:getDimensions()),
-            energy = love.graphics.newQuad(0*tw, 2*th, tw, th, hubTexture:getDimensions()),
-            wall   = love.graphics.newQuad(0*tw, 3*th, tw, th, hubTexture:getDimensions())
+            floor  = love.graphics.newQuad(0*tw, 0*th, tw, th, imgW, imgH),
+            grate  = love.graphics.newQuad(0*tw, 1*th, tw, th, imgW, imgH),
+            energy = love.graphics.newQuad(0*tw, 2*th, tw, th, imgW, imgH),
+            wall   = love.graphics.newQuad(0*tw, 3*th, tw, th, imgW, imgH)
         }
+        
+        -- 为编辑器提供全量 Quad 列表 (8x8 = 64 tiles)
+        state.hubTilesetQuads = {}
+        for row = 0, 7 do
+            for col = 0, 7 do
+                table.insert(state.hubTilesetQuads, love.graphics.newQuad(col * tw, row * th, tw, th, imgW, imgH))
+            end
+        end
     end
 
     -- Player animation: 加载8向动画集

@@ -49,6 +49,7 @@ local weaponTrail = require('render.weapon_trail')    -- 武器拖影系统
 -- 新场景模块
 local mainMenuScreen = require('ui.screens.main_menu')
 local hubUIScreen = require('ui.screens.hub_ui')
+local hubEditor = require('world.hub_editor')
 
 -- ============================================================================
 -- 局部变量：模块状态
@@ -236,8 +237,13 @@ end
 
 --- updateHub: 基地状态的更新函数
 local function updateHub(state, dt)
-    -- 基地只需基础移动逻辑，不包含战斗子弹等更新
-    player.updateMovement(state, dt)
+    -- 如果编辑器激活，优先更新编辑器并拦截玩家移动
+    if hubEditor.isActive() then
+        hubEditor.update(state, dt)
+    else
+        player.updateMovement(state, dt)
+    end
+    
     player.updateAnimation(state, dt)  -- 启用 HUB 中的播放动画
     world.update(state, dt)
     hubUIScreen.update(state, dt)
@@ -321,6 +327,11 @@ local function drawWorld(state)
     
     -- 渲染发光物体统计信息（调试用）
     pipeline.drawEmissiveStatsOverlay(state.font)
+    
+    -- 基地编辑器 UI
+    if state.gameState == 'HUB' then
+        hubEditor.draw(state)
+    end
 
     -- 调试层（在UI之上）
     benchmark.draw(state)
@@ -541,6 +552,12 @@ function scenes.keypressed(state, key, scancode, isrepeat)
     -- F9：切换发光统计显示
     if key == 'f9' then
         pipeline.toggleEmissiveStats()
+        return true
+    end
+
+    -- F10：切换基地编辑器 (仅在 HUB 模式有效)
+    if key == 'f10' and state.gameState == 'HUB' then
+        hubEditor.toggle()
         return true
     end
 
