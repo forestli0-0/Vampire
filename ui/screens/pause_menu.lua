@@ -98,6 +98,11 @@ function pauseMenu.init(state)
     -- 保存当前 UI 根节点，然后设置暂停菜单为根节点
     previousUIRoot = ui.getRoot()
     ui.setRoot(root)
+    
+    -- 暂停 BGM
+    if state and state.pauseAudio then
+        state.pauseAudio()
+    end
 end
 
 function pauseMenu.resume()
@@ -105,6 +110,10 @@ function pauseMenu.resume()
     root = nil
     if state_ref then
         state_ref.paused = false
+        -- 恢复 BGM
+        if state_ref.resumeAudio then
+            state_ref.resumeAudio()
+        end
     end
     -- 恢复之前的 UI 根节点
     if previousUIRoot then

@@ -401,6 +401,13 @@ local function setCurrent(state)
     -- 从处理器表中获取新场景的处理器
     currentScene = handlers[currentId] or handlers.PLAYING
 
+    -- ========================================================================
+    -- 切换场景时更新 BGM（使用新音频系统）
+    -- ========================================================================
+    if state and state.audio and state.audio.setScene then
+        state.audio.setScene(currentId)
+    end
+
     -- 进入新场景（如果有待进入回调）
     if currentScene and currentScene.enter then
         currentScene.enter(state)
@@ -439,6 +446,12 @@ end
 -- @param dt delta time
 function scenes.update(state, dt)
     if not currentScene then setCurrent(state) end
+    
+    -- 更新音频系统（处理 BGM 淡入淡出）
+    if state and state.audio and state.audio.update then
+        state.audio.update(dt)
+    end
+    
     if currentScene and currentScene.update then
         currentScene.update(state, dt)
     end

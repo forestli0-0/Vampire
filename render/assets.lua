@@ -121,71 +121,22 @@ end
 function assets.init(state)
     state.loadMoveAnimationFromFolder = loadMoveAnimationFromFolder
 
-    state.sfx = {
-        shoot     = loadSfx('assets/sfx/shoot.wav', 600),
-        hit       = loadSfx('assets/sfx/hit.wav', 200),
-        gem       = loadSfx('assets/sfx/gem.wav', 1200),
-        glass     = loadSfx('assets/sfx/glass.wav', 1000),
-        freeze    = loadSfx('assets/sfx/freeze.wav', 500),
-        ignite    = loadSfx('assets/sfx/ignite.wav', 900),
-        static    = loadSfx('assets/sfx/static.wav', 700),
-        bleed     = loadSfx('assets/sfx/bleed.wav', 400),
-        explosion = loadSfx('assets/sfx/explosion.wav', 300)
-    }
-    local sfxVolumes = {
-        shoot = 0.4,
-        hit = 1.0,
-        gem = 0.8,
-        glass = 0.9,
-        freeze = 0.8,
-        ignite = 0.9,
-        static = 0.5,
-        bleed = 0.85,
-        explosion = 0.9
-    }
-    for key, src in pairs(state.sfx) do
-        local v = sfxVolumes[key]
-        if v and src and src.setVolume then
-            pcall(function() src:setVolume(v) end)
-        end
-    end
-    state.music = loadMusic({
-        'assets/music/bgm.ogg','assets/music/bgm.mp3','assets/music/bgm.wav',
-        'assets/sfx/bgm.ogg','assets/sfx/bgm.mp3','assets/sfx/bgm.wav'
-    })
+    -- ========================================================================
+    -- 音频系统初始化（使用新的 audio 模块）
+    -- ========================================================================
+    local audio = require('systems.audio')
+    audio.init(state)
+    
+    -- 兼容旧接口：将音频函数绑定到 state
+    state.playSfx = function(key, opts) audio.playSfx(key, opts) end
+    state.playMusic = function() audio.playMusic() end
+    state.stopMusic = function() audio.stopMusic() end
+    state.pauseAudio = function() audio.pause() end
+    state.resumeAudio = function() audio.resume() end
+    
+    -- 保存 audio 模块引用，供其他模块使用
+    state.audio = audio
 
-    function state.playSfx(key)
-        local s = state.sfx[key]
-        if key == 'static' and s and s.isPlaying then
-            local okPlaying, playing = pcall(function() return s:isPlaying() end)
-            if okPlaying and playing then return end
-        end
-        if s and s.clone then
-            local ok, src = pcall(function() return s:clone() end)
-            if ok and src and src.play then
-                local okPlay = pcall(function() src:play() end)
-                if okPlay then return end
-            end
-        end
-        if s and s.play then
-            local okPlay = pcall(function() s:play() end)
-            if okPlay then return end
-        end
-        print("Play Sound: " .. tostring(key))
-    end
-
-    function state.playMusic()
-        if state.music and state.music.setLooping then
-            state.music:setLooping(true)
-            pcall(function() state.music:play() end)
-        end
-    end
-
-    function state.stopMusic()
-        if state.music and state.music.stop then
-            pcall(function() state.music:stop() end)
-        end
-    end
 
     -- Background tile: load or fall back to a generated pattern.
     local bgTexture = loadImage('assets/tiles/grass.png')

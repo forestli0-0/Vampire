@@ -33,16 +33,19 @@ end
 
 -- 应用音量设置
 local function applyVolumes()
-    -- 应用音乐音量
-    if state_ref and state_ref.music and state_ref.music.setVolume then
-        pcall(function()
-            state_ref.music:setVolume(volumes.master * volumes.music)
-        end)
-    end
-    
-    -- 应用音效音量（每次播放时会使用）
-    if state_ref then
-        state_ref.sfxMasterVolume = volumes.master * volumes.sfx
+    -- 使用新的音频系统设置音量
+    if state_ref and state_ref.audio and state_ref.audio.setVolumes then
+        state_ref.audio.setVolumes(volumes.master, volumes.music, volumes.sfx)
+    else
+        -- 回退到旧方式（兼容性）
+        if state_ref and state_ref.music and state_ref.music.setVolume then
+            pcall(function()
+                state_ref.music:setVolume(volumes.master * volumes.music)
+            end)
+        end
+        if state_ref then
+            state_ref.sfxMasterVolume = volumes.master * volumes.sfx
+        end
     end
 end
 
