@@ -56,7 +56,6 @@ function analytics.startRun(state)
         weaponStats = {}
     }
     currentRoomData = nil
-    print("[Analytics] Run started")
 end
 
 -- Start tracking a new room
@@ -101,9 +100,6 @@ function analytics.startRoom(roomIndex, missionType, state)
         minHp = startHp,
         minShield = startShield
     }
-    
-    print(string.format("[Analytics] Room %d started (%s) - baseline: %d dmg, %d kills", 
-        roomIndex or 0, missionType or 'exterminate', startDamage, startKills))
 end
 
 -- End current room and save stats
@@ -135,20 +131,12 @@ function analytics.endRoom(state)
     sessionData.totals.damageTaken = sessionData.totals.damageTaken + currentRoomData.damageTaken
     sessionData.totals.kills = sessionData.totals.kills + currentRoomData.kills
     
-    -- Print summary
-    print(string.format("[Analytics] Room %d completed:", currentRoomData.roomIndex))
-    print(string.format("  Duration: %.1fs", currentRoomData.duration))
-    print(string.format("  Damage Taken: %d", currentRoomData.damageTaken))
-    print(string.format("  Kills: %d", currentRoomData.kills))
-    print(string.format("  Min HP: %d, Min Shield: %d", currentRoomData.minHp, currentRoomData.minShield))
-    
     currentRoomData = nil
 end
 
 -- Record player death
 function analytics.recordDeath()
     sessionData.totals.deaths = sessionData.totals.deaths + 1
-    print("[Analytics] Player died!")
 end
 
 -- Record a shot fired
@@ -250,45 +238,11 @@ function analytics.endRun()
         end
     end
     
-    local duration = love.timer.getTime() - sessionData.startTime
-    local accuracy = 0
-    if sessionData.totals.shotsFired > 0 then
-        accuracy = (sessionData.totals.shotsHit / sessionData.totals.shotsFired) * 100
-    end
-    
-    print("\n========== RUN ANALYTICS ==========")
-    print(string.format("Total Duration: %.1fs", duration))
-    print(string.format("Rooms Cleared: %d", #sessionData.roomStats))
-    print(string.format("Total Damage Dealt: %d", sessionData.totals.damageDealt))
-    print(string.format("Total Damage Taken: %d", sessionData.totals.damageTaken))
-    print(string.format("Total Kills: %d", sessionData.totals.kills))
-    print(string.format("Accuracy: %.1f%% (%d/%d)", accuracy, sessionData.totals.shotsHit, sessionData.totals.shotsFired))
-    print(string.format("Deaths: %d", sessionData.totals.deaths))
-    
-    if #sessionData.roomStats > 0 then
-        print("\n--- Per-Room Breakdown ---")
-        for _, room in ipairs(sessionData.roomStats) do
-            print(string.format("Room %d: %.1fs, %d dmg, %d kills, min HP %d",
-                room.roomIndex, room.duration, room.damageTaken, room.kills, room.minHp))
-        end
-    end
-    
-    print("\n--- Weapon Breakdown ---")
-    for key, ws in pairs(sessionData.weaponStats) do
-        local wAcc = 0
-        if ws.shotsFired > 0 then wAcc = (ws.shotsHit / ws.shotsFired) * 100 end
-        print(string.format("%s: %d dmg, %.1f%% accuracy (%d/%d)",
-            key, ws.damageDealt, wAcc, ws.shotsHit, ws.shotsFired))
-    end
-    
-    print("=====================================\n")
-    
     analytics.saveToFile()
 end
 
 -- Manual save trigger (F9 key or similar)
 function analytics.manualSave()
-    print("[Analytics] Manual save triggered")
     analytics.saveToFile()
 end
 

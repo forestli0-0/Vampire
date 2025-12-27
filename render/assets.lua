@@ -251,14 +251,12 @@ function assets.init(state)
     -- 兼容性：默认动画指向南向跑步动画
     if state.playerAnimSets and state.playerAnimSets.run then
         state.playerAnim = state.playerAnimSets.run.S
-        print('[Assets] 已加载玩家8向动画集')
     else
         -- 回退到旧版单向动画
         local playerAnim, playerAnimEmit = loadMoveAnimationFromFolder('player', 4, 8)
         if playerAnim then
             state.playerAnim = playerAnim
             state.playerAnimEmissive = playerAnimEmit
-            print('[Assets] 使用旧版单向动画')
         else
             local frameW, frameH = 32, 32
             local animDuration = 0.8
@@ -405,7 +403,6 @@ function assets.init(state)
     state.skeletonDefaultAnim = state.skeletonAnims and state.skeletonAnims.move
     state.skeletonFrameSize = enemyAnims.getFrameSize('skeleton')
     
-    print("[Assets] 已通过通用加载器加载所有敌人动画")
 end
 
 return assets

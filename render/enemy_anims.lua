@@ -139,7 +139,6 @@ function enemyAnims.loadAnimSet(configKey)
             -- 记录检测到的帧尺寸（用于绘制时缩放）
             if not detectedFrameSize then
                 detectedFrameSize = frameSize
-                print("[EnemyAnims] " .. configKey .. " 检测到帧尺寸: " .. frameSize .. " (图片: " .. imgW .. "x" .. imgH .. ")")
             end
             
             local frames = animation.newFramesFromGrid(sheet, frameSize, frameSize)
@@ -174,7 +173,6 @@ function enemyAnims.loadAllAnimSets()
     local allSets = {}
     
     for configKey, config in pairs(enemyAnims.configs) do
-        print("[EnemyAnims] 正在加载: " .. configKey .. " 从 " .. config.folder)
         local animSet = enemyAnims.loadAnimSet(configKey)
         if animSet then
             -- 计算成功加载的动画数量
@@ -182,9 +180,6 @@ function enemyAnims.loadAllAnimSets()
             for _ in pairs(animSet) do count = count + 1 end
             if count > 0 then
                 allSets[configKey] = animSet
-                print("[EnemyAnims] ✓ 已加载动画集: " .. configKey .. " (" .. count .. " 个动画)")
-            else
-                print("[EnemyAnims] ✗ 动画集为空: " .. configKey)
             end
         else
             print("[EnemyAnims] ✗ 加载失败: " .. configKey)
