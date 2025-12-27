@@ -12,20 +12,20 @@ local World = require('world.world')
 local CONFIG = {
     tileSize = 32,
     
-    -- Map dimensions (in tiles) - 扩大地图尺寸
-    mapWidth = 400,       -- 200 → 400 (翻倍)
-    mapHeight = 180,      -- 80 → 180 (翻倍+)
+    -- Map dimensions (in tiles) - 进一步优化，确保房间不重叠
+    mapWidth = 550,       -- 400 → 550 (保证足够间距)
+    mapHeight = 200,      -- 180 → 200
     
-    -- Room sizes - 扩大房间尺寸
-    corridorWidth = 5,    -- 3 → 5 (更宽的走廊)
-    smallRoom = {min = 14, max = 20},   -- 8-12 → 14-20
-    mediumRoom = {min = 20, max = 28},  -- 12-16 → 20-28
-    largeRoom = {min = 28, max = 38},   -- 16-22 → 28-38
-    bossRoom = {min = 40, max = 50},    -- 24-28 → 40-50
+    -- Room sizes - 优化尺寸，确保走廊清晰
+    corridorWidth = 5,    -- 走廊宽度
+    smallRoom = {min = 12, max = 16},   -- 14-20 → 12-16 (更小以保证间距)
+    mediumRoom = {min = 16, max = 22},  -- 20-28 → 16-22
+    largeRoom = {min = 22, max = 30},   -- 28-38 → 22-30 (最大半径15)
+    bossRoom = {min = 36, max = 44},    -- 40-50 → 36-44 (Boss房仍然很大)
     
-    -- Progression - 增加节点数量
-    nodesPerChapter = 12,  -- 8 → 12 (更多房间探索)
-    branchChance = 0.35,   -- 0.3 → 0.35 (更多分支房间)
+    -- Progression - 减少节点密度
+    nodesPerChapter = 10,  -- 12 → 10 (间距 = (550-40)/10 = 51 tiles)
+    branchChance = 0.35,   -- 分支房间概率
     
     -- Special rooms
     merchantEvery = 4,    -- Merchant appears every N nodes
@@ -191,10 +191,10 @@ function ChapterMap:generateBranches()
                 local branchNode = {
                     id = 1000 + i,  -- Branch IDs start at 1000
                     type = (math.random() < 0.3) and NODE_TYPES.SHRINE or NODE_TYPES.SMALL_COMBAT,
-                    cx = node.cx + math.random(-8, 8),
-                    cy = node.cy + branchDir * math.random(20, 30),  -- 12-18 → 20-30 (更远的分支)
-                    roomW = math.random(14, 20),  -- 8-12 → 14-20 (与小房间一致)
-                    roomH = math.random(14, 20),
+                    cx = node.cx + math.random(-6, 6),
+                    cy = node.cy + branchDir * math.random(25, 35),  -- 20-30 → 25-35 (确保走廊清晰)
+                    roomW = math.random(CONFIG.smallRoom.min, CONFIG.smallRoom.max),  -- 使用配置值
+                    roomH = math.random(CONFIG.smallRoom.min, CONFIG.smallRoom.max),
                     difficulty = 'optional',
                     cleared = false,
                     enemies = {},
@@ -204,7 +204,7 @@ function ChapterMap:generateBranches()
                 }
                 
                 -- Clamp to map bounds
-                branchNode.cy = math.max(20, math.min(self.h - 20, branchNode.cy))
+                branchNode.cy = math.max(25, math.min(self.h - 25, branchNode.cy))
                 
                 table.insert(newNodes, branchNode)
                 table.insert(node.connected, branchNode.id)
