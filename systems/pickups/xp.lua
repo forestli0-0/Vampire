@@ -60,9 +60,12 @@ return function(pickups)
 
         if levelsGained > 0 then
             progression.applyRankUp(state)
+            -- 升级回满血量和护盾
             p.hp = p.maxHp or (p.stats and p.stats.maxHp) or 100
             p.shield = p.maxShield or (p.stats and p.stats.maxShield) or 100
-            p.energy = p.maxEnergy or (p.stats and p.stats.maxEnergy) or 100
+            -- 能量只恢复25%，不再回满（让能量成为稀缺资源）
+            local maxEnergy = p.maxEnergy or (p.stats and p.stats.maxEnergy) or 100
+            p.energy = math.min(maxEnergy, (p.energy or 0) + maxEnergy * 0.25)
         end
     end
     

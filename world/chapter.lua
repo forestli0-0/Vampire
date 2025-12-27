@@ -12,20 +12,20 @@ local World = require('world.world')
 local CONFIG = {
     tileSize = 32,
     
-    -- Map dimensions (in tiles)
-    mapWidth = 200,
-    mapHeight = 80,
+    -- Map dimensions (in tiles) - 扩大地图尺寸
+    mapWidth = 400,       -- 200 → 400 (翻倍)
+    mapHeight = 180,      -- 80 → 180 (翻倍+)
     
-    -- Room sizes
-    corridorWidth = 3,
-    smallRoom = {min = 8, max = 12},
-    mediumRoom = {min = 12, max = 16},
-    largeRoom = {min = 16, max = 22},
-    bossRoom = {min = 24, max = 28},
+    -- Room sizes - 扩大房间尺寸
+    corridorWidth = 5,    -- 3 → 5 (更宽的走廊)
+    smallRoom = {min = 14, max = 20},   -- 8-12 → 14-20
+    mediumRoom = {min = 20, max = 28},  -- 12-16 → 20-28
+    largeRoom = {min = 28, max = 38},   -- 16-22 → 28-38
+    bossRoom = {min = 40, max = 50},    -- 24-28 → 40-50
     
-    -- Progression
-    nodesPerChapter = 8,  -- How many main nodes before boss
-    branchChance = 0.3,   -- Chance for optional side room
+    -- Progression - 增加节点数量
+    nodesPerChapter = 12,  -- 8 → 12 (更多房间探索)
+    branchChance = 0.35,   -- 0.3 → 0.35 (更多分支房间)
     
     -- Special rooms
     merchantEvery = 4,    -- Merchant appears every N nodes
@@ -98,12 +98,12 @@ function ChapterMap:generateSpine()
             nodeType = NODE_TYPES.SMALL_COMBAT
         end
         
-        -- Add some vertical wandering (but not too much)
-        local yOffset = math.random(-8, 8)
-        currentY = math.max(15, math.min(self.h - 15, currentY + yOffset))
+        -- Add some vertical wandering (more variation for larger map)
+        local yOffset = math.random(-15, 15)  -- -8,8 → -15,15 (更蜿蜒的路径)
+        currentY = math.max(30, math.min(self.h - 30, currentY + yOffset))
         
         -- Slight horizontal variation
-        local xOffset = math.random(-3, 3)
+        local xOffset = math.random(-5, 5)  -- -3,3 → -5,5
         currentX = currentX + stepX + xOffset
         
         local node = {
@@ -123,8 +123,8 @@ function ChapterMap:generateSpine()
             node.difficulty = 'hard'
             node.spawnElite = true
         elseif nodeType == NODE_TYPES.MERCHANT or nodeType == NODE_TYPES.FORGE then
-            node.roomW = 10
-            node.roomH = 10
+            node.roomW = 16  -- 10 → 16 (更宽敞的商人房间)
+            node.roomH = 16
             node.difficulty = 'safe'
         else
             node.roomW = math.random(CONFIG.smallRoom.min, CONFIG.smallRoom.max)
@@ -140,7 +140,7 @@ function ChapterMap:generateSpine()
     local bossNode = {
         id = #nodes + 1,
         type = NODE_TYPES.BOSS,
-        cx = math.min(self.w - 20, currentX),
+        cx = math.min(self.w - 40, currentX),  -- 20 → 40 (更大边距)
         cy = math.floor(self.h / 2),
         roomW = math.random(CONFIG.bossRoom.min, CONFIG.bossRoom.max),
         roomH = math.random(CONFIG.bossRoom.min, CONFIG.bossRoom.max),
@@ -155,10 +155,10 @@ function ChapterMap:generateSpine()
     local exitNode = {
         id = #nodes + 1,
         type = NODE_TYPES.EXIT,
-        cx = bossNode.cx + 12,
+        cx = bossNode.cx + 20,  -- 12 → 20 (更远的出口)
         cy = bossNode.cy,
-        roomW = 6,
-        roomH = 6,
+        roomW = 10,  -- 6 → 10 (更大的出口房间)
+        roomH = 10,
         difficulty = 'safe',
         cleared = true,
         enemies = {},
@@ -191,10 +191,10 @@ function ChapterMap:generateBranches()
                 local branchNode = {
                     id = 1000 + i,  -- Branch IDs start at 1000
                     type = (math.random() < 0.3) and NODE_TYPES.SHRINE or NODE_TYPES.SMALL_COMBAT,
-                    cx = node.cx + math.random(-5, 5),
-                    cy = node.cy + branchDir * math.random(12, 18),
-                    roomW = math.random(8, 12),
-                    roomH = math.random(8, 12),
+                    cx = node.cx + math.random(-8, 8),
+                    cy = node.cy + branchDir * math.random(20, 30),  -- 12-18 → 20-30 (更远的分支)
+                    roomW = math.random(14, 20),  -- 8-12 → 14-20 (与小房间一致)
+                    roomH = math.random(14, 20),
                     difficulty = 'optional',
                     cleared = false,
                     enemies = {},
@@ -204,7 +204,7 @@ function ChapterMap:generateBranches()
                 }
                 
                 -- Clamp to map bounds
-                branchNode.cy = math.max(10, math.min(self.h - 10, branchNode.cy))
+                branchNode.cy = math.max(20, math.min(self.h - 20, branchNode.cy))
                 
                 table.insert(newNodes, branchNode)
                 table.insert(node.connected, branchNode.id)
