@@ -27,6 +27,8 @@ draw.useNewHUD = true
 function love.load()
     if state.stopMusic then state.stopMusic() end
     state.init()
+    local analytics = require('systems.analytics')
+    analytics.startRun(state)
     pets.init(state)
 
     -- 确定性随机：用于场景驱动的自动化测试，确保测试结果可重现。

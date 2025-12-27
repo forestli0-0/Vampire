@@ -23,7 +23,8 @@ local debugmenu = require('debug.debugmenu')          -- 调试菜单
 local director = require('world.director')            -- 战斗导演（敌人生成控制）
 local draw = require('render.draw')                   -- 基础渲染
 local enemies = require('gameplay.enemies')           -- 敌人系统
-local gameoverScreen = require('ui.screens.gameover') -- 游戏结束界面
+local gameoverScreen = require('ui.screens.gameover') -- 游戏结束界面（旧）
+local resultScreen = require('ui.screens.result_screen') -- 结算与统计界面（新）
 local hud = require('ui.screens.hud')                 -- HUD抬头显示
 local ingameMenu = require('ui.screens.ingame_menu')  -- 游戏内菜单
 local levelupScreen = require('ui.screens.levelup')   -- 升级界面
@@ -275,11 +276,11 @@ local function updateShop(state, dt)
 end
 
 --- updateGameOver: 游戏结束状态的更新函数
--- 显示结算界面，允许玩家返回军械库重新开始
+-- 显示结算界面
 local function updateGameOver(state, dt)
     ui.update(dt)
-    if not gameoverScreen.isActive() then
-        gameoverScreen.init(state)
+    if not (ui.core.getRoot() and ui.core.getRoot() == resultScreen.root) then
+        resultScreen.init(state)
     end
 end
 
@@ -410,6 +411,9 @@ local function setCurrent(state)
         mainMenuScreen.init(state)
     elseif currentId == 'HUB' then
         hubUIScreen.init(state)
+    elseif currentId == 'GAME_OVER' or currentId == 'GAME_CLEAR' then
+        local analytics = require('systems.analytics')
+        analytics.endRun()
     end
 end
 
@@ -583,7 +587,7 @@ function scenes.keypressed(state, key, scancode, isrepeat)
 
     -- 游戏结束状态
     if state.gameState == 'GAME_OVER' or state.gameState == 'GAME_CLEAR' then
-        if gameoverScreen.keypressed(key) then return true end
+        if resultScreen.keypressed(key) then return true end
         return true
     end
 

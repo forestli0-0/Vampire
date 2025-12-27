@@ -192,6 +192,12 @@ function spawner.checkRoomClear(gameState, chapterMap)
 end
 
 function spawner.onRoomCleared(gameState, node)
+    -- Track room cleared in analytics
+    local ok, analytics = pcall(require, 'systems.analytics')
+    if ok and analytics and analytics.recordRoomClear then
+        analytics.recordRoomClear(node.id, node.difficulty)
+    end
+    
     -- Drop rewards
     local wx, wy = node.cx * 32, node.cy * 32  -- Convert to world coords
     

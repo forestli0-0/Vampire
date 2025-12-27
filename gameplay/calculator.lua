@@ -246,7 +246,8 @@ function calculator.createInstance(params)
         elements = elements,
         damageBreakdown = breakdown,
         damageByType = combinedDamageByType,
-        falloffMult = falloffMult  -- Store for debugging
+        falloffMult = falloffMult,  -- Store for debugging
+        weaponKey = params.weaponKey -- Preserve weaponKey
     }
 end
 
@@ -649,6 +650,10 @@ function calculator.applyDamage(state, enemy, instance, opts)
     end
 
     if totalApplied > 0 then
+        -- Analytics: Record hit and damage
+        local analytics = require('systems.analytics')
+        analytics.recordHit(instance.weaponKey, totalApplied, instance)
+
         if not opts.noFlash then enemy.flashTimer = 0.1 end
         if not opts.noSfx and state.playSfx then state.playSfx('hit') end
 

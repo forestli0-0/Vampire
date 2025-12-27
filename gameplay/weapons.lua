@@ -280,6 +280,10 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
     local wStats = statsOverride or weapons.calculateStats(state, type)
     if not wStats then return end
 
+    -- Analytics: Record shot
+    local analytics = require('systems.analytics')
+    analytics.recordShot(type)
+
     if state and state.augments and state.augments.dispatch then
         local ctx = {weaponKey = type, weaponStats = wStats, target = target, x = x, y = y}
         state.augments.dispatch(state, 'onShoot', ctx)
@@ -369,6 +373,7 @@ function weapons.spawnProjectile(state, type, x, y, target, statsOverride)
         elements=wStats.elements, damageBreakdown=wStats.damageBreakdown,
         critChance=wStats.critChance, critMultiplier=wStats.critMultiplier, statusChance=wStats.statusChance,
         hitSizeScale=hitScale,
+        weaponKey=type, -- Pass weapon key for hit tracking
         -- Falloff parameters
         falloffStart=wStats.falloffStart, falloffEnd=wStats.falloffEnd, falloffMin=wStats.falloffMin
     }
@@ -440,6 +445,10 @@ function Behaviors.MELEE_SWING(state, weaponKey, w, stats, params, sx, sy)
         return false
     end
     
+    -- Analytics: Record swing
+    local analytics = require('systems.analytics')
+    analytics.recordShot(weaponKey)
+    
     -- Parameters
     params = params or {}
     local arcWidth = params.arcWidth or 1.2  -- ~70 degrees in radians
@@ -499,6 +508,7 @@ function Behaviors.MELEE_SWING(state, weaponKey, w, stats, params, sx, sy)
                         effectType = stats.effectType or (weaponDef and weaponDef.effectType),
                         elements = stats.elements,
                         damageBreakdown = stats.damageBreakdown,
+                        weaponKey=weaponKey, -- Pass weapon key for hit tracking
                         weaponTags = weaponDef and weaponDef.tags,
                         knock = knockback > 0,
                         knockForce = knockback * 0.1

@@ -146,6 +146,7 @@ local function buildInstanceFromBullet(bullet, enemy, effectData, knock, knockFo
         effectData = effectData,
         elements = elements,
         damageBreakdown = damageBreakdown,
+        weaponKey = bullet.weaponKey or bullet.parentWeaponKey or bullet.type,
         weaponTags = bullet.weaponTags,
         knock = knock,
         knockForce = knockForce,

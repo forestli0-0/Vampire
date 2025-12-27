@@ -28,9 +28,13 @@ local sessionData = {
     roomStats = {},
     totals = {
         damageTaken = 0,
+        damageDealt = 0,
         kills = 0,
-        deaths = 0
-    }
+        deaths = 0,
+        shotsFired = 0,
+        shotsHit = 0
+    },
+    weaponStats = {} -- weaponKey -> { shotsFired, shotsHit, damageDealt }
 }
 
 -- Current room tracking
@@ -43,9 +47,13 @@ function analytics.startRun(state)
         roomStats = {},
         totals = {
             damageTaken = 0,
+            damageDealt = 0,
             kills = 0,
-            deaths = 0
-        }
+            deaths = 0,
+            shotsFired = 0,
+            shotsHit = 0
+        },
+        weaponStats = {}
     }
     currentRoomData = nil
     print("[Analytics] Run started")
@@ -143,6 +151,48 @@ function analytics.recordDeath()
     print("[Analytics] Player died!")
 end
 
+-- Record a shot fired
+function analytics.recordShot(weaponKey)
+    if not weaponKey then return end
+    sessionData.totals.shotsFired = sessionData.totals.shotsFired + 1
+    
+    local ws = sessionData.weaponStats[weaponKey]
+    if not ws then
+        ws = { shotsFired = 0, shotsHit = 0, damageDealt = 0 }
+        sessionData.weaponStats[weaponKey] = ws
+    end
+    ws.shotsFired = ws.shotsFired + 1
+end
+
+-- Record a hit/damage dealt
+function analytics.recordHit(weaponKey, damage, instance)
+    damage = math.max(0, damage or 0)
+    sessionData.totals.damageDealt = sessionData.totals.damageDealt + damage
+    
+    -- For accuracy: only count 1 hit per "shot" instance even if it hits multiple enemies
+    -- If there is no instance (DoTs, chain damage, etc.), do NOT count it as a hit for accuracy
+    if instance and not instance._hasCountedHit then
+        sessionData.totals.shotsHit = sessionData.totals.shotsHit + 1
+        instance._hasCountedHit = true
+    end
+    -- Note: if no instance, we skip incrementing shotsHit entirely
+    
+    if not weaponKey then return end
+    local ws = sessionData.weaponStats[weaponKey]
+    if not ws then
+        ws = { shotsFired = 0, shotsHit = 0, damageDealt = 0 }
+        sessionData.weaponStats[weaponKey] = ws
+    end
+
+    if instance and not instance._hasCountedHitWeapon then
+        ws.shotsHit = ws.shotsHit + 1
+        instance._hasCountedHitWeapon = true
+    end
+    -- Note: if no instance, we skip incrementing weapon shotsHit entirely
+    
+    ws.damageDealt = ws.damageDealt + (damage or 0)
+end
+
 -- Get current room data
 function analytics.getCurrentRoom()
     return currentRoomData
@@ -153,9 +203,34 @@ function analytics.getTotals()
     return sessionData.totals
 end
 
+
 -- Get all room stats
 function analytics.getRoomStats()
     return sessionData.roomStats
+end
+
+-- Record a room cleared (for chapter mode)
+function analytics.recordRoomClear(roomId, difficulty)
+    table.insert(sessionData.roomStats, {
+        roomIndex = roomId or #sessionData.roomStats + 1,
+        difficulty = difficulty or 'normal',
+        duration = 0,
+        damageTaken = 0,
+        kills = 0,
+        minHp = 100,
+        minShield = 100
+    })
+end
+
+-- Get run duration
+function analytics.getDuration()
+    if sessionData.startTime == 0 then return 0 end
+    return love.timer.getTime() - sessionData.startTime
+end
+
+-- Get weapon stats
+function analytics.getWeaponStats()
+    return sessionData.weaponStats
 end
 
 -- End run and print final summary
@@ -164,13 +239,30 @@ function analytics.endRun()
         analytics.endRoom(nil)
     end
     
+    -- Sync kills from logger.summary (source of truth for kill counts)
+    local logger = getLogger()
+    if logger and logger.summary then
+        if logger.summary.kills then
+            sessionData.totals.kills = sumKills(logger.summary.kills)
+        end
+        if logger.summary.damageTaken then
+            sessionData.totals.damageTaken = logger.summary.damageTaken
+        end
+    end
+    
     local duration = love.timer.getTime() - sessionData.startTime
+    local accuracy = 0
+    if sessionData.totals.shotsFired > 0 then
+        accuracy = (sessionData.totals.shotsHit / sessionData.totals.shotsFired) * 100
+    end
     
     print("\n========== RUN ANALYTICS ==========")
     print(string.format("Total Duration: %.1fs", duration))
     print(string.format("Rooms Cleared: %d", #sessionData.roomStats))
+    print(string.format("Total Damage Dealt: %d", sessionData.totals.damageDealt))
     print(string.format("Total Damage Taken: %d", sessionData.totals.damageTaken))
     print(string.format("Total Kills: %d", sessionData.totals.kills))
+    print(string.format("Accuracy: %.1f%% (%d/%d)", accuracy, sessionData.totals.shotsHit, sessionData.totals.shotsFired))
     print(string.format("Deaths: %d", sessionData.totals.deaths))
     
     if #sessionData.roomStats > 0 then
@@ -179,6 +271,14 @@ function analytics.endRun()
             print(string.format("Room %d: %.1fs, %d dmg, %d kills, min HP %d",
                 room.roomIndex, room.duration, room.damageTaken, room.kills, room.minHp))
         end
+    end
+    
+    print("\n--- Weapon Breakdown ---")
+    for key, ws in pairs(sessionData.weaponStats) do
+        local wAcc = 0
+        if ws.shotsFired > 0 then wAcc = (ws.shotsHit / ws.shotsFired) * 100 end
+        print(string.format("%s: %d dmg, %.1f%% accuracy (%d/%d)",
+            key, ws.damageDealt, wAcc, ws.shotsHit, ws.shotsFired))
     end
     
     print("=====================================\n")
@@ -211,6 +311,8 @@ function analytics.saveToFile()
             minShield = room.minShield
         })
     end
+    
+    data.weaponStats = sessionData.weaponStats
     
     -- Simple JSON
     local function serialize(t, indent)
