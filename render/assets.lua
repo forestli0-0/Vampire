@@ -220,6 +220,20 @@ function assets.init(state)
         state.bgTile = { image = bgTexture, w = tileW, h = tileH }
     end
 
+    -- Hub Tileset
+    local hubTexture = loadImage('assets/tiles/hub_tileset.png')
+    if hubTexture then
+        hubTexture:setFilter('nearest', 'nearest')
+        state.hubTileset = hubTexture
+        local tw, th = 128, 128 -- 假设 1024x1024 里的 8x8 格子
+        state.hubQuads = {
+            floor  = love.graphics.newQuad(0*tw, 0*th, tw, th, hubTexture:getDimensions()),
+            grate  = love.graphics.newQuad(0*tw, 1*th, tw, th, hubTexture:getDimensions()),
+            energy = love.graphics.newQuad(0*tw, 2*th, tw, th, hubTexture:getDimensions()),
+            wall   = love.graphics.newQuad(0*tw, 3*th, tw, th, hubTexture:getDimensions())
+        }
+    end
+
     -- Player animation: 加载8向动画集
     local playerAnimsLoader = require('render.player_anims')
     state.playerAnimSets = playerAnimsLoader.loadAllAnimSets()

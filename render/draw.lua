@@ -477,34 +477,51 @@ function draw.renderWorld(state)
                     local tile = world.tiles[tileIdx]
                     local tileX = (cx - 1) * ts
                     
-                    if tile == 0 then -- 基础地板 (暗灰色金属面板)
-                        love.graphics.setColor(0.15, 0.16, 0.18, 1)
-                        love.graphics.rectangle('fill', tileX, tileY, ts, ts)
-                        love.graphics.setColor(1, 1, 1, 0.05)
-                        love.graphics.rectangle('line', tileX, tileY, ts, ts)
-                    elseif tile == 2 then -- 格栅地板
-                        love.graphics.setColor(0.12, 0.13, 0.15, 1)
-                        love.graphics.rectangle('fill', tileX, tileY, ts, ts)
-                        love.graphics.setColor(0.3, 0.4, 0.5, 0.3)
-                        for i = 2, ts - 2, 6 do
-                            love.graphics.rectangle('fill', tileX + i, tileY + 2, 2, ts - 4)
+                    -- 如果有 tileset，优先使用贴图
+                    if state.hubTileset and state.hubQuads then
+                        local quad = nil
+                        if tile == 0 then quad = state.hubQuads.floor
+                        elseif tile == 2 then quad = state.hubQuads.grate
+                        elseif tile == 3 then quad = state.hubQuads.energy
+                        elseif tile == 1 then quad = state.hubQuads.wall
                         end
-                    elseif tile == 3 then -- 能源走廊
-                        love.graphics.setColor(0.1, 0.12, 0.15, 1)
-                        love.graphics.rectangle('fill', tileX, tileY, ts, ts)
-                        local pulse = 0.4 + 0.3 * math.sin(love.timer.getTime() * 4)
-                        love.graphics.setColor(0.2, 0.5, 1, 0.2 * pulse)
-                        love.graphics.rectangle('fill', tileX + 4, tileY + 4, ts - 8, ts - 8)
-                        love.graphics.setColor(0.3, 0.7, 1, 0.4 * pulse)
-                        love.graphics.rectangle('line', tileX + 4, tileY + 4, ts - 8, ts - 8)
-                    elseif tile == 1 then -- 墙壁 (厚重金属)
-                        love.graphics.setColor(0.08, 0.09, 0.12, 1)
-                        love.graphics.rectangle('fill', tileX, tileY, ts, ts)
-                        -- 增加金属面板细节
-                        love.graphics.setColor(1, 1, 1, 0.08)
-                        love.graphics.rectangle('line', tileX + 2, tileY + 2, ts - 4, ts - 4)
-                        love.graphics.setColor(0.4, 0.5, 0.6, 0.2)
-                        love.graphics.rectangle('fill', tileX + 6, tileY + 6, ts - 12, ts - 12)
+                        
+                        if quad then
+                            love.graphics.setColor(1, 1, 1, 1)
+                            -- ts 是 32, quad 是 128x128, 所以缩放是 0.25
+                            love.graphics.draw(state.hubTileset, quad, tileX, tileY, 0, ts/128, ts/128)
+                        end
+                    else
+                        -- Fallback for missing assets
+                        if tile == 0 then -- 基础地板 (暗灰色金属面板)
+                            love.graphics.setColor(0.15, 0.16, 0.18, 1)
+                            love.graphics.rectangle('fill', tileX, tileY, ts, ts)
+                            love.graphics.setColor(1, 1, 1, 0.05)
+                            love.graphics.rectangle('line', tileX, tileY, ts, ts)
+                        elseif tile == 2 then -- 格栅地板
+                            love.graphics.setColor(0.12, 0.13, 0.15, 1)
+                            love.graphics.rectangle('fill', tileX, tileY, ts, ts)
+                            love.graphics.setColor(0.3, 0.4, 0.5, 0.3)
+                            for i = 2, ts - 2, 6 do
+                                love.graphics.rectangle('fill', tileX + i, tileY + 2, 2, ts - 4)
+                            end
+                        elseif tile == 3 then -- 能源走廊
+                            love.graphics.setColor(0.1, 0.12, 0.15, 1)
+                            love.graphics.rectangle('fill', tileX, tileY, ts, ts)
+                            local pulse = 0.4 + 0.3 * math.sin(love.timer.getTime() * 4)
+                            love.graphics.setColor(0.2, 0.5, 1, 0.2 * pulse)
+                            love.graphics.rectangle('fill', tileX + 4, tileY + 4, ts - 8, ts - 8)
+                            love.graphics.setColor(0.3, 0.7, 1, 0.4 * pulse)
+                            love.graphics.rectangle('line', tileX + 4, tileY + 4, ts - 8, ts - 8)
+                        elseif tile == 1 then -- 墙壁 (厚重金属)
+                            love.graphics.setColor(0.08, 0.09, 0.12, 1)
+                            love.graphics.rectangle('fill', tileX, tileY, ts, ts)
+                            -- 增加金属面板细节
+                            love.graphics.setColor(1, 1, 1, 0.08)
+                            love.graphics.rectangle('line', tileX + 2, tileY + 2, ts - 4, ts - 4)
+                            love.graphics.setColor(0.4, 0.5, 0.6, 0.2)
+                            love.graphics.rectangle('fill', tileX + 6, tileY + 6, ts - 12, ts - 12)
+                        end
                     end
                 end
             end
