@@ -14,6 +14,7 @@ local pets = require('gameplay.pets')
 local ui = require('ui')
 local hud = require('ui.screens.hud')
 local scenes = require('core.scenes.init')
+local input = require('core.input') -- Phase 2: 输入系统集成
 
 -- 强制开启新版 HUD 系统
 draw.useNewHUD = true
@@ -58,7 +59,7 @@ function love.load()
 
     -- 应用待处理的测试场景配置
     if state.pendingScenarioId then
-        arsenal.startRun(state, {skipStartingWeapon = true})
+        arsenal.startRun(state, { skipStartingWeapon = true })
         testScenarios.apply(state, state.pendingScenarioId)
         state.activeScenarioId = state.pendingScenarioId
         state.activeScenarioSeed = state.pendingScenarioSeed
@@ -73,7 +74,8 @@ end
 --- love.update: 每帧逻辑更新钩子
 -- @param dt (number) 自上一帧以来的时间间隔（秒）
 function love.update(dt)
-    scenes.sync(state)   -- 同步外部状态到场景系统
+    input.beginFrame()       -- Phase 2: 重置输入事件状态
+    scenes.sync(state)       -- 同步外部状态到场景系统
     scenes.update(state, dt) -- 分发更新逻辑
 end
 
@@ -94,10 +96,12 @@ function love.mousemoved(x, y, dx, dy)
 end
 
 function love.mousepressed(x, y, button)
+    input.onMousePressed(button) -- Phase 2: 追踪鼠标按下
     scenes.mousepressed(state, x, y, button)
 end
 
 function love.mousereleased(x, y, button)
+    input.onMouseReleased(button) -- Phase 2: 追踪鼠标释放
     scenes.mousereleased(state, x, y, button)
 end
 
@@ -108,7 +112,14 @@ function love.textinput(text)
 end
 
 function love.keypressed(key, scancode, isrepeat)
+    input.onKeyPressed(key) -- Phase 2: 追踪按键按下
     scenes.keypressed(state, key, scancode, isrepeat)
+end
+
+--- love.keyreleased: 键盘释放回调 (Phase 2 新增)
+function love.keyreleased(key)
+    input.onKeyReleased(key) -- Phase 2: 追踪按键释放
+    -- 可以在这里添加其他释放事件处理
 end
 
 --- love.wheelmoved: 鼠标滚轮滚动回调
@@ -121,7 +132,7 @@ end
 function love.quit()
     local analytics = require('systems.analytics')
     analytics.endRun()
-    
+
     -- 尝试刷新日志缓冲区
     if logger.flushIfActive then logger.flushIfActive(state, 'quit') end
 end
