@@ -18,7 +18,7 @@ local function serializeLua(value, depth)
     depth = depth or 0
     local t = type(value)
     if t == "table" then
-        local parts = {"{"}
+        local parts = { "{" }
         for k, v in pairs(value) do
             local keyStr
             if type(k) == "string" then
@@ -47,8 +47,8 @@ local function defaultProfile()
                 slots = {}
             }
         },
-        warframeMods = {slots = {}},
-        companionMods = {slots = {}},
+        warframeMods = { slots = {} },
+        companionMods = { slots = {} },
         modTargetWeapon = 'braton',
         modTargetCategory = 'weapons',
         modSystemVersion = 2,
@@ -91,14 +91,14 @@ function state.loadProfile()
     profile.modTargetWeapon = profile.modTargetWeapon or 'braton'
     profile.modTargetCategory = profile.modTargetCategory or 'weapons'
     profile.equippedMods = profile.equippedMods or {} -- legacy
-    profile.modOrder = profile.modOrder or {} -- legacy
+    profile.modOrder = profile.modOrder or {}         -- legacy
     profile.ownedMods = profile.ownedMods or {}
     profile.modSystemVersion = profile.modSystemVersion or 1
 
     -- 构建验证 MOD key 的集合 (用于清理旧档)
     local function buildModKeySet()
         local set = {}
-        for _, category in ipairs({'warframe', 'weapons', 'companion'}) do
+        for _, category in ipairs({ 'warframe', 'weapons', 'companion' }) do
             for key, _ in pairs(mods.getCatalog(category) or {}) do
                 set[key] = true
             end
@@ -151,7 +151,7 @@ function state.loadProfile()
             local legacyOrder = profile.modOrder or {}
             local hasLegacy = (next(legacyEq) ~= nil) or (type(legacyOrder) == 'table' and #legacyOrder > 0)
             if hasLegacy then
-                profile.weaponMods.braton = profile.weaponMods.braton or {slots = {}}
+                profile.weaponMods.braton = profile.weaponMods.braton or { slots = {} }
                 local lo = profile.weaponMods.braton
                 local slots = lo.slots or {}
                 local idx = 1
@@ -171,7 +171,10 @@ function state.loadProfile()
                         local nk = normalizeModKey(k)
                         local found = false
                         for _, ok in pairs(slots) do
-                            if ok == nk then found = true break end
+                            if ok == nk then
+                                found = true
+                                break
+                            end
                         end
                         if not found then table.insert(extra, nk) end
                     end
@@ -205,7 +208,10 @@ function state.loadProfile()
                         local nk = normalizeModKey(modKey)
                         local found = false
                         for _, ok in pairs(slots) do
-                            if ok == nk then found = true break end
+                            if ok == nk then
+                                found = true
+                                break
+                            end
                         end
                         if not found then table.insert(extra, nk) end
                     end
@@ -216,7 +222,7 @@ function state.loadProfile()
                     slots[idx] = nk
                     idx = idx + 1
                 end
-                profile.weaponMods[weaponKey] = {slots = slots}
+                profile.weaponMods[weaponKey] = { slots = slots }
             elseif lo and lo.slots then
                 local slots = {}
                 for slotIdx, modKey in pairs(lo.slots) do
@@ -238,16 +244,16 @@ function state.loadProfile()
             if modKey then profile.ownedMods[modKey] = true end
         end
     end
-    profile.warframeMods = profile.warframeMods or {slots = {}}
-    profile.companionMods = profile.companionMods or {slots = {}}
+    profile.warframeMods = profile.warframeMods or { slots = {} }
+    profile.companionMods = profile.companionMods or { slots = {} }
     profile.startPetKey = profile.startPetKey or 'pet_magnet'
     profile.petModules = profile.petModules or {}
     profile.petRanks = profile.petRanks or {}
     profile.currency = profile.currency or 0
     if next(profile.weaponMods) == nil then
-        profile.weaponMods.braton = {slots = {}}
+        profile.weaponMods.braton = { slots = {} }
     end
-    profile.weaponMods[profile.modTargetWeapon] = profile.weaponMods[profile.modTargetWeapon] or {slots = {}}
+    profile.weaponMods[profile.modTargetWeapon] = profile.weaponMods[profile.modTargetWeapon] or { slots = {} }
     return profile
 end
 
@@ -259,7 +265,7 @@ end
 
 --- state.applyPersistentMods: 将存档中的 MOD 配置应用到当前的运行清单（inventory）中。
 function state.applyPersistentMods()
-    state.inventory.mods = {} -- legacy
+    state.inventory.mods = {}     -- legacy
     state.inventory.modOrder = {} -- legacy
     state.inventory.weaponMods = {}
     state.inventory.warframeMods = nil
@@ -269,7 +275,7 @@ function state.applyPersistentMods()
 
     -- 应用每把武器的专属 MOD
     for weaponKey, lo in pairs(state.profile.weaponMods or {}) do
-        local entry = {mods = {}, modOrder = {}}
+        local entry = { mods = {}, modOrder = {} }
         local slots = (lo and lo.slots) or {}
         for i = 1, 8 do
             local modKey = slots[i]
@@ -284,7 +290,7 @@ function state.applyPersistentMods()
     end
 
     local function buildEntry(loadout)
-        local entry = {mods = {}, modOrder = {}}
+        local entry = { mods = {}, modOrder = {} }
         local slots = (loadout and loadout.slots) or {}
         for i = 1, 8 do
             local modKey = slots[i]
@@ -336,7 +342,8 @@ function state.gainGold(amount, ctx)
         local p = ctx.player or state.player or {}
         local x = ctx.x or p.x or 0
         local y = ctx.y or (p.y and (p.y - 60)) or 0
-        table.insert(state.texts, {x = x, y = y, text = "+" .. tostring(amt) .. " GOLD", color = {0.95, 0.9, 0.45}, life = ctx.life or 0.9})
+        table.insert(state.texts,
+            { x = x, y = y, text = "+" .. tostring(amt) .. " GOLD", color = { 0.95, 0.9, 0.45 }, life = ctx.life or 0.9 })
     end
 
     if state and state.augments and state.augments.dispatch then
@@ -357,12 +364,12 @@ function state.init()
     end
 
     state.gameState = 'MAIN_MENU'
-    state.benchmarkMode = false 
+    state.benchmarkMode = false
     state.noLevelUps = false
     state.testArena = false
     state.pendingLevelUps = 0
     state.gameTimer = 0
-    
+
     -- === 字体系统 (支持中文) ===
     local fontPath = "fonts/ZZGFBHV1.otf"
     local ok, font = pcall(love.graphics.newFont, fontPath, 14)
@@ -382,29 +389,35 @@ function state.init()
 
     -- === 玩家状态 (Player Entity) ===
     state.player = {
-        x = 400, y = 300,
+        x = 400,
+        y = 300,
         size = 28,
         facing = 1,
         isMoving = false,
-        hp = 100, maxHp = 100,
-        shield = 50, maxShield = 50,
-        energy = 100, maxEnergy = 100,
-        level = 0, xp = 0, xpToNextLevel = xpBase,
+        hp = 100,
+        maxHp = 100,
+        shield = 50,
+        maxShield = 50,
+        energy = 100,
+        maxEnergy = 100,
+        level = 0,
+        xp = 0,
+        xpToNextLevel = xpBase,
         invincibleTimer = 0,
         shieldDelayTimer = 0,
-        dash = {charges = 2, maxCharges = 2, rechargeTimer = 0, timer = 0, dx = 1, dy = 0},
-        class = 'volt', -- 当前战甲类别
-        ability = {cooldown = 0, timer = 0}, -- 技能状态
-        quickAbilityIndex = 1, 
-        
+        dash = { charges = 2, maxCharges = 2, rechargeTimer = 0, timer = 0, dx = 1, dy = 0 },
+        class = 'volt',                      -- 当前战甲类别
+        ability = { cooldown = 0, timer = 0 }, -- 技能状态
+        quickAbilityIndex = 1,
+
         -- 武器插槽 (Warframe 风格: 主手 + 近战)
         weaponSlots = {
             ranged = nil,
             melee = nil,
-            reserved = nil   -- 预留位，用于未来的职业被动
+            reserved = nil     -- 预留位，用于未来的职业被动
         },
         activeSlot = 'ranged', -- 当前激活的武器槽位
-        
+
         -- 弓箭蓄力状态
         bowCharge = {
             isCharging = false,
@@ -412,32 +425,32 @@ function state.init()
             chargeTime = 0,
             weaponKey = nil
         },
-        
+
         -- === 基础战斗属性 (Unified Stats) ===
         stats = {
             moveSpeed = 110,
-            might = 1.0,      -- 威力倍率
-            cooldown = 1.0,   -- 冷却倍率
-            area = 1.0,       -- 攻击范围
-            speed = 1.0,      -- 攻击速度
+            might = 1.0,    -- 威力倍率
+            cooldown = 1.0, -- 冷却倍率
+            area = 1.0,     -- 攻击范围
+            speed = 1.0,    -- 攻击速度
             pickupRange = 120,
             armor = 0,
             regen = 0,
             energyRegen = 2.0,
             maxShield = 100,
             maxEnergy = 100,
-            
+
             -- WF 四维属性
-            abilityStrength = 1.0,  -- 技能强度
+            abilityStrength = 1.0,   -- 技能强度
             abilityEfficiency = 1.0, -- 技能效率
             abilityDuration = 1.0,   -- 技能持续时间
             abilityRange = 1.0,      -- 技能范围
 
             dashCharges = 1,
             dashCooldown = 3,
-            dashDuration = 0.14,     
-            dashDistance = 56,       
-            dashInvincible = 0.14    
+            dashDuration = 0.14,
+            dashDistance = 56,
+            dashInvincible = 0.14
         }
     }
 
@@ -458,7 +471,7 @@ function state.init()
             },
             startMelee = 'skana',
             startRanged = 'braton',
-            preferredUpgrades = {'skana', 'dual_zoren', 'braton', 'lato'},
+            preferredUpgrades = { 'skana', 'dual_zoren', 'braton', 'lato' },
             ability = {
                 name = "Slash Dash",
                 cooldown = 6.0
@@ -480,7 +493,7 @@ function state.init()
             },
             startMelee = 'skana',
             startRanged = 'braton',
-            preferredUpgrades = {'braton', 'lanka', 'atomos', 'static_orb'},
+            preferredUpgrades = { 'braton', 'lanka', 'atomos', 'static_orb' },
             ability = {
                 name = "Pull",
                 cooldown = 5.0
@@ -492,17 +505,17 @@ function state.init()
             baseStats = {
                 maxHp = 85,
                 armor = 15,
-                moveSpeed = 155,           
+                moveSpeed = 155,
                 might = 1.0,
                 maxShield = 80,
-                maxEnergy = 200,           
+                maxEnergy = 200,
                 dashCharges = 1,
-                abilityStrength = 1.15,    
-                statusChance = 0.10        
+                abilityStrength = 1.15,
+                statusChance = 0.10
             },
-            startWeapon = 'braton',    
-            startSecondary = 'lato',     
-            preferredUpgrades = {'lanka', 'thunder_loop', 'atomos', 'braton'},
+            startWeapon = 'braton',
+            startSecondary = 'lato',
+            preferredUpgrades = { 'lanka', 'thunder_loop', 'atomos', 'braton' },
             ability = {
                 name = "Shock",
                 cooldown = 4.0
@@ -515,7 +528,7 @@ function state.init()
 
     -- === 仓库与背包系统 (Inventory) ===
     state.inventory = {
-        weapons = {},  
+        weapons = {},
         passives = {},
         mods = {},
         modOrder = {},
@@ -525,7 +538,7 @@ function state.init()
         weaponSlots = {
             ranged = nil,
             melee = nil,
-            extra = nil    
+            extra = nil
         },
         activeSlot = 'ranged',
         canUseExtraSlot = false
@@ -573,7 +586,7 @@ function state.init()
         phase = 'init',
         roomIndex = 0,
         bossRoom = 8,
-        useXp = false,          
+        useXp = false,
         xpGivesUpgrades = false,
         eliteDropsChests = false,
         eliteRoomBonusUpgrades = 1
